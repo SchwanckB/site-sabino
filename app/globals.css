@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-hairline;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    /* Compensa o header fixo ao navegar por ancoras. */
+    scroll-padding-top: 5.5rem;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-ink text-foreground font-sans antialiased;
+    /* Nenhuma secao pode gerar rolagem lateral em telas de 320px. */
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display uppercase tracking-tight;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-crimson ring-offset-2 ring-offset-ink rounded-sm;
+  }
+
+  ::selection {
+    @apply bg-crimson text-foreground;
+  }
+
+  /* Scrollbar discreta, so em ponteiros finos. */
+  @media (pointer: fine) {
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0e0e10;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #2a2a30;
+      border-radius: 999px;
+      border: 2px solid #0e0e10;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3a3a42;
+    }
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-container px-5 sm:px-6 lg:px-8;
+  }
+
+  /* Superficie padrao: glassmorphism sutil, nunca um card chapado. */
+  .surface-card {
+    @apply rounded-2xl border border-hairline bg-white/[.04] backdrop-blur-md;
+  }
+
+  .eyebrow {
+    @apply font-display text-xs uppercase tracking-[0.22em] text-crimson sm:text-sm;
+  }
+
+  /* Alvo de toque minimo de 44px em todos os botoes. */
+  .btn {
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-5 py-3
+           text-sm font-semibold transition-all duration-300 ease-organic
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-crimson text-foreground hover:bg-crimson-hover hover:shadow-glow
+           active:scale-[.98];
+  }
+
+  .btn-secondary {
+    @apply btn border border-hairline bg-white/[.04] text-foreground backdrop-blur-md
+           hover:border-white/20 hover:bg-white/[.08] active:scale-[.98];
+  }
+
+  .btn-ghost {
+    @apply btn text-muted hover:text-foreground;
+  }
+
+  /* Textura de granulado: tira o aspecto "chapado" dos fundos escuros. */
+  .grain::after {
+    content: '';
+    @apply pointer-events-none absolute inset-0 opacity-[.035];
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Mascara usada nas faixas de luz do hero. */
+  .mask-fade-b {
+    mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+  }
+}
+
+/*
+ * Rede de seguranca: alem do `useReducedMotion` do Framer Motion, zera
+ * qualquer animacao CSS remanescente.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
