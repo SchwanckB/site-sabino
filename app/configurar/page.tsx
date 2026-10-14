@@ -1,86 +1,100 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { listMissingServices } from '@/lib/env';
+import { runHealthChecks, type CheckState } from '@/lib/health';
+import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = {
-  title: 'Configuração pendente',
+  title: 'Diagnóstico',
   robots: { index: false, follow: false },
 };
 
 export const dynamic = 'force-dynamic';
 
+const STATE_STYLE: Readonly<Record<CheckState, string>> = {
+  ok: 'border-emerald-500/40 bg-emerald-500/[.06]',
+  erro: 'border-crimson/50 bg-crimson/[.07]',
+  nao_configurado: 'border-amber-500/40 bg-amber-500/[.06]',
+};
+
+const STATE_LABEL: Readonly<Record<CheckState, string>> = {
+  ok: 'Funcionando',
+  erro: 'Com erro',
+  nao_configurado: 'Não configurado',
+};
+
 /**
- * Tela de diagnóstico. Em vez de a aplicação quebrar com "publishable key not
- * valid", ela diz exatamente qual variável falta e onde consegui-la.
+ * Diagnóstico dos serviços.
+ *
+ * Diferente de só listar variáveis faltando, aqui o Redis é realmente chamado
+ * — grava, lê e apaga uma chave. Um token errado ou um banco pausado aparece
+ * como erro concreto, com a mensagem do servidor, em vez de virar um genérico
+ * "erro no banco" na cara do aluno.
  */
-export default function ConfigurarPage() {
-  const missing = listMissingServices();
-  const ready = missing.filter((item) => item.required).length === 0;
+export default async function ConfigurarPage() {
+  const checks = await runHealthChecks();
+  const comProblema = checks.filter((check) => check.state !== 'ok');
+  const bloqueado = checks.some(
+    (check) =>
+      check.state !== 'ok' && check.service !== 'Vercel Blob (documentos)',
+  );
 
   return (
-    <main id="conteudo" className="flex min-h-dvh items-center justify-center px-5 py-16">
-      <div className="w-full max-w-2xl">
-        <p className="eyebrow">Configuração</p>
-        <h1 className="mt-3 text-3xl leading-none sm:text-4xl">
-          {ready ? 'Tudo pronto por aqui' : 'Falta configurar o acesso'}
-        </h1>
-        <p className="mt-4 text-sm leading-relaxed text-muted sm:text-base">
-          {ready
-            ? 'Os serviços obrigatórios estão configurados. Se você chegou nesta tela, tente entrar novamente.'
-            : 'A área de alunos e o painel do administrador precisam dos serviços abaixo. A landing page continua funcionando normalmente sem eles.'}
-        </p>
+    <main id="conteudo" className="mx-auto w-full max-w-2xl px-5 py-16">
+      <p className="eyebrow">Diagnóstico</p>
+      <h1 className="mt-3 text-3xl leading-none sm:text-4xl">
+        {bloqueado ? 'Falta configurar o acesso' : 'Serviços no ar'}
+      </h1>
+      <p className="mt-4 text-sm leading-relaxed text-muted sm:text-base">
+        {bloqueado
+          ? 'A área de alunos precisa dos serviços abaixo. A landing page continua funcionando normalmente sem eles.'
+          : 'Login e banco de dados respondendo. Se você chegou aqui por um erro, tente entrar novamente.'}
+      </p>
 
-        {missing.length > 0 ? (
-          <ul className="mt-10 space-y-4">
-            {missing.map((service) => (
-              <li key={service.key} className="surface-card p-5 sm:p-6">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-lg normal-case tracking-normal">{service.label}</h2>
-                  <span
-                    className={
-                      service.required
-                        ? 'rounded-full bg-crimson/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-crimson'
-                        : 'rounded-full border border-hairline px-2.5 py-1 text-[11px] uppercase tracking-wider text-muted'
-                    }
-                  >
-                    {service.required ? 'Obrigatório' : 'Opcional'}
-                  </span>
-                </div>
+      <ul className="mt-10 space-y-4">
+        {checks.map((check) => (
+          <li
+            key={check.service}
+            className={cn('rounded-2xl border p-5 backdrop-blur-md', STATE_STYLE[check.state])}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-base normal-case tracking-normal text-foreground">
+                {check.service}
+              </h2>
+              <span className="rounded-full border border-current/30 px-2.5 py-1 text-[11px] font-semibold">
+                {STATE_LABEL[check.state]}
+                {check.latencyMs !== null ? ` · ${check.latencyMs}ms` : ''}
+              </span>
+            </div>
 
-                <p className="mt-3 text-sm text-muted">
-                  Onde conseguir: <span className="text-foreground">{service.where}</span>
-                </p>
+            <p className="mt-3 break-words text-sm leading-relaxed text-muted">{check.detail}</p>
+          </li>
+        ))}
+      </ul>
 
-                <ul className="mt-3 space-y-1">
-                  {service.envVars.map((name) => (
-                    <li
-                      key={name}
-                      className="overflow-x-auto rounded-lg border border-hairline bg-white/[.03] px-3 py-2 font-mono text-xs text-foreground"
-                    >
-                      {name}
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        <div className="surface-card mt-8 p-5 text-sm leading-relaxed text-muted sm:p-6">
-          <p className="font-medium text-foreground">Onde colocar essas variáveis</p>
+      {comProblema.length > 0 ? (
+        <div className="surface-card mt-8 p-5 text-sm leading-relaxed text-muted">
+          <p className="font-medium text-foreground">Onde colocar as variáveis</p>
           <p className="mt-2">
             Local: no arquivo <span className="font-mono text-xs">.env.local</span> na raiz do
             projeto. Produção: na Vercel, em{' '}
-            <span className="text-foreground">Settings → Environment Variables</span>, nos três
-            ambientes. Depois de salvar, faça um <span className="text-foreground">Redeploy</span>{' '}
-            — variável de ambiente só vale a partir do próximo build.
+            <span className="text-foreground">Settings → Environment Variables</span>, marcando
+            os três ambientes. Depois de salvar, faça um{' '}
+            <span className="text-foreground">Redeploy</span> — variável de ambiente só vale a
+            partir do próximo build.
           </p>
         </div>
+      ) : null}
 
-        <Link href="/" className="btn-secondary mt-8">
+      <div className="mt-8 flex flex-wrap gap-3">
+        <Link href="/" className="btn-secondary">
           Voltar para o site
         </Link>
+        {!bloqueado ? (
+          <Link href="/entrar" className="btn-primary">
+            Ir para o login
+          </Link>
+        ) : null}
       </div>
     </main>
   );

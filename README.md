@@ -27,7 +27,7 @@ precisa de Clerk + Redis; sem eles, `/painel` e `/admin` redirecionam para
 | `npm run dev` | Servidor de desenvolvimento |
 | `npm run build` | Build de produção |
 | `npm start` | Sobe o build de produção |
-| `npm test` | 86 testes de domínio (Vitest) |
+| `npm test` | 180 testes: domínio, repositórios, Server Actions e diagnóstico |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
 
@@ -190,8 +190,14 @@ torna determinísticos e testáveis:
 | `utils/cpf.ts` | Dígitos verificadores |
 
 ```bash
-npm test   # 86 testes
+npm test   # 180 testes
 ```
+
+Além da lógica pura, os testes sobem um **Redis em memória que fala o protocolo
+REST do Upstash** (`test/upstashMock.ts`) e exercitam os repositórios e as
+Server Actions de verdade — cadastro, aprovação, mensalidade, presença,
+ranking, QR e graduação. Testar só lógica pura deixou passar erros que só
+apareciam com banco conectado.
 
 Todas as comparações de data usam **dias de calendário em `America/Sao_Paulo`**,
 nunca milissegundos — e uma data `YYYY-MM-DD` é tratada como data civil, não
