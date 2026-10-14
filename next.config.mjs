@@ -14,10 +14,21 @@
  * produção com domínio próprio. Sem isso o navegador bloqueia o `clerk.browser.js`
  * e o login simplesmente não carrega.
  */
+/**
+ * O sufixo `:*` é obrigatório, não enfeite.
+ *
+ * Sem porta explícita, a CSP só aceita a porta padrão do esquema (443). O bot
+ * protection do Clerk sonda `*.client.protect.clerk.com` nas portas 8443,
+ * 18443, 2082 e 992 durante a confirmação do código de cadastro — bloqueadas,
+ * a verificação estourava e a tela virava "client-side exception".
+ */
 const CLERK_HOSTS = [
   'https://*.clerk.accounts.dev',
+  'https://*.clerk.accounts.dev:*',
   'https://*.clerk.com',
+  'https://*.clerk.com:*',
   'https://*.clerk.services',
+  'https://*.clerk.services:*',
 ];
 
 const contentSecurityPolicy = [

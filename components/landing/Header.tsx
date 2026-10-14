@@ -132,7 +132,14 @@ export function Header() {
             transition={{ duration: reduceMotion ? 0.15 : 0.35, ease: [0.22, 1, 0.36, 1] }}
             className="absolute inset-x-0 top-0 h-dvh border-b border-hairline bg-ink lg:hidden"
           >
-            <div className="container-page flex h-full flex-col justify-center pb-16 pt-24">
+            {/*
+              O menu rola quando não cabe. Com `justify-center` puro, conteúdo
+              mais alto que a tela tem o topo cortado para fora da viewport —
+              os primeiros itens sumiam atrás da logo em telas de 320px.
+              `min-h-full` deixa o bloco crescer e a rolagem assume.
+            */}
+            <div className="h-full overflow-y-auto overscroll-contain">
+              <div className="container-page flex min-h-full flex-col justify-center pb-12 pt-24">
               <nav aria-label="Navegacao principal (mobile)">
                 <ul className="flex flex-col gap-1">
                   {navLinks.map((link, index) => (
@@ -176,6 +183,7 @@ export function Header() {
                 <a href={`tel:+${siteConfig.whatsappNumber}`} className="btn-secondary w-full">
                   {siteConfig.phoneDisplay}
                 </a>
+              </div>
               </div>
             </div>
           </motion.div>
