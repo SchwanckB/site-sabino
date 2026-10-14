@@ -31,16 +31,26 @@ const CLERK_HOSTS = [
   'https://*.clerk.services:*',
 ];
 
+/**
+ * O bot protection do Clerk é o Cloudflare Turnstile, servido de um domínio
+ * que não é do Clerk. Sem liberar este host, o cadastro parava em
+ * `/cadastro/protect-check` com "Verification didn't complete" — a conta
+ * ficava pela metade (o e-mail já aparecia como cadastrado) e nenhum aluno
+ * conseguia concluir a matrícula.
+ */
+const TURNSTILE_HOST = 'https://challenges.cloudflare.com';
+
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' ${CLERK_HOSTS.join(' ')}`,
+  `script-src 'self' 'unsafe-inline' ${CLERK_HOSTS.join(' ')} ${TURNSTILE_HOST}`,
   "style-src 'self' 'unsafe-inline'",
   // img.clerk.com serve os avatares das contas.
   "img-src 'self' data: blob: https://img.clerk.com https://*.clerk.com",
   "font-src 'self' data:",
-  `connect-src 'self' ${CLERK_HOSTS.join(' ')} https://clerk-telemetry.com`,
+  `connect-src 'self' ${CLERK_HOSTS.join(' ')} ${TURNSTILE_HOST} https://clerk-telemetry.com`,
   // Mapa do Google na seção "Onde estamos" + fluxos em iframe do Clerk.
-  `frame-src https://www.google.com ${CLERK_HOSTS.join(' ')}`,
+  // O Turnstile roda dentro de um iframe próprio.
+  `frame-src https://www.google.com ${CLERK_HOSTS.join(' ')} ${TURNSTILE_HOST}`,
   // O Clerk inicializa workers a partir de blob:.
   "worker-src 'self' blob:",
   "object-src 'none'",
