@@ -45,7 +45,7 @@ export function Hero() {
         <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] lg:gap-16">
           <div className="max-w-2xl">
             <motion.p {...rise(0.05)} className="eyebrow">
-              {siteConfig.city}/{siteConfig.state} &middot; litoral gaucho
+              {siteConfig.city}/{siteConfig.state} &middot; Centro
             </motion.p>
 
             <motion.h1
@@ -54,14 +54,16 @@ export function Hero() {
             >
               Jiu-Jitsu e MMA
               <span className="mt-1 block text-crimson">no tatame certo</span>
+              <span className="sr-only"> em {siteConfig.city}, {siteConfig.state}</span>
             </motion.h1>
 
             <motion.p
               {...rise(0.2)}
               className="mt-6 max-w-xl text-base leading-relaxed text-muted sm:text-lg"
             >
-              Turmas para quem nunca lutou e para quem ja compete. Em {siteConfig.city}, a
-              poucos minutos da praia, com professor no tatame corrigindo aluno por aluno.
+              Turmas para quem nunca lutou e para quem já compete. Jiu-Jitsu, MMA, turma
+              feminina e aulas infantis a partir dos 4 anos — de segunda a sexta, no centro
+              de {siteConfig.city}.
             </motion.p>
 
             <motion.div {...rise(0.28)} className="mt-9 flex flex-col gap-3 sm:flex-row">
@@ -74,9 +76,14 @@ export function Hero() {
                 Agendar aula experimental
               </a>
               <a href="#planos" className="btn-secondary sm:px-7">
-                Ver planos e horarios
+                Ver planos e horários
               </a>
             </motion.div>
+
+            <motion.p {...rise(0.32)} className="mt-4 text-sm text-muted">
+              <span className="font-semibold text-foreground">Duas aulas grátis</span>, sem
+              compromisso. Leve roupa confortável e uma garrafa de água.
+            </motion.p>
 
             <motion.dl
               {...rise(0.36)}

@@ -16,15 +16,15 @@ export function Modalities() {
         <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
           <SectionHeading
             id="modalidades-titulo"
-            eyebrow="O que voce treina"
+            eyebrow="O que você treina"
             title={
               <>
-                Tres caminhos,
+                Três caminhos,
                 <br />
                 um tatame
               </>
             }
-            description="Voce pode comecar por qualquer um deles. Muita gente acaba treinando dois."
+            description="Você pode começar por qualquer um deles. Muita gente acaba treinando dois."
           />
           <Reveal delay={0.12} className="shrink-0">
             <a
@@ -33,7 +33,7 @@ export function Modalities() {
               rel="noopener noreferrer"
               className="btn-secondary"
             >
-              Nao sei por onde comecar
+              Não sei por onde começar
             </a>
           </Reveal>
         </div>

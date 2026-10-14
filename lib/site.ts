@@ -1,79 +1,80 @@
 /**
- * Single source of truth for contact details, URLs and copy that appears in
- * more than one place (header, footer, metadata, JSON-LD).
+ * Fonte unica de contatos, URLs e textos que aparecem em mais de um lugar
+ * (header, rodape, metadata, JSON-LD).
  *
- * Anything flagged `isExample` is placeholder content - replace it before
- * going live. The phone number comes from the official logo, so it is real.
+ * Dados confirmados pela academia. O que ainda for placeholder fica marcado
+ * com `isExample` e exibe aviso visivel na interface.
  */
 
 export const siteConfig = {
   name: 'Sabino Academia',
   shortName: 'Sabino',
   legalName: 'Sabino Academia de Jiu-Jitsu e MMA',
-  tagline: 'Jiu-Jitsu e MMA em Torres, no litoral gaucho',
+  tagline: 'Jiu-Jitsu e MMA em Três Cachoeiras/RS',
   description:
-    'Academia de Jiu-Jitsu e MMA em Torres/RS. Turmas de Jiu-Jitsu adulto, MMA e Jiu-Jitsu Kids, com acompanhamento individual do primeiro dia a faixa preta.',
+    'Academia de Jiu-Jitsu e MMA em Três Cachoeiras/RS. Jiu-Jitsu adulto, MMA, turma feminina e Jiu-Jitsu infantil a partir dos 4 anos, com acompanhamento de graduação do primeiro dia em diante.',
 
-  /** Numero oficial que aparece na logo. Formato internacional, so digitos. */
+  /** Número oficial que aparece na logo. Formato internacional, só dígitos. */
   whatsappNumber: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '5551981691373',
   phoneDisplay: '(51) 98169-1373',
 
-  city: 'Torres',
+  city: 'Três Cachoeiras',
   state: 'RS',
   stateName: 'Rio Grande do Sul',
   country: 'BR',
 
-  /** EXEMPLO - substituir pelo endereco real da academia. */
   address: {
-    isExample: true,
-    street: 'Rua Exemplo, 000',
+    isExample: false,
+    street: 'Rua Josué Maggi, 155',
     district: 'Centro',
-    city: 'Torres',
+    reference: 'atrás da Escola Angelina Maggi',
+    city: 'Três Cachoeiras',
     state: 'RS',
-    postalCode: '95560-000',
+    postalCode: '95580-000',
   },
 
-  /** Mapa em nivel de cidade - nao expoe um endereco que ainda nao foi confirmado. */
-  mapEmbedUrl: 'https://www.google.com/maps?q=Torres,RS,Brasil&z=13&output=embed',
-  mapLinkUrl: 'https://www.google.com/maps/search/?api=1&query=Torres%2C+RS%2C+Brasil',
+  mapEmbedUrl:
+    'https://www.google.com/maps?q=Rua+Josu%C3%A9+Maggi%2C+155+-+Centro%2C+Tr%C3%AAs+Cachoeiras+-+RS&z=17&output=embed',
+  mapLinkUrl:
+    'https://www.google.com/maps/search/?api=1&query=Rua+Josu%C3%A9+Maggi%2C+155+-+Centro%2C+Tr%C3%AAs+Cachoeiras+-+RS',
 
-  /** EXEMPLO - substituir pelos perfis reais. */
   social: {
-    isExample: true,
-    instagram: 'https://instagram.com/',
-    facebook: 'https://facebook.com/',
+    isExample: false,
+    instagram: 'https://instagram.com/sabinoacademia',
+    instagramHandle: '@sabinoacademia',
   },
 
-  /** EXEMPLO - confirmar o horario de atendimento da recepcao. */
+  /** Atendimento confirmado pela academia. */
   openingHours: {
-    isExample: true,
-    weekdays: 'Segunda a sexta, 06h as 22h',
-    saturday: 'Sabado, 09h as 12h',
-    sunday: 'Domingo, fechado',
+    isExample: false,
+    whatsapp: 'WhatsApp em horário comercial',
+    reception: 'Recepção aberta durante os treinos, de segunda a sexta, das 18h30 às 21h30',
+    trainingWindow: { start: '18:30', end: '21:30' },
   },
 } as const;
 
 export type SiteConfig = typeof siteConfig;
 
-/** Endereco em uma linha, como aparece no rodape e no JSON-LD. */
+/** Endereço em uma linha, como aparece no rodapé e no JSON-LD. */
 export function formatAddress(): string {
   const { street, district, city, state } = siteConfig.address;
   return `${street} - ${district}, ${city}/${state}`;
 }
 
-/** Monta o link do WhatsApp com a mensagem ja preenchida. */
+/** Monta o link do WhatsApp com a mensagem já preenchida. */
 export function whatsappLink(message: string): string {
   return `https://wa.me/${siteConfig.whatsappNumber}?text=${encodeURIComponent(message)}`;
 }
 
 export const whatsappMessages = {
-  trial: 'Ola! Vim pelo site e quero agendar uma aula experimental.',
-  plans: 'Ola! Vim pelo site e quero saber mais sobre os planos.',
-  schedule: 'Ola! Vim pelo site e quero confirmar os horarios das turmas.',
-  kids: 'Ola! Vim pelo site e quero saber sobre a turma Kids.',
+  trial: 'Olá! Vim pelo site e quero agendar as duas aulas experimentais gratuitas.',
+  plans: 'Olá! Vim pelo site e quero saber mais sobre os planos.',
+  schedule: 'Olá! Vim pelo site e quero confirmar os horários das turmas.',
+  kids: 'Olá! Vim pelo site e quero saber sobre as turmas infantis.',
+  women: 'Olá! Vim pelo site e quero saber sobre a turma feminina de Jiu-Jitsu.',
 } as const;
 
-/** URL publica do site, usada em metadata, Open Graph e JSON-LD. */
+/** URL pública do site, usada em metadata, Open Graph e JSON-LD. */
 export function siteUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_SITE_URL;
   if (fromEnv && fromEnv.length > 0) {
@@ -88,7 +89,7 @@ export function siteUrl(): string {
 export const navLinks = [
   { href: '#modalidades', label: 'Modalidades' },
   { href: '#planos', label: 'Planos' },
-  { href: '#horarios', label: 'Horarios' },
-  { href: '#duvidas', label: 'Duvidas' },
+  { href: '#horarios', label: 'Horários' },
+  { href: '#duvidas', label: 'Dúvidas' },
   { href: '#onde-estamos', label: 'Onde estamos' },
 ] as const;

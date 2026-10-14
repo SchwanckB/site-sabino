@@ -1,7 +1,7 @@
 import Image from 'next/image';
 
 import { Reveal, SectionHeading, Stagger, StaggerItem } from '@/components/ui/Reveal';
-import { EXAMPLE_DATA_NOTICE, testimonials } from '@/data/seed';
+import { testimonials } from '@/data/seed';
 import { initials } from '@/lib/utils';
 
 export function Testimonials() {
@@ -26,8 +26,8 @@ export function Testimonials() {
               role="note"
               className="rounded-xl border border-dashed border-crimson/40 bg-crimson/[.06] px-4 py-3 text-xs leading-relaxed text-muted"
             >
-              {EXAMPLE_DATA_NOTICE} Publique apenas depoimentos reais, com autorizacao de uso
-              de nome e imagem.
+              Depoimentos de demonstração. Publique apenas relatos reais, com autorização de
+              uso de nome e imagem.
             </p>
           </Reveal>
         ) : null}

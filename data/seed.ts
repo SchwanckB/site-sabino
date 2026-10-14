@@ -1,20 +1,21 @@
 /**
  * ===========================================================================
- * DADOS DE EXEMPLO - SUBSTITUIR ANTES DE PUBLICAR
+ * Conteúdo da landing page
  * ===========================================================================
  *
- * Precos, horarios, depoimentos e textos de FAQ abaixo sao PLACEHOLDERS.
- * Nada aqui foi confirmado com a academia. Cada bloco carrega a flag
- * `isExample` para que a interface possa sinalizar visualmente o que ainda
- * precisa ser revisado (ver o aviso no topo das secoes Planos e Horarios).
+ * A GRADE DE HORÁRIOS é real, confirmada pela academia.
  *
- * Ao conectar o Upstash Redis, a grade real passa a vir de `schedule:classes`
- * e este arquivo continua servindo apenas como fallback. Ver lib/schedule.ts.
+ * Preços, depoimentos, números e algumas respostas do FAQ ainda são
+ * PLACEHOLDERS — cada bloco carrega `isExample` para que a interface sinalize
+ * visualmente o que falta revisar.
+ *
+ * Ao conectar o Upstash Redis, a grade passa a vir de `schedule:classes` e
+ * este arquivo continua como fallback. Ver lib/schedule.ts.
  * ===========================================================================
  */
 
 export const EXAMPLE_DATA_NOTICE =
-  'Conteudo de demonstracao: valores e horarios ainda nao confirmados pela academia.';
+  'Conteúdo de demonstração: valores ainda não confirmados pela academia.';
 
 /* -------------------------------------------------------------------------- */
 /* Modalidades                                                                */
@@ -37,32 +38,32 @@ export const modalities: readonly Modality[] = [
   {
     id: 'jiu-jitsu',
     name: 'Jiu-Jitsu',
-    tagline: 'Com kimono, do primeiro dia a faixa preta',
+    tagline: 'De segunda a sexta, do primeiro dia à faixa preta',
     description:
-      'Base solida de quedas, passagem de guarda e finalizacoes. As turmas sao divididas por nivel, entao quem chega sem nenhuma experiencia treina no proprio ritmo, com acompanhamento direto do professor.',
-    highlights: ['Turmas iniciante e avancada', 'Graduacao acompanhada', 'Treino com kimono'],
+      'Base sólida de quedas, passagem de guarda e finalizações. A turma principal treina todos os dias úteis às 20h30, e quem chega sem nenhuma experiência começa pelo fundamento, no próprio ritmo, com correção direta do professor.',
+    highlights: ['Segunda a sexta, 20h30', 'Turma feminina terça e quinta', 'Graduação acompanhada'],
     imageSlot: '/images/modalidade-jiu-jitsu.jpg',
     imageAlt: 'Treino de Jiu-Jitsu com kimono no tatame da Sabino Academia',
   },
   {
     id: 'mma',
     name: 'MMA',
-    tagline: 'Trocacao, clinch e solo em um treino so',
+    tagline: 'Trocação, clinch e solo em um treino só',
     description:
-      'Boxe, muay thai, wrestling e solo integrados. Serve tanto para quem quer condicionamento pesado quanto para quem pensa em competir - a intensidade e ajustada por aluno.',
-    highlights: ['Preparacao fisica inclusa', 'Sparring supervisionado', 'Sem kimono'],
+      'Boxe, muay thai, wrestling e solo integrados, três vezes por semana. Serve tanto para quem quer condicionamento pesado quanto para quem pensa em competir — a intensidade é ajustada por aluno.',
+    highlights: ['Segunda, quarta e sexta, 19h30', 'Preparação física inclusa', 'Sem kimono'],
     imageSlot: '/images/modalidade-mma.jpg',
-    imageAlt: 'Treino de MMA com luvas e foco em trocacao na Sabino Academia',
+    imageAlt: 'Treino de MMA com luvas e foco em trocação na Sabino Academia',
   },
   {
     id: 'kids',
-    name: 'Jiu-Jitsu Kids',
-    tagline: 'Disciplina e defesa pessoal para criancas',
+    name: 'Kids e Infantil',
+    tagline: 'A partir dos 4 anos, com turma separada por idade',
     description:
-      'Aulas pensadas para a faixa de 4 a 15 anos, com progressao por graus e tarjas. Trabalha coordenacao, respeito e defesa pessoal sem estimular agressividade.',
-    highlights: ['12 graus com tarjas', 'Relatorio de evolucao', 'Turmas por faixa etaria'],
+      'Duas turmas distintas, porque criança de 5 anos e adolescente de 14 não treinam igual. A Kids (4 a 8 anos) trabalha coordenação, disciplina e convivência através da brincadeira dirigida. A Infantil (9 a 16 anos) aprofunda a técnica, a defesa pessoal e a progressão por graus e tarjas.',
+    highlights: ['Kids 4 a 8: segunda e quinta', 'Infantil 9 a 16: terça e sexta', '12 graus com tarjas'],
     imageSlot: '/images/modalidade-kids.jpg',
-    imageAlt: 'Criancas em aula de Jiu-Jitsu Kids na Sabino Academia',
+    imageAlt: 'Crianças em aula de Jiu-Jitsu infantil na Sabino Academia',
   },
 ] as const;
 
@@ -86,12 +87,12 @@ export const plans: readonly Plan[] = [
     id: 'mensal',
     name: 'Mensal',
     priceLabel: 'R$ 000',
-    periodLabel: '/mes',
-    summary: 'Sem fidelidade. Bom para quem esta comecando e quer testar a rotina.',
+    periodLabel: '/mês',
+    summary: 'Sem fidelidade. Bom para quem está começando e quer testar a rotina.',
     features: [
       'Acesso a uma modalidade',
-      'Horarios livres dentro da grade',
-      'Avaliacao inicial com o professor',
+      'Horários livres dentro da grade',
+      'Avaliação inicial com o professor',
     ],
     highlighted: false,
     isExample: true,
@@ -100,12 +101,12 @@ export const plans: readonly Plan[] = [
     id: 'trimestral',
     name: 'Trimestral',
     priceLabel: 'R$ 000',
-    periodLabel: '/mes',
-    summary: 'O plano que a maioria escolhe: tres meses e tempo suficiente para criar constancia.',
+    periodLabel: '/mês',
+    summary: 'O plano que a maioria escolhe: três meses é tempo suficiente para criar constância.',
     features: [
       'Jiu-Jitsu + MMA liberados',
-      'Horarios livres dentro da grade',
-      'Acompanhamento de graduacao',
+      'Horários livres dentro da grade',
+      'Acompanhamento de graduação',
       'Acesso ao app do aluno',
     ],
     highlighted: true,
@@ -115,13 +116,13 @@ export const plans: readonly Plan[] = [
     id: 'anual',
     name: 'Anual',
     priceLabel: 'R$ 000',
-    periodLabel: '/mes',
-    summary: 'Melhor valor por mes para quem ja decidiu que o treino faz parte da rotina.',
+    periodLabel: '/mês',
+    summary: 'Melhor valor por mês para quem já decidiu que o treino faz parte da rotina.',
     features: [
       'Todas as modalidades',
-      'Horarios livres dentro da grade',
-      'Acompanhamento de graduacao',
-      'Prioridade em seminarios e eventos',
+      'Horários livres dentro da grade',
+      'Acompanhamento de graduação',
+      'Prioridade em seminários e eventos',
     ],
     highlighted: false,
     isExample: true,
@@ -129,20 +130,20 @@ export const plans: readonly Plan[] = [
 ] as const;
 
 /* -------------------------------------------------------------------------- */
-/* Grade de horarios (EXEMPLO - fallback de schedule:classes)                  */
+/* Grade de horários (REAL — fallback de schedule:classes)                     */
 /* -------------------------------------------------------------------------- */
 
-/** 0 = domingo ... 6 = sabado (mesma convencao de `Date.getDay`). */
+/** 0 = domingo ... 6 = sábado (mesma convenção de `Date.getDay`). */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export const weekdayLabels: Readonly<Record<Weekday, string>> = {
   0: 'Domingo',
   1: 'Segunda',
-  2: 'Terca',
+  2: 'Terça',
   3: 'Quarta',
   4: 'Quinta',
   5: 'Sexta',
-  6: 'Sabado',
+  6: 'Sábado',
 };
 
 export const weekdayShortLabels: Readonly<Record<Weekday, string>> = {
@@ -152,7 +153,7 @@ export const weekdayShortLabels: Readonly<Record<Weekday, string>> = {
   3: 'Qua',
   4: 'Qui',
   5: 'Sex',
-  6: 'Sab',
+  6: 'Sáb',
 };
 
 export interface ClassSlot {
@@ -168,40 +169,53 @@ export interface ClassSlot {
 
 export interface Schedule {
   readonly classes: readonly ClassSlot[];
-  /** `true` quando a grade veio do seed e nao do Redis. */
+  /** `true` quando a grade veio do seed e não do Redis. */
   readonly isExample: boolean;
   readonly updatedAt: string | null;
 }
 
-const exampleClasses: readonly ClassSlot[] = [
-  { id: 'seg-0700-jj', weekday: 1, startTime: '07:00', endTime: '08:00', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os niveis' },
-  { id: 'seg-1800-kids', weekday: 1, startTime: '18:00', endTime: '19:00', title: 'Jiu-Jitsu Kids', modality: 'kids', level: '4 a 15 anos' },
-  { id: 'seg-1930-jj', weekday: 1, startTime: '19:30', endTime: '21:00', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Iniciante' },
+/**
+ * Grade confirmada pela academia:
+ *   Kids (4 a 8 anos)      — segunda e quinta,   18h30 às 19h30
+ *   Infantil (9 a 16 anos) — terça e sexta,      18h30 às 19h30
+ *   MMA                    — segunda, quarta e sexta, 19h30 às 20h30
+ *   Jiu-Jitsu feminino     — terça e quinta,     19h30 às 20h30
+ *   Jiu-Jitsu              — segunda a sexta,    20h30 às 21h30
+ */
+const realClasses: readonly ClassSlot[] = [
+  // Segunda
+  { id: 'seg-1830-kids', weekday: 1, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Kids', modality: 'kids', level: '4 a 8 anos' },
+  { id: 'seg-1930-mma', weekday: 1, startTime: '19:30', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os níveis' },
+  { id: 'seg-2030-jj', weekday: 1, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis' },
 
-  { id: 'ter-0700-mma', weekday: 2, startTime: '07:00', endTime: '08:00', title: 'MMA', modality: 'mma', level: 'Todos os niveis' },
-  { id: 'ter-1900-mma', weekday: 2, startTime: '19:00', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os niveis' },
+  // Terça
+  { id: 'ter-1830-infantil', weekday: 2, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Infantil', modality: 'kids', level: '9 a 16 anos' },
+  { id: 'ter-1930-jj-fem', weekday: 2, startTime: '19:30', endTime: '20:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Turma feminina' },
+  { id: 'ter-2030-jj', weekday: 2, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis' },
 
-  { id: 'qua-0700-jj', weekday: 3, startTime: '07:00', endTime: '08:00', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os niveis' },
-  { id: 'qua-1800-kids', weekday: 3, startTime: '18:00', endTime: '19:00', title: 'Jiu-Jitsu Kids', modality: 'kids', level: '4 a 15 anos' },
-  { id: 'qua-1930-jj', weekday: 3, startTime: '19:30', endTime: '21:00', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Avancado' },
+  // Quarta
+  { id: 'qua-1930-mma', weekday: 3, startTime: '19:30', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os níveis' },
+  { id: 'qua-2030-jj', weekday: 3, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis' },
 
-  { id: 'qui-0700-mma', weekday: 4, startTime: '07:00', endTime: '08:00', title: 'MMA', modality: 'mma', level: 'Todos os niveis' },
-  { id: 'qui-1900-mma', weekday: 4, startTime: '19:00', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os niveis' },
+  // Quinta
+  { id: 'qui-1830-kids', weekday: 4, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Kids', modality: 'kids', level: '4 a 8 anos' },
+  { id: 'qui-1930-jj-fem', weekday: 4, startTime: '19:30', endTime: '20:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Turma feminina' },
+  { id: 'qui-2030-jj', weekday: 4, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis' },
 
-  { id: 'sex-1800-kids', weekday: 5, startTime: '18:00', endTime: '19:00', title: 'Jiu-Jitsu Kids', modality: 'kids', level: '4 a 15 anos' },
-  { id: 'sex-1930-jj', weekday: 5, startTime: '19:30', endTime: '21:00', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os niveis' },
-
-  { id: 'sab-1000-open', weekday: 6, startTime: '10:00', endTime: '11:30', title: 'Treino livre', modality: 'jiu-jitsu', level: 'Open mat' },
+  // Sexta
+  { id: 'sex-1830-infantil', weekday: 5, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Infantil', modality: 'kids', level: '9 a 16 anos' },
+  { id: 'sex-1930-mma', weekday: 5, startTime: '19:30', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os níveis' },
+  { id: 'sex-2030-jj', weekday: 5, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis' },
 ] as const;
 
 export const seedSchedule: Schedule = {
-  classes: exampleClasses,
-  isExample: true,
+  classes: realClasses,
+  isExample: false,
   updatedAt: null,
 };
 
 /* -------------------------------------------------------------------------- */
-/* Beneficios                                                                 */
+/* Benefícios                                                                 */
 /* -------------------------------------------------------------------------- */
 
 export interface Benefit {
@@ -213,39 +227,39 @@ export interface Benefit {
 export const benefits: readonly Benefit[] = [
   {
     id: 'acompanhamento',
-    title: 'Professor no tatame, nao na sala',
+    title: 'Professor no tatame, não na sala',
     description:
-      'Turmas com tamanho controlado para que cada aluno receba correcao individual na mesma aula.',
+      'Turmas com tamanho controlado para que cada aluno receba correção individual na mesma aula.',
   },
   {
     id: 'iniciantes',
-    title: 'Comecar do zero e normal',
+    title: 'Começar do zero é normal',
     description:
-      'A maior parte de quem entra nunca lutou. A primeira semana e so entender a base, sem sparring.',
+      'A maior parte de quem entra nunca lutou. A primeira semana é só entender a base, sem sparring.',
+  },
+  {
+    id: 'turma-feminina',
+    title: 'Turma feminina própria',
+    description:
+      'Jiu-Jitsu feminino às terças e quintas, 19h30: mesmo conteúdo técnico, em um ambiente para começar com confiança.',
+  },
+  {
+    id: 'infantil',
+    title: 'Criança treina com criança da idade dela',
+    description:
+      'Kids de 4 a 8 anos e Infantil de 9 a 16 em turmas separadas, cada uma com linguagem e exigência próprias.',
   },
   {
     id: 'graduacao',
-    title: 'Graduacao com criterio',
+    title: 'Graduação com critério',
     description:
-      'Grau e faixa saem por tempo de treino, frequencia e evolucao tecnica - tudo registrado no app.',
+      'Grau e faixa saem por tempo de treino, frequência e evolução técnica — tudo registrado no app.',
   },
   {
     id: 'app',
     title: 'Seu progresso no celular',
     description:
-      'Check-in por QR Code, historico de treinos, ranking da academia e status da mensalidade.',
-  },
-  {
-    id: 'kids',
-    title: 'Kids com progressao clara',
-    description:
-      'Doze graus com tarjas brancas, vermelhas e amarelas. Os pais acompanham cada etapa.',
-  },
-  {
-    id: 'comunidade',
-    title: 'Treino que cabe no verao de Torres',
-    description:
-      'Grade pensada para a rotina do litoral: cedo antes do trabalho ou no fim da tarde.',
+      'Check-in por QR Code, histórico de treinos, ranking da academia e status da mensalidade.',
   },
 ] as const;
 
@@ -267,101 +281,109 @@ export const testimonials: readonly Testimonial[] = [
   {
     id: 't1',
     name: 'Nome do aluno',
-    role: 'Faixa azul - exemplo',
+    role: 'Faixa azul — exemplo',
     quote:
-      'Depoimento de exemplo. Substitua por um relato real de aluno, com autorizacao de uso de imagem e nome.',
+      'Depoimento de exemplo. Substitua por um relato real de aluno, com autorização de uso de imagem e nome.',
     avatarSlot: null,
     isExample: true,
   },
   {
     id: 't2',
     name: 'Nome da aluna',
-    role: 'Turma de MMA - exemplo',
+    role: 'Turma feminina — exemplo',
     quote:
-      'Depoimento de exemplo. Substitua por um relato real de aluno, com autorizacao de uso de imagem e nome.',
+      'Depoimento de exemplo. Substitua por um relato real de aluna, com autorização de uso de imagem e nome.',
     avatarSlot: null,
     isExample: true,
   },
   {
     id: 't3',
-    name: 'Nome do responsavel',
-    role: 'Mae de aluno Kids - exemplo',
+    name: 'Nome do responsável',
+    role: 'Mãe de aluno da turma Kids — exemplo',
     quote:
-      'Depoimento de exemplo. Substitua por um relato real de responsavel, com autorizacao de uso de imagem e nome.',
+      'Depoimento de exemplo. Substitua por um relato real de responsável, com autorização de uso de imagem e nome.',
     avatarSlot: null,
     isExample: true,
   },
 ] as const;
 
 /* -------------------------------------------------------------------------- */
-/* FAQ (EXEMPLO - revisar respostas com a academia)                           */
+/* FAQ                                                                        */
 /* -------------------------------------------------------------------------- */
 
 export interface FaqItem {
   readonly id: string;
   readonly question: string;
   readonly answer: string;
-  readonly isExample: true;
+  /** `true` enquanto a resposta ainda precisar ser confirmada pela academia. */
+  readonly isExample: boolean;
 }
 
 export const faq: readonly FaqItem[] = [
   {
     id: 'experiencia',
-    question: 'Preciso ter alguma experiencia para comecar?',
+    question: 'Preciso ter alguma experiência para começar?',
     answer:
-      'Nao. As turmas tem divisao por nivel e a primeira semana e dedicada a base: postura, quedas e movimentacao no solo. Ninguem entra em sparring no primeiro dia.',
-    isExample: true,
+      'Não. As turmas têm divisão por nível e a primeira semana é dedicada à base: postura, quedas e movimentação no solo. Ninguém entra em sparring no primeiro dia.',
+    isExample: false,
+  },
+  {
+    id: 'idade-kids',
+    question: 'A partir de que idade a criança pode treinar?',
+    answer:
+      'A partir dos 4 anos. A turma Kids (4 a 8 anos) treina segunda e quinta, às 18h30, com foco no desenvolvimento motor, na disciplina e na convivência. A turma Infantil (9 a 16 anos) treina terça e sexta, no mesmo horário, com mais técnica e defesa pessoal.',
+    isExample: false,
+  },
+  {
+    id: 'turma-feminina',
+    question: 'Existe turma só para mulheres?',
+    answer:
+      'Sim. O Jiu-Jitsu feminino acontece às terças e quintas, das 19h30 às 20h30. É a mesma técnica da turma mista, em um ambiente pensado para quem prefere começar assim. Quem quiser, também pode treinar nas turmas das 20h30.',
+    isExample: false,
   },
   {
     id: 'equipamento',
     question: 'O que eu levo na primeira aula?',
     answer:
-      'Roupa confortavel, garrafa de agua e chinelo para circular fora do tatame. O kimono so e necessario depois que voce decidir seguir no Jiu-Jitsu.',
-    isExample: true,
+      'Roupa confortável, garrafa de água e chinelo para circular fora do tatame. O kimono só é necessário depois que você decidir seguir no Jiu-Jitsu.',
+    isExample: false,
+  },
+  {
+    id: 'atendimento',
+    question: 'Como falo com a academia?',
+    answer:
+      'Pelo WhatsApp em horário comercial, ou pessoalmente na recepção durante os horários de treino, de segunda a sexta, das 18h30 às 21h30.',
+    isExample: false,
   },
   {
     id: 'experimental',
-    question: 'A aula experimental e gratuita?',
+    question: 'A aula experimental é gratuita?',
     answer:
-      'Resposta de exemplo - confirmar com a academia. Agende pelo WhatsApp informando a modalidade e o horario que prefere.',
-    isExample: true,
-  },
-  {
-    id: 'idade-kids',
-    question: 'A partir de que idade a crianca pode treinar?',
-    answer:
-      'Resposta de exemplo - confirmar as faixas etarias das turmas Kids com a academia antes de publicar.',
-    isExample: true,
-  },
-  {
-    id: 'condicionamento',
-    question: 'Preciso estar em forma antes de comecar?',
-    answer:
-      'Nao. O condicionamento vem do proprio treino. A intensidade e ajustada por aluno, e quem esta voltando de um periodo parado comeca mais leve.',
-    isExample: true,
+      'São duas aulas experimentais gratuitas, sem compromisso. Agende pelo WhatsApp informando a modalidade e o horário que prefere, e leve só roupa confortável e uma garrafa de água.',
+    isExample: false,
   },
   {
     id: 'cancelamento',
     question: 'Como funciona o cancelamento do plano?',
     answer:
-      'Resposta de exemplo - descrever as regras reais de cancelamento, carencia e trancamento de cada plano.',
+      'Resposta de exemplo — descrever as regras reais de cancelamento, carência e trancamento de cada plano.',
     isExample: true,
   },
 ] as const;
 
 /* -------------------------------------------------------------------------- */
-/* Numeros da academia (EXEMPLO)                                              */
+/* Números da academia (EXEMPLO)                                              */
 /* -------------------------------------------------------------------------- */
 
 export interface StatItem {
   readonly id: string;
   readonly value: string;
   readonly label: string;
-  readonly isExample: true;
+  readonly isExample: boolean;
 }
 
 export const stats: readonly StatItem[] = [
-  { id: 'alunos', value: '000', label: 'alunos ativos', isExample: true },
-  { id: 'anos', value: '00', label: 'anos de tatame', isExample: true },
-  { id: 'turmas', value: '00', label: 'turmas por semana', isExample: true },
+  { id: 'modalidades', value: '4', label: 'turmas diferentes na semana', isExample: false },
+  { id: 'idade', value: '4+', label: 'anos, idade mínima para treinar', isExample: false },
+  { id: 'dias', value: '5', label: 'dias de treino por semana', isExample: false },
 ] as const;

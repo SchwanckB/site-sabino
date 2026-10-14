@@ -33,7 +33,7 @@ const filters: readonly { id: Filter; label: string }[] = [
   { id: 'todas', label: 'Todas' },
   { id: 'jiu-jitsu', label: 'Jiu-Jitsu' },
   { id: 'mma', label: 'MMA' },
-  { id: 'kids', label: 'Kids' },
+  { id: 'kids', label: 'Kids e Infantil' },
 ];
 
 export function ScheduleSection({ schedule }: { readonly schedule: Schedule }) {
@@ -72,8 +72,8 @@ export function ScheduleSection({ schedule }: { readonly schedule: Schedule }) {
           <SectionHeading
             id="horarios-titulo"
             eyebrow="Grade da semana"
-            title="Horarios"
-            description="Chegue 10 minutos antes na primeira aula para falar com o professor."
+            title="Horários"
+            description="Todas as turmas são de segunda a sexta, entre 18h30 e 21h30. Chegue 10 minutos antes na primeira aula para falar com o professor."
           />
 
           <Reveal delay={0.1} className="shrink-0">
@@ -157,7 +157,7 @@ export function ScheduleSection({ schedule }: { readonly schedule: Schedule }) {
                                 {slot.title}
                               </p>
                               <p className="truncate text-xs text-muted">
-                                ate {slot.endTime} &middot; {slot.level}
+                                até {slot.endTime} &middot; {slot.level}
                               </p>
                             </div>
                             <span className="sr-only">
@@ -177,8 +177,8 @@ export function ScheduleSection({ schedule }: { readonly schedule: Schedule }) {
         <Reveal delay={0.1} className="mt-10">
           <div className="surface-card flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
             <p className="text-sm leading-relaxed text-muted">
-              Nao achou um horario que caiba na sua rotina? Fale com a gente, a grade muda
-              conforme a temporada.
+              Não achou um horário que caiba na sua rotina? Fale com a gente pelo WhatsApp que
+              a recepção confirma a turma ideal para você.
             </p>
             <a
               href={whatsappLink(whatsappMessages.schedule)}
@@ -186,7 +186,7 @@ export function ScheduleSection({ schedule }: { readonly schedule: Schedule }) {
               rel="noopener noreferrer"
               className="btn-secondary shrink-0"
             >
-              Confirmar horarios
+              Confirmar horários
             </a>
           </div>
         </Reveal>

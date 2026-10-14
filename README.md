@@ -1,7 +1,7 @@
 # Sabino Academia
 
-Plataforma da Sabino Academia (Jiu-Jitsu e MMA, Torres/RS): landing page publica
-+ base para o web app de gestao.
+Plataforma da Sabino Academia (Jiu-Jitsu e MMA, Três Cachoeiras/RS): landing page
+pública + base para o web app de gestão.
 
 Stack: Next.js 15 (App Router) · TypeScript `strict` · Tailwind CSS · Framer
 Motion · Upstash Redis · Vitest.
@@ -66,17 +66,21 @@ Ja prontos a partir da logo oficial, **nao precisam ser trocados**:
 `/public/logo.png`, `/public/logo-light.png`, `/public/og-image.png`,
 `/app/icon.png`.
 
-### Textos e dados (`data/seed.ts` e `lib/site.ts`)
+### Textos e dados
 
-- `plans` — precos e beneficios reais
-- `faq` — respostas marcadas como "confirmar com a academia"
-- `testimonials` — depoimentos reais, **com autorizacao de uso de nome e imagem**
-- `stats` — numeros da academia
-- `siteConfig.address` — endereco real (e trocar `mapEmbedUrl` para o ponto exato)
-- `siteConfig.social` — perfis reais
-- `siteConfig.openingHours` — horario da recepcao
+**Já confirmados** (não precisam de alteração): grade de horários completa,
+endereço (Rua Josué Maggi, 155 - Centro, atrás da Escola Angelina Maggi),
+telefone `(51) 98169-1373`, Instagram `@sabinoacademia`, CEP `95580-000`, as duas
+aulas experimentais gratuitas, e as respostas do FAQ sobre idade mínima, turma
+feminina e atendimento.
 
-O telefone `(51) 98169-1373` veio da logo oficial e ja esta correto.
+**Ainda pendentes** — marcados com `isExample` e com aviso visível na página:
+
+| Onde | O que falta |
+|---|---|
+| `data/seed.ts` → `plans` | Preços reais e o que cada plano inclui |
+| `data/seed.ts` → `testimonials` | Depoimentos reais, **com autorização de uso de nome e imagem** |
+| `data/seed.ts` → `faq` | Resposta de "como funciona o cancelamento do plano?" |
 
 ---
 

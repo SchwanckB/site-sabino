@@ -8,7 +8,7 @@ export function About() {
     <section id="sobre" className="relative py-20 sm:py-24 lg:py-32">
       <div className="container-page">
         <div className="grid gap-12 lg:grid-cols-[minmax(0,.95fr)_minmax(0,1.05fr)] lg:items-center lg:gap-20">
-          {/* Composicao assimetrica: imagem maior deslocada, apoio sobreposto. */}
+          {/* Composição assimétrica: imagem maior deslocada, apoio sobreposto. */}
           <Reveal direction="right" className="relative">
             <div className="relative aspect-[4/5] w-full overflow-hidden rounded-3xl border border-hairline">
               <Image
@@ -22,9 +22,9 @@ export function About() {
             </div>
 
             <div className="surface-card absolute -bottom-6 -right-2 w-44 p-4 sm:-right-6 sm:w-52 sm:p-5">
-              <p className="font-display text-4xl leading-none text-crimson">16</p>
+              <p className="font-display text-4xl leading-none text-crimson">4</p>
               <p className="mt-1 text-xs leading-snug text-muted sm:text-sm">
-                anos e a idade em que o aluno sai da progressao Kids e entra na graduacao adulta
+                anos é a idade a partir da qual a criança já pode entrar no tatame
               </p>
             </div>
           </Reveal>
@@ -34,31 +34,37 @@ export function About() {
               eyebrow="A academia"
               title={
                 <>
-                  Treino serio,
+                  Treino sério,
                   <br />
-                  recepcao de quem conhece seu nome
+                  recepção de quem conhece seu nome
                 </>
               }
-              description={`A Sabino nasceu em ${siteConfig.city} com uma ideia simples: ninguem evolui sozinho. As turmas sao montadas por nivel, o professor corrige no tatame e cada graduacao tem criterio registrado.`}
+              description={`A Sabino fica no centro de ${siteConfig.city}, atrás da Escola Angelina Maggi. A ideia por trás dela é simples: ninguém evolui sozinho. As turmas são montadas por nível e idade, o professor corrige no tatame e cada graduação tem critério registrado.`}
             />
 
             <Reveal delay={0.1} className="mt-8 space-y-5 text-base leading-relaxed text-muted">
               <p>
-                Aqui convivem o aluno que chegou para perder peso, o adolescente que veio pela
-                defesa pessoal e o atleta que compete no fim de semana. O tatame e o mesmo; o
-                que muda e a intensidade que cada um recebe.
+                Aqui convivem o aluno que chegou para perder peso, a mãe que entrou pela
+                turma feminina, o adolescente que veio pela defesa pessoal e o atleta que
+                compete no fim de semana. O tatame é o mesmo; o que muda é a intensidade que
+                cada um recebe.
               </p>
               <p>
-                No verao, quando a cidade enche, a grade se adapta: treino cedo antes do
-                trabalho e turmas no fim da tarde para quem vem da praia.
+                Com as crianças, a separação é levada a sério: a turma Kids, de 4 a 8 anos,
+                trabalha coordenação e disciplina pela brincadeira dirigida; a Infantil, de 9
+                a 16, já cobra técnica e responsabilidade. Nenhuma criança treina em uma
+                turma que não é da idade dela.
               </p>
             </Reveal>
 
-            <Reveal delay={0.18} className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-hairline bg-hairline sm:grid-cols-3">
+            <Reveal
+              delay={0.18}
+              className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-hairline bg-hairline sm:grid-cols-3"
+            >
               {[
-                { label: 'Jiu-Jitsu', detail: 'Com kimono' },
-                { label: 'MMA', detail: 'Trocacao e solo' },
-                { label: 'Kids', detail: '12 graus' },
+                { label: 'Jiu-Jitsu', detail: 'Seg a sex, 20h30' },
+                { label: 'MMA', detail: 'Seg, qua e sex' },
+                { label: 'Kids', detail: 'A partir de 4 anos' },
               ].map((item) => (
                 <div key={item.label} className="bg-surface px-5 py-6">
                   <p className="font-display text-lg uppercase tracking-tight text-foreground">

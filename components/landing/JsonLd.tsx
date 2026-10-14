@@ -1,11 +1,12 @@
+import { faq } from '@/data/seed';
 import { siteConfig, siteUrl } from '@/lib/site';
 
 /**
  * Dados estruturados para SEO local.
  *
- * `SportsActivityLocation` ja herda de `LocalBusiness`, entao um unico no
- * cobre os dois tipos exigidos. O `streetAddress` so e publicado quando deixa
- * de ser placeholder - nao vale indexar um endereco que ainda nao existe.
+ * `SportsActivityLocation` já herda de `LocalBusiness`, então um único nó
+ * cobre os dois tipos. O `postalCode` só entra quando estiver preenchido —
+ * não vale publicar um CEP que ainda não foi confirmado.
  */
 export function JsonLd() {
   const url = siteUrl();
@@ -13,17 +14,15 @@ export function JsonLd() {
 
   const postalAddress: Record<string, string> = {
     '@type': 'PostalAddress',
-    addressLocality: siteConfig.city,
-    addressRegion: siteConfig.state,
+    streetAddress: `${address.street} - ${address.district}`,
+    addressLocality: address.city,
+    addressRegion: address.state,
     addressCountry: siteConfig.country,
   };
 
-  if (!address.isExample) {
-    postalAddress['streetAddress'] = `${address.street} - ${address.district}`;
+  if (address.postalCode.length > 0) {
     postalAddress['postalCode'] = address.postalCode;
   }
-
-  const sameAs = social.isExample ? [] : [social.instagram, social.facebook];
 
   const data = {
     '@context': 'https://schema.org',
@@ -41,36 +40,56 @@ export function JsonLd() {
       '@type': 'City',
       name: `${siteConfig.city}, ${siteConfig.stateName}`,
     },
-    ...(sameAs.length > 0 ? { sameAs } : {}),
-    ...(openingHours.isExample
-      ? {}
-      : {
-          openingHoursSpecification: [
-            {
-              '@type': 'OpeningHoursSpecification',
-              dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-              opens: '06:00',
-              closes: '22:00',
-            },
-            {
-              '@type': 'OpeningHoursSpecification',
-              dayOfWeek: ['Saturday'],
-              opens: '09:00',
-              closes: '12:00',
-            },
-          ],
-        }),
+    sameAs: [social.instagram],
+    openingHoursSpecification: [
+      {
+        '@type': 'OpeningHoursSpecification',
+        dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+        opens: openingHours.trainingWindow.start,
+        closes: openingHours.trainingWindow.end,
+      },
+    ],
     sport: ['Brazilian Jiu-Jitsu', 'Mixed Martial Arts'],
     knowsLanguage: 'pt-BR',
   };
 
+  /**
+   * O acordeão só monta o painel aberto, então as respostas fechadas não ficam
+   * no HTML. Este bloco entrega o FAQ aos buscadores — e publica apenas o que
+   * já foi confirmado pela academia, nunca uma resposta ainda de exemplo.
+   */
+  const confirmedFaq = faq.filter((item) => !item.isExample);
+
+  const faqData =
+    confirmedFaq.length > 0
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          '@id': `${url}/#faq`,
+          mainEntity: confirmedFaq.map((item) => ({
+            '@type': 'Question',
+            name: item.question,
+            acceptedAnswer: { '@type': 'Answer', text: item.answer },
+          })),
+        }
+      : null;
+
+  const serialize = (value: unknown): string =>
+    JSON.stringify(value).replace(/</g, '\\u003c');
+
   return (
-    <script
-      type="application/ld+json"
-      // O conteudo e gerado no servidor a partir de constantes locais.
-      dangerouslySetInnerHTML={{
-        __html: JSON.stringify(data).replace(/</g, '\\u003c'),
-      }}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        // O conteúdo é gerado no servidor a partir de constantes locais.
+        dangerouslySetInnerHTML={{ __html: serialize(data) }}
+      />
+      {faqData ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serialize(faqData) }}
+        />
+      ) : null}
+    </>
   );
 }

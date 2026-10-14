@@ -42,8 +42,8 @@ export interface GraduationDashboardProps {
 type TabId = 'kids' | 'adults';
 
 const TABS: readonly { id: TabId; label: string }[] = [
-  { id: 'kids', label: 'Criancas elegiveis para grau este mes' },
-  { id: 'adults', label: 'Adultos - historico' },
+  { id: 'kids', label: 'Crianças elegíveis para grau este mês' },
+  { id: 'adults', label: 'Adultos — histórico' },
 ];
 
 const STRIPE_LABEL: Readonly<Record<StripeColor, string>> = {
@@ -193,7 +193,7 @@ function ErrorState({ message, onRetry }: { readonly message: string; readonly o
       role="alert"
       className="flex flex-col items-center rounded-2xl border border-crimson/40 bg-crimson/[.07] px-6 py-12 text-center"
     >
-      <p className="font-display text-lg uppercase tracking-tight">Nao foi possivel carregar</p>
+      <p className="font-display text-lg uppercase tracking-tight">Não foi possível carregar</p>
       <p className="mt-2 max-w-sm text-sm text-muted">{message}</p>
       {onRetry ? (
         <button type="button" onClick={onRetry} className="btn-secondary mt-6">
@@ -308,14 +308,14 @@ function ConfirmDialog({
               </dd>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <dt className="text-muted">Proximo grau</dt>
+              <dt className="text-muted">Próximo grau</dt>
               <dd className="text-foreground">
                 {result.nextDegree}
                 {result.nextDegreeColor ? ` (tarja ${STRIPE_LABEL[result.nextDegreeColor]})` : ''}
               </dd>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <dt className="text-muted">Ultima graduacao</dt>
+              <dt className="text-muted">Última graduação</dt>
               <dd className="tabular-nums text-foreground">{formatBrDate(result.anchorDate)}</dd>
             </div>
             <div className="flex items-center justify-between gap-4">
@@ -328,7 +328,7 @@ function ConfirmDialog({
           </dl>
 
           <p className="text-xs leading-relaxed text-muted">
-            A data de hoje vira a nova ancora do aluno. Voce pode desfazer logo apos confirmar.
+            A data de hoje vira a nova âncora do aluno. Você pode desfazer logo após confirmar.
           </p>
         </div>
 
@@ -384,8 +384,8 @@ function KidsPanel({
   if (ordered.length === 0) {
     return (
       <EmptyState
-        title="Nenhum aluno elegivel este mes"
-        description="Assim que alguma crianca completar o intervalo minimo desde a ultima graduacao, ela aparece aqui."
+        title="Nenhum aluno elegível este mês"
+        description="Assim que alguma criança completar o intervalo mínimo desde a última graduação, ela aparece aqui."
       />
     );
   }
@@ -414,7 +414,7 @@ function KidsPanel({
               </p>
             </div>
             <span className="shrink-0 rounded-full bg-crimson/15 px-2.5 py-1 text-[11px] font-semibold text-crimson">
-              Elegivel
+              Elegível
             </span>
           </div>
 
@@ -423,7 +423,7 @@ function KidsPanel({
               <span>
                 Grau {result.currentDegree}/{KIDS_TOTAL_DEGREES}
               </span>
-              {result.nextDegree !== null ? <span>Proximo: {result.nextDegree}</span> : null}
+              {result.nextDegree !== null ? <span>Próximo: {result.nextDegree}</span> : null}
             </div>
             <div className="mt-2">
               <DegreeBar currentDegree={result.currentDegree} nextDegree={result.nextDegree} />
@@ -440,7 +440,7 @@ function KidsPanel({
 
           <dl className="mt-4 flex items-center justify-between border-t border-hairline pt-4 text-xs">
             <dt className="text-muted">
-              {result.anchorSource === 'lastGraduationAt' ? 'Ultima graduacao' : 'Entrada na academia'}
+              {result.anchorSource === 'lastGraduationAt' ? 'Última graduação' : 'Entrada na academia'}
             </dt>
             <dd className="tabular-nums text-foreground">{formatBrDate(result.anchorDate)}</dd>
           </dl>
@@ -468,10 +468,10 @@ type SortDirection = 'asc' | 'desc';
 const COLUMNS: readonly { key: SortKey; label: string; numeric: boolean }[] = [
   { key: 'name', label: 'Aluno', numeric: false },
   { key: 'belt', label: 'Faixa', numeric: false },
-  { key: 'lastGraduationAt', label: 'Ultima graduacao', numeric: false },
+  { key: 'lastGraduationAt', label: 'Última graduação', numeric: false },
   { key: 'daysOnCurrentBelt', label: 'Tempo na faixa', numeric: true },
   { key: 'totalCheckins', label: 'Check-ins', numeric: true },
-  { key: 'checkinsLast90Days', label: 'Ultimos 90 dias', numeric: true },
+  { key: 'checkinsLast90Days', label: 'Últimos 90 dias', numeric: true },
 ];
 
 function compareSummaries(a: AdultSummary, b: AdultSummary, key: SortKey): number {
@@ -519,8 +519,8 @@ function TimeOnBelt({ summary }: { readonly summary: AdultSummary }) {
 
   const label =
     years > 0
-      ? `${years} ${pluralize(years, 'ano', 'anos')}${months > 0 ? ` e ${months} ${pluralize(months, 'mes', 'meses')}` : ''}`
-      : `${months} ${pluralize(months, 'mes', 'meses')}`;
+      ? `${years} ${pluralize(years, 'ano', 'anos')}${months > 0 ? ` e ${months} ${pluralize(months, 'mês', 'meses')}` : ''}`
+      : `${months} ${pluralize(months, 'mês', 'meses')}`;
 
   return (
     <span className="whitespace-nowrap">
@@ -623,7 +623,7 @@ function AdultsPanel({
           <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-hairline md:block">
             <table className="w-full min-w-[46rem] border-collapse text-left text-sm">
               <caption className="sr-only">
-                Alunos adultos, faixa, tempo na faixa e frequencia. Use os cabecalhos para ordenar.
+                Alunos adultos, faixa, tempo na faixa e frequência. Use os cabeçalhos para ordenar.
               </caption>
               <thead>
                 <tr className="bg-white/[.03]">
@@ -688,7 +688,7 @@ function AdultsPanel({
                         {summary.checkinsLast90Days}
                       </span>
                       <span className="block text-xs text-muted">
-                        ult. {formatBrDate(summary.lastCheckinAt)}
+                        últ. {formatBrDate(summary.lastCheckinAt)}
                       </span>
                     </td>
                   </tr>
@@ -713,7 +713,7 @@ function AdultsPanel({
 
                 <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-hairline pt-4 text-xs">
                   <div>
-                    <dt className="text-muted">Ultima graduacao</dt>
+                    <dt className="text-muted">Última graduação</dt>
                     <dd className="mt-0.5 tabular-nums text-foreground">
                       {formatBrDate(summary.lastGraduationAt)}
                     </dd>
@@ -729,7 +729,7 @@ function AdultsPanel({
                     <dd className="mt-0.5 tabular-nums text-foreground">{summary.totalCheckins}</dd>
                   </div>
                   <div>
-                    <dt className="text-muted">Ultimos 90 dias</dt>
+                    <dt className="text-muted">Últimos 90 dias</dt>
                     <dd
                       className={cn(
                         'mt-0.5 tabular-nums',
@@ -824,7 +824,7 @@ export function GraduationDashboard({
         <div>
           <p className="eyebrow">Painel do admin</p>
           <h1 id="graduacao-titulo" className="mt-2 text-3xl leading-none sm:text-4xl">
-            Graduacao
+            Graduação
           </h1>
         </div>
 
@@ -835,13 +835,13 @@ export function GraduationDashboard({
           <span className="font-display text-2xl leading-none text-crimson tabular-nums">
             {isLoading ? '--' : eligibleCount}
           </span>{' '}
-          {pluralize(eligibleCount, 'crianca elegivel', 'criancas elegiveis')}
+          {pluralize(eligibleCount, 'criança elegível', 'crianças elegíveis')}
         </p>
       </header>
 
       <div
         role="tablist"
-        aria-label="Visoes da graduacao"
+        aria-label="Visões da graduação"
         className="mt-8 flex gap-1 overflow-x-auto border-b border-hairline"
       >
         {TABS.map((tab, index) => {

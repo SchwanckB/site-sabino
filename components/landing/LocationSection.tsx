@@ -16,31 +16,39 @@ export function LocationSection() {
               eyebrow="Onde estamos"
               title={
                 <>
-                  {siteConfig.city}, no
+                  No centro de
                   <br />
-                  litoral gaucho
+                  {siteConfig.city}
                 </>
               }
-              description="A um passo da praia e com estacionamento na rua. Chegue 10 minutos antes na primeira visita."
+              description={`Na ${siteConfig.address.street}, ${siteConfig.address.reference}. Chegue 10 minutos antes na primeira visita para falar com o professor.`}
             />
 
             <Reveal delay={0.1} className="mt-8">
               <dl className="space-y-6">
                 <div>
-                  <dt className="text-xs uppercase tracking-[0.18em] text-muted">Endereco</dt>
+                  <dt className="text-xs uppercase tracking-[0.18em] text-muted">Endereço</dt>
                   <dd className="mt-1.5 text-base text-foreground">
                     {formatAddress()}
-                    {siteConfig.address.isExample ? (
-                      <span className="ml-2 rounded-full border border-dashed border-crimson/50 px-2 py-0.5 align-middle text-[10px] uppercase tracking-wider text-muted">
-                        exemplo
-                      </span>
-                    ) : null}
+                    <span className="mt-0.5 block text-sm text-muted">
+                      {siteConfig.address.reference}
+                    </span>
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs uppercase tracking-[0.18em] text-muted">WhatsApp</dt>
-                  <dd className="mt-1.5">
+                  <dt className="text-xs uppercase tracking-[0.18em] text-muted">
+                    Atendimento
+                  </dt>
+                  <dd className="mt-1.5 space-y-1 text-base text-foreground">
+                    <p>{siteConfig.openingHours.whatsapp}</p>
+                    <p className="text-muted">{siteConfig.openingHours.reception}</p>
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-xs uppercase tracking-[0.18em] text-muted">Contato</dt>
+                  <dd className="mt-1.5 flex flex-wrap items-center gap-x-5">
                     <a
                       href={whatsappLink(whatsappMessages.trial)}
                       target="_blank"
@@ -49,22 +57,14 @@ export function LocationSection() {
                     >
                       {siteConfig.phoneDisplay}
                     </a>
-                  </dd>
-                </div>
-
-                <div>
-                  <dt className="text-xs uppercase tracking-[0.18em] text-muted">
-                    Atendimento da recepcao
-                    {siteConfig.openingHours.isExample ? (
-                      <span className="ml-2 rounded-full border border-dashed border-crimson/50 px-2 py-0.5 align-middle text-[10px] uppercase tracking-wider text-muted">
-                        exemplo
-                      </span>
-                    ) : null}
-                  </dt>
-                  <dd className="mt-1.5 space-y-0.5 text-base text-foreground">
-                    <p>{siteConfig.openingHours.weekdays}</p>
-                    <p>{siteConfig.openingHours.saturday}</p>
-                    <p className="text-muted">{siteConfig.openingHours.sunday}</p>
+                    <a
+                      href={siteConfig.social.instagram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-[44px] items-center text-base text-muted transition-colors hover:text-foreground"
+                    >
+                      {siteConfig.social.instagramHandle}
+                    </a>
                   </dd>
                 </div>
               </dl>
@@ -94,17 +94,13 @@ export function LocationSection() {
             <div className="overflow-hidden rounded-3xl border border-hairline">
               <iframe
                 src={siteConfig.mapEmbedUrl}
-                title={`Mapa de ${siteConfig.city}/${siteConfig.state}`}
+                title={`Mapa da Sabino Academia em ${siteConfig.city}/${siteConfig.state}`}
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
                 allowFullScreen
-                className="h-[22rem] w-full border-0 grayscale-[.4] contrast-[1.1] sm:h-[26rem] lg:h-[30rem]"
+                className="h-[22rem] w-full border-0 sm:h-[26rem] lg:h-[30rem]"
               />
             </div>
-            <p className="mt-3 text-xs text-muted">
-              O mapa mostra {siteConfig.city}/{siteConfig.state}. Troque o `mapEmbedUrl` em
-              `lib/site.ts` pelo endereco exato quando ele for confirmado.
-            </p>
           </Reveal>
         </div>
       </div>

@@ -58,13 +58,13 @@ export default function GraduationPreviewPage() {
           role="note"
           className="mb-8 rounded-xl border border-dashed border-crimson/40 bg-crimson/[.06] px-4 py-3 text-xs leading-relaxed text-muted"
         >
-          <strong className="text-foreground">Preview com dados ficticios.</strong>{' '}
-          {students.length} criancas de exemplo:{' '}
+          <strong className="text-foreground">Preview com dados fictícios.</strong>{' '}
+          {students.length} crianças de exemplo:{' '}
           {Object.entries(statusCounts)
             .map(([status, count]) => `${count} ${status}`)
             .join(', ')}
-          . Rota ainda sem protecao de autenticacao - restringir ao papel ADMIN
-          antes de publicar.
+          . Rota ainda sem proteção de autenticação — restringir ao papel ADMIN antes de
+          publicar.
         </p>
 
         <GraduationPreview initialKids={kids} adults={adults} />

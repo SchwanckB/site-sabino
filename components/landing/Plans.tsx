@@ -21,8 +21,8 @@ export function Plans() {
         <SectionHeading
           id="planos-titulo"
           eyebrow="Planos"
-          title="Escolha o compromisso, nao o desconto"
-          description="Todos os planos dao acesso ao app do aluno, com check-in, historico de treinos e status da mensalidade."
+          title="Escolha o compromisso, não o desconto"
+          description="Todos os planos dão acesso ao app do aluno, com check-in, histórico de treinos e status da mensalidade."
           align="center"
         />
 
@@ -99,7 +99,7 @@ export function Plans() {
 
               <a
                 href={whatsappLink(
-                  `Ola! Vim pelo site e quero saber mais sobre o plano ${plan.name}.`,
+                  `Olá! Vim pelo site e quero saber mais sobre o plano ${plan.name}.`,
                 )}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -113,7 +113,8 @@ export function Plans() {
 
         <Reveal delay={0.1}>
           <p className="mt-10 text-center text-sm text-muted">
-            Matricula, taxas e formas de pagamento sao confirmadas no atendimento.
+            Antes de escolher um plano, você tem duas aulas experimentais gratuitas. Matrícula,
+            taxas e formas de pagamento são confirmadas no atendimento.
           </p>
         </Reveal>
       </div>

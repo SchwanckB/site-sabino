@@ -19,7 +19,7 @@ export function Faq() {
           <div>
             <SectionHeading
               id="duvidas-titulo"
-              eyebrow="Duvidas"
+              eyebrow="Dúvidas"
               title={
                 <>
                   Antes da
@@ -32,8 +32,9 @@ export function Faq() {
             <Reveal delay={0.12} className="mt-8">
               <div className="surface-card p-6">
                 <p className="text-sm leading-relaxed text-muted">
-                  Ficou alguma duvida que nao esta aqui? Chama no WhatsApp, a gente responde
-                  antes de voce pisar no tatame.
+                  As duas primeiras aulas são gratuitas. Ficou alguma dúvida que não está aqui?
+                  Chama no WhatsApp em horário comercial, ou passa na recepção durante os
+                  treinos.
                 </p>
                 <a
                   href={whatsappLink(whatsappMessages.trial)}
