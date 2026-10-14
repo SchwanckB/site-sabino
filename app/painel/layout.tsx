@@ -18,12 +18,16 @@ export default async function PainelLayout({
   const user = await getSessionUser();
   if (!user) redirect('/entrar');
 
-  // Admin entra direto no painel dele; aluno só passa daqui se estiver ativo.
-  if (user.role === 'ADMIN') redirect('/admin');
-
   const student = await getStudent(user.id);
-  if (!student) redirect('/onboarding');
-  if (student.status !== 'ativo') redirect('/aguardando');
+
+  // Professor que também treina tem ficha e vê o painel normalmente. Sem
+  // ficha, mandá-lo para /onboarding seria absurdo — ele é o professor.
+  if (user.role === 'ADMIN') {
+    if (!student || student.status !== 'ativo') redirect('/admin');
+  } else {
+    if (!student) redirect('/onboarding');
+    if (student.status !== 'ativo') redirect('/aguardando');
+  }
 
   const items: NavItem[] = [
     { href: '/painel', label: 'Meu painel' },

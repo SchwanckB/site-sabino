@@ -1,6 +1,6 @@
 'use client';
 
-import { UserButton } from '@clerk/nextjs';
+import { SignOutButton, UserButton } from '@clerk/nextjs';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -88,10 +88,20 @@ export function AppShell({
               </ul>
             </nav>
 
-            <UserButton
-              appearance={{ elements: { avatarBox: 'h-9 w-9' } }}
-              userProfileUrl="/painel"
-            />
+            {/*
+              Sair precisa ser óbvio. Com só o avatar do Clerk, quem queria
+              trocar de conta acabava reentrando na mesma sessão sem perceber.
+            */}
+            <SignOutButton redirectUrl="/">
+              <button
+                type="button"
+                className="hidden min-h-[44px] items-center rounded-xl border border-hairline bg-white/[.04] px-3 text-sm font-medium text-muted transition-colors hover:text-foreground sm:inline-flex"
+              >
+                Sair
+              </button>
+            </SignOutButton>
+
+            <UserButton appearance={{ elements: { avatarBox: 'h-9 w-9' } }} />
 
             <button
               type="button"
@@ -153,6 +163,16 @@ export function AppShell({
                     </Link>
                   </li>
                 ))}
+                <li className="pt-2">
+                  <SignOutButton redirectUrl="/">
+                    <button
+                      type="button"
+                      className="flex min-h-[52px] w-full items-center text-sm font-medium text-crimson"
+                    >
+                      Sair da conta
+                    </button>
+                  </SignOutButton>
+                </li>
               </ul>
             </motion.nav>
           ) : null}

@@ -3,11 +3,11 @@
 import { motion, useReducedMotion } from 'framer-motion';
 
 import { Reveal, SectionHeading } from '@/components/ui/Reveal';
-import { EXAMPLE_DATA_NOTICE, plans } from '@/data/seed';
+import { EXAMPLE_DATA_NOTICE, type Plan } from '@/data/seed';
 import { whatsappLink } from '@/lib/site';
 import { cn } from '@/lib/utils';
 
-export function Plans() {
+export function Plans({ plans }: { readonly plans: readonly Plan[] }) {
   const reduceMotion = useReducedMotion();
   const hasExampleData = plans.some((plan) => plan.isExample);
 

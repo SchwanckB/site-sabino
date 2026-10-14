@@ -13,6 +13,7 @@ import { Plans } from '@/components/landing/Plans';
 import { ScheduleSection } from '@/components/landing/ScheduleSection';
 import { Testimonials } from '@/components/landing/Testimonials';
 import { WhatsappFab } from '@/components/landing/WhatsappFab';
+import { getPlans } from '@/lib/repositories/plansAdmin';
 import { getSchedule } from '@/lib/schedule';
 import { siteConfig, siteUrl } from '@/lib/site';
 
@@ -69,7 +70,7 @@ export function generateMetadata(): Metadata {
 }
 
 export default async function HomePage() {
-  const schedule = await getSchedule();
+  const [schedule, planSet] = await Promise.all([getSchedule(), getPlans()]);
 
   return (
     <>
@@ -86,7 +87,7 @@ export default async function HomePage() {
         <About />
         <Modalities />
         <Benefits />
-        <Plans />
+        <Plans plans={planSet.plans} />
         <ScheduleSection schedule={schedule} />
         <Testimonials />
         <Faq />

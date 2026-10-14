@@ -489,3 +489,94 @@ describe('grade de horários pelas ações', () => {
     ).rejects.toThrow();
   });
 });
+
+describe('planos da landing pelas ações', () => {
+  it('salva um plano e ele passa a valer no site', async () => {
+    atual = admin;
+
+    const result = await adminActions.savePlanAction(
+      formulario({
+        name: 'Mensal',
+        priceLabel: 'R$ 180',
+        periodLabel: '/mês',
+        summary: 'Sem fidelidade.',
+        features: 'Uma modalidade\nHorários livres',
+        highlighted: 'on',
+      }),
+    );
+    expect(result.ok).toBe(true);
+
+    const { getPlans } = await import('@/lib/repositories/plansAdmin');
+    const { plans } = await getPlans();
+    const salvo = plans.find((p) => p.name === 'Mensal');
+
+    expect(salvo?.priceLabel).toBe('R$ 180');
+    expect(salvo?.features).toEqual(['Uma modalidade', 'Horários livres']);
+    // Veio do admin: deixa de ser valor de exemplo e o aviso some do site.
+    expect(salvo?.isExample).toBe(false);
+  });
+
+  it('mantém apenas um plano em destaque', async () => {
+    atual = admin;
+
+    const campos = (nome: string) => ({
+      name: nome,
+      priceLabel: 'R$ 100',
+      periodLabel: '/mês',
+      summary: '',
+      features: 'Item',
+      highlighted: 'on',
+    });
+
+    await adminActions.savePlanAction(formulario(campos('Plano A')));
+    await adminActions.savePlanAction(formulario(campos('Plano B')));
+
+    const { getPlans } = await import('@/lib/repositories/plansAdmin');
+    const { plans } = await getPlans();
+    const destaques = plans.filter((p) => p.highlighted);
+
+    expect(destaques).toHaveLength(1);
+    expect(destaques[0]?.name).toBe('Plano B');
+  });
+
+  it('recusa plano sem nome ou sem valor', async () => {
+    atual = admin;
+
+    const semNome = await adminActions.savePlanAction(
+      formulario({ name: '', priceLabel: 'R$ 100', periodLabel: '', summary: '', features: '' }),
+    );
+    expect(semNome.ok).toBe(false);
+
+    const semValor = await adminActions.savePlanAction(
+      formulario({ name: 'Plano', priceLabel: '', periodLabel: '', summary: '', features: '' }),
+    );
+    expect(semValor.ok).toBe(false);
+  });
+
+  it('não deixa a vitrine ficar sem nenhum plano', async () => {
+    atual = admin;
+    await adminActions.resetPlansAction();
+
+    const { getPlans } = await import('@/lib/repositories/plansAdmin');
+    const { plans } = await getPlans();
+
+    for (const plan of plans.slice(0, plans.length - 1)) {
+      expect((await adminActions.deletePlanAction(formulario({ id: plan.id }))).ok).toBe(true);
+    }
+
+    // Remover o último deixaria a página cair nos exemplos do seed.
+    const ultimo = plans[plans.length - 1];
+    const result = await adminActions.deletePlanAction(formulario({ id: ultimo!.id }));
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('ao menos um plano');
+  });
+
+  it('aluno não mexe nos planos', async () => {
+    atual = sessao;
+    await expect(
+      adminActions.savePlanAction(
+        formulario({ name: 'X', priceLabel: 'R$ 1', periodLabel: '', summary: '', features: '' }),
+      ),
+    ).rejects.toThrow();
+  });
+});

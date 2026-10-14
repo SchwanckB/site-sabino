@@ -12,6 +12,7 @@ import {
   setupPaymentPlan,
   undoLastPayment,
 } from '@/lib/repositories/payments';
+import { removePlan, resetPlansToSeed, upsertPlan } from '@/lib/repositories/plansAdmin';
 import { removeClass, resetScheduleToSeed, upsertClass } from '@/lib/repositories/scheduleAdmin';
 import {
   approveStudent,
@@ -472,4 +473,61 @@ export async function setAccountRoleAction(form: FormData): Promise<ActionResult
   refreshAdmin();
   revalidatePath('/admin/contas');
   return result;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Planos da landing page                                                     */
+/* -------------------------------------------------------------------------- */
+
+export async function savePlanAction(form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const result = await upsertPlan(
+    {
+      id: text(form, 'id') || undefined,
+      name: text(form, 'name'),
+      priceLabel: text(form, 'priceLabel'),
+      periodLabel: text(form, 'periodLabel'),
+      summary: text(form, 'summary'),
+      features: text(form, 'features'),
+      highlighted: form.get('highlighted') === 'on',
+    },
+    new Date(),
+  );
+
+  if (!result.ok) return { ok: false, message: result.error };
+
+  refreshAdmin();
+  revalidatePath('/');
+  return { ok: true, message: 'Plano salvo. O site já foi atualizado.' };
+}
+
+export async function deletePlanAction(form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const id = text(form, 'id');
+  if (id.length === 0) return { ok: false, message: 'Plano inválido.' };
+
+  try {
+    await removePlan(id, new Date());
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : 'Não foi possível remover.',
+    };
+  }
+
+  refreshAdmin();
+  revalidatePath('/');
+  return { ok: true, message: 'Plano removido do site.' };
+}
+
+export async function resetPlansAction(): Promise<ActionResult> {
+  await requireAdmin();
+
+  await resetPlansToSeed(new Date());
+
+  refreshAdmin();
+  revalidatePath('/');
+  return { ok: true, message: 'Planos de exemplo restaurados.' };
 }

@@ -49,5 +49,6 @@ export const redisKeys = {
   paymentsHistory: (userId: string) => `payments:history:${userId}`,
   paymentsDue: () => 'payments:due',
   scheduleClasses: () => 'schedule:classes',
+  landingPlans: () => 'landing:plans',
   qrCurrent: () => 'qr:current',
 } as const;

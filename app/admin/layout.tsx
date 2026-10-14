@@ -27,6 +27,7 @@ export default async function AdminLayout({
     { href: '/admin/financeiro', label: 'Financeiro' },
     { href: '/admin/graduacao', label: 'Graduação' },
     { href: '/admin/horarios', label: 'Horários' },
+    { href: '/admin/planos', label: 'Planos' },
     { href: '/admin/qr', label: 'QR da recepção' },
     { href: '/admin/contas', label: 'Contas' },
   ];

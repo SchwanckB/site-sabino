@@ -79,7 +79,8 @@ export interface Plan {
   readonly summary: string;
   readonly features: readonly string[];
   readonly highlighted: boolean;
-  readonly isExample: true;
+  /** `true` enquanto os valores forem placeholders do seed. */
+  readonly isExample: boolean;
 }
 
 export const plans: readonly Plan[] = [
