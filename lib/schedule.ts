@@ -2,6 +2,9 @@
 // falha em vez de arrastar credenciais e consultas do Redis para o bundle.
 import 'server-only';
 
+import { unstable_cache } from 'next/cache';
+
+import { CACHE_TAGS, PUBLIC_REVALIDATE_SECONDS } from '@/lib/cacheTags';
 import { seedSchedule, type ClassSlot, type ModalityId, type Schedule, type Weekday } from '@/data/seed';
 import { getRedis, redisKeys } from '@/lib/redis';
 
@@ -110,28 +113,46 @@ export function groupByWeekday(
 }
 
 /**
- * Grade de horarios para a landing page.
- * Sempre resolve: Redis quando disponivel, seed caso contrario.
+ * Leitura direta, sem cache — mesma razão de `getPlansFresh`: o painel do
+ * admin precisa enxergar o que acabou de salvar.
  */
-export async function getSchedule(): Promise<Schedule> {
+export async function getScheduleFresh(): Promise<Schedule> {
   const redis = getRedis();
   if (!redis) {
     return seedSchedule;
   }
 
+  const raw = await redis.get<unknown>(redisKeys.scheduleClasses());
+  const stored = parseStoredSchedule(raw);
+
+  if (!stored) {
+    return seedSchedule;
+  }
+
+  return {
+    classes: sortClasses(stored.classes),
+    isExample: false,
+    updatedAt: stored.updatedAt,
+  };
+}
+
+/**
+ * Grade de horarios para a landing page.
+ *
+ * O `unstable_cache` isola a leitura do rastreamento de rota dinamica: sem
+ * ele, o `fetch` com `no-store` do cliente Upstash impediria a pagina de ser
+ * estatica e a grade publicada no painel jamais apareceria no site.
+ *
+ * Erro de leitura cai para o seed - a landing nao pode ficar sem horarios.
+ */
+export async function getSchedule(): Promise<Schedule> {
+  const cached = unstable_cache(getScheduleFresh, ['schedule:classes'], {
+    revalidate: PUBLIC_REVALIDATE_SECONDS,
+    tags: [CACHE_TAGS.schedule],
+  });
+
   try {
-    const raw = await redis.get<unknown>(redisKeys.scheduleClasses());
-    const stored = parseStoredSchedule(raw);
-
-    if (!stored) {
-      return seedSchedule;
-    }
-
-    return {
-      classes: sortClasses(stored.classes),
-      isExample: false,
-      updatedAt: stored.updatedAt,
-    };
+    return await cached();
   } catch (error) {
     console.error('[schedule] falha ao ler schedule:classes, usando o seed', error);
     return seedSchedule;

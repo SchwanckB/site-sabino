@@ -1,6 +1,9 @@
 import 'server-only';
 
+import { unstable_cache } from 'next/cache';
+
 import { plans as seedPlans, type Plan } from '@/data/seed';
+import { CACHE_TAGS, PUBLIC_REVALIDATE_SECONDS } from '@/lib/cacheTags';
 import { getRedis, redisKeys } from '@/lib/redis';
 import { asBoolean, asString, asStringArray, isRecord } from '@/lib/repositories/parse';
 
@@ -43,12 +46,16 @@ function parsePlan(value: unknown): Plan | null {
   };
 }
 
-/** Planos para a landing page. Redis quando houver, seed como reserva. */
-export async function getPlans(): Promise<PlanSet> {
+/**
+ * Leitura direta, sem cache. O caminho de escrita precisa do estado atual:
+ * ler pelo cache faria o admin editar em cima de dado velho e desfazer a
+ * alteração anterior sem aviso.
+ */
+export async function getPlansFresh(): Promise<PlanSet> {
   const redis = getRedis();
   if (!redis) return { plans: seedPlans, updatedAt: null };
 
-  try {
+  {
     const raw = await redis.get<unknown>(redisKeys.landingPlans());
     const source = Array.isArray(raw) ? { plans: raw, updatedAt: null } : raw;
     if (!isRecord(source)) return { plans: seedPlans, updatedAt: null };
@@ -68,6 +75,23 @@ export async function getPlans(): Promise<PlanSet> {
       plans: parsed.slice(0, MAX_PLANS),
       updatedAt: asString(source['updatedAt']) || null,
     };
+  }
+}
+
+/**
+ * Planos para a landing page.
+ *
+ * Mesma razao do `getSchedule`: o `unstable_cache` mantem a pagina estatica
+ * e deixa o que o admin salva realmente aparecer no site.
+ */
+export async function getPlans(): Promise<PlanSet> {
+  const cached = unstable_cache(getPlansFresh, ['landing:plans'], {
+    revalidate: PUBLIC_REVALIDATE_SECONDS,
+    tags: [CACHE_TAGS.plans],
+  });
+
+  try {
+    return await cached();
   } catch (error) {
     console.error('[plans] falha ao ler landing:plans, usando o seed', error);
     return { plans: seedPlans, updatedAt: null };
@@ -158,7 +182,7 @@ export async function upsertPlan(input: PlanInput, now: Date): Promise<PlanValid
   const validation = validatePlan(input);
   if (!validation.ok) return validation;
 
-  const current = (await getPlans()).plans;
+  const current = (await getPlansFresh()).plans;
   const index = current.findIndex((item) => item.id === validation.plan.id);
 
   if (index < 0 && current.length >= MAX_PLANS) {
@@ -181,7 +205,7 @@ export async function upsertPlan(input: PlanInput, now: Date): Promise<PlanValid
 }
 
 export async function removePlan(planId: string, now: Date): Promise<void> {
-  const current = (await getPlans()).plans;
+  const current = (await getPlansFresh()).plans;
   const next = current.filter((item) => item.id !== planId);
 
   if (next.length === 0) {

@@ -9,7 +9,8 @@ import { cn } from '@/lib/utils';
 import { GUARDIAN_REQUIRED_AGE } from '@/types/domain';
 import { calculateAge } from '@/utils/graduationEngine';
 
-import { initialOnboardingState, submitOnboarding } from './actions';
+import { submitOnboarding } from './actions';
+import { initialOnboardingState } from './state';
 
 /** Campos do responsável aparecem só quando a data de nascimento indica menor. */
 function useIsMinor(birthDate: string): boolean {

@@ -9,6 +9,8 @@ import { createPendingStudent, getStudent } from '@/lib/repositories/students';
 import { CONSENT_VERSION } from '@/types/domain';
 import { validateOnboarding } from '@/utils/onboardingValidation';
 
+import type { OnboardingState } from './state';
+
 /**
  * Envio do pré-cadastro.
  *
@@ -19,18 +21,6 @@ import { validateOnboarding } from '@/utils/onboardingValidation';
  * O `required` e o `accept` do formulário são conveniência de interface; o que
  * vale é esta execução no servidor.
  */
-
-export interface OnboardingState {
-  readonly status: 'idle' | 'error' | 'success';
-  readonly message: string;
-  readonly fieldErrors: Readonly<Record<string, string>>;
-}
-
-export const initialOnboardingState: OnboardingState = {
-  status: 'idle',
-  message: '',
-  fieldErrors: {},
-};
 
 function text(form: FormData, key: string): string {
   const value = form.get(key);

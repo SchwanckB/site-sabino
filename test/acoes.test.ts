@@ -37,9 +37,16 @@ vi.mock('@/lib/repositories/documents', () => ({
   deleteDocument: async () => undefined,
 }));
 
-vi.mock('next/cache', () => ({ revalidatePath: () => undefined }));
+// `unstable_cache` vira passagem direta: o teste quer o comportamento real da
+// leitura, não o cache do Next.
+vi.mock('next/cache', () => ({
+  revalidatePath: () => undefined,
+  revalidateTag: () => undefined,
+  unstable_cache: <T,>(fn: T): T => fn,
+}));
 
 let onboarding: typeof import('@/app/onboarding/actions');
+let estadoInicial: import('@/app/onboarding/state').OnboardingState;
 let adminActions: typeof import('@/app/admin/actions');
 let students: typeof import('@/lib/repositories/students');
 let payments: typeof import('@/lib/repositories/payments');
@@ -55,6 +62,7 @@ beforeAll(async () => {
   });
 
   onboarding = await import('@/app/onboarding/actions');
+  ({ initialOnboardingState: estadoInicial } = await import('@/app/onboarding/state'));
   adminActions = await import('@/app/admin/actions');
   students = await import('@/lib/repositories/students');
   payments = await import('@/lib/repositories/payments');
@@ -89,7 +97,7 @@ const cadastroValido = {
 describe('cadastro do aluno (submitOnboarding)', () => {
   it('cria a ficha pendente com dados normalizados', async () => {
     const result = await onboarding.submitOnboarding(
-      onboarding.initialOnboardingState,
+      estadoInicial,
       formulario(cadastroValido),
     );
 
@@ -107,7 +115,7 @@ describe('cadastro do aluno (submitOnboarding)', () => {
     // Antes isso travava toda matrícula: o campo era exigido mas não havia
     // onde guardar o arquivo.
     const result = await onboarding.submitOnboarding(
-      onboarding.initialOnboardingState,
+      estadoInicial,
       formulario(cadastroValido),
     );
 
@@ -119,7 +127,7 @@ describe('cadastro do aluno (submitOnboarding)', () => {
     blobLigado = true;
 
     const result = await onboarding.submitOnboarding(
-      onboarding.initialOnboardingState,
+      estadoInicial,
       formulario(cadastroValido),
     );
 
@@ -132,7 +140,7 @@ describe('cadastro do aluno (submitOnboarding)', () => {
     const arquivo = new File([new Uint8Array(1024)], 'rg.jpg', { type: 'image/jpeg' });
 
     const result = await onboarding.submitOnboarding(
-      onboarding.initialOnboardingState,
+      estadoInicial,
       formulario(cadastroValido, arquivo),
     );
 
@@ -145,7 +153,7 @@ describe('cadastro do aluno (submitOnboarding)', () => {
 
   it('recusa CPF inválido sem gravar nada', async () => {
     const result = await onboarding.submitOnboarding(
-      onboarding.initialOnboardingState,
+      estadoInicial,
       formulario({ ...cadastroValido, cpf: '111.111.111-11' }),
     );
 
@@ -157,7 +165,7 @@ describe('cadastro do aluno (submitOnboarding)', () => {
   it('recusa sem o aceite de LGPD', async () => {
     const { consent: _, ...semAceite } = cadastroValido;
     const result = await onboarding.submitOnboarding(
-      onboarding.initialOnboardingState,
+      estadoInicial,
       formulario(semAceite),
     );
 
@@ -167,7 +175,7 @@ describe('cadastro do aluno (submitOnboarding)', () => {
 
   it('exige responsável para menor de idade', async () => {
     const result = await onboarding.submitOnboarding(
-      onboarding.initialOnboardingState,
+      estadoInicial,
       formulario({ ...cadastroValido, birthDate: '2016-05-10' }),
     );
 
@@ -177,7 +185,7 @@ describe('cadastro do aluno (submitOnboarding)', () => {
 
   it('aceita menor com responsável e marca como infantil', async () => {
     const result = await onboarding.submitOnboarding(
-      onboarding.initialOnboardingState,
+      estadoInicial,
       formulario({
         ...cadastroValido,
         birthDate: '2016-05-10',
@@ -193,12 +201,12 @@ describe('cadastro do aluno (submitOnboarding)', () => {
   });
 
   it('reenviar depois de recusado atualiza a mesma ficha', async () => {
-    await onboarding.submitOnboarding(onboarding.initialOnboardingState, formulario(cadastroValido));
+    await onboarding.submitOnboarding(estadoInicial, formulario(cadastroValido));
     const ficha = (await students.getStudent('user_aluno'))!;
     await students.rejectStudent(ficha, 'Documento ilegível', new Date());
 
     const result = await onboarding.submitOnboarding(
-      onboarding.initialOnboardingState,
+      estadoInicial,
       formulario({ ...cadastroValido, name: 'Aluno Corrigido' }),
     );
 
@@ -210,12 +218,12 @@ describe('cadastro do aluno (submitOnboarding)', () => {
   });
 
   it('não deixa reenviar com matrícula já ativa', async () => {
-    await onboarding.submitOnboarding(onboarding.initialOnboardingState, formulario(cadastroValido));
+    await onboarding.submitOnboarding(estadoInicial, formulario(cadastroValido));
     const ficha = (await students.getStudent('user_aluno'))!;
     await students.approveStudent(ficha, { classIds: [], belt: 'branca', degree: 0, notes: '' }, new Date());
 
     const result = await onboarding.submitOnboarding(
-      onboarding.initialOnboardingState,
+      estadoInicial,
       formulario(cadastroValido),
     );
 
@@ -226,7 +234,7 @@ describe('cadastro do aluno (submitOnboarding)', () => {
 
 describe('autorização das ações do admin', () => {
   async function fichaPendente() {
-    await onboarding.submitOnboarding(onboarding.initialOnboardingState, formulario(cadastroValido));
+    await onboarding.submitOnboarding(estadoInicial, formulario(cadastroValido));
   }
 
   it('aluno não consegue aprovar ninguém', async () => {
@@ -313,7 +321,7 @@ describe('autorização das ações do admin', () => {
 describe('presença pelas ações do admin', () => {
   async function alunoAprovado(id = 'user_aluno') {
     atual = { ...sessao, id };
-    await onboarding.submitOnboarding(onboarding.initialOnboardingState, formulario(cadastroValido));
+    await onboarding.submitOnboarding(estadoInicial, formulario(cadastroValido));
     const ficha = (await students.getStudent(id))!;
     await students.approveStudent(
       ficha,
@@ -361,7 +369,7 @@ describe('presença pelas ações do admin', () => {
 
   it('não marca presença de aluno não aprovado', async () => {
     atual = sessao;
-    await onboarding.submitOnboarding(onboarding.initialOnboardingState, formulario(cadastroValido));
+    await onboarding.submitOnboarding(estadoInicial, formulario(cadastroValido));
     atual = admin;
 
     const result = await adminActions.markPresenceAction(formulario({ studentId: 'user_aluno' }));
@@ -384,7 +392,7 @@ describe('presença pelas ações do admin', () => {
 describe('financeiro pelas ações do admin', () => {
   async function alunoComPlano() {
     atual = sessao;
-    await onboarding.submitOnboarding(onboarding.initialOnboardingState, formulario(cadastroValido));
+    await onboarding.submitOnboarding(estadoInicial, formulario(cadastroValido));
     atual = admin;
     await adminActions.approveStudentAction(
       formulario({
@@ -433,7 +441,7 @@ describe('financeiro pelas ações do admin', () => {
 
   it('avisa quando o aluno não tem mensalidade definida', async () => {
     atual = sessao;
-    await onboarding.submitOnboarding(onboarding.initialOnboardingState, formulario(cadastroValido));
+    await onboarding.submitOnboarding(estadoInicial, formulario(cadastroValido));
     atual = admin;
 
     const result = await adminActions.registerPaymentAction(

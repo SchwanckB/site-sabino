@@ -2,7 +2,7 @@ import 'server-only';
 
 import { seedSchedule, type ClassSlot, type ModalityId, type Weekday } from '@/data/seed';
 import { getRedis, redisKeys } from '@/lib/redis';
-import { getSchedule, sortClasses } from '@/lib/schedule';
+import { getScheduleFresh, sortClasses } from '@/lib/schedule';
 
 /**
  * Escrita da grade de horários (`schedule:classes`).
@@ -95,7 +95,7 @@ async function persist(classes: readonly ClassSlot[], now: Date): Promise<void> 
 
 /** Grade atual para edição. Sem nada no Redis, parte da grade real do seed. */
 export async function getEditableSchedule(): Promise<ClassSlot[]> {
-  const schedule = await getSchedule();
+  const schedule = await getScheduleFresh();
   return sortClasses(schedule.classes);
 }
 

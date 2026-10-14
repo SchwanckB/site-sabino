@@ -40,9 +40,17 @@ const CLERK_HOSTS = [
  */
 const TURNSTILE_HOST = 'https://challenges.cloudflare.com';
 
+/**
+ * O Fast Refresh do Next avalia código em tempo de execução, o que exige
+ * 'unsafe-eval'. Liberar isso só em desenvolvimento mantém a produção estrita
+ * — e evita que a própria CSP quebre o `npm run dev`, como quebrava.
+ */
+const isDev = process.env.NODE_ENV !== 'production';
+const SCRIPT_EVAL = isDev ? " 'unsafe-eval'" : '';
+
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' ${CLERK_HOSTS.join(' ')} ${TURNSTILE_HOST}`,
+  `script-src 'self' 'unsafe-inline'${SCRIPT_EVAL} ${CLERK_HOSTS.join(' ')} ${TURNSTILE_HOST}`,
   "style-src 'self' 'unsafe-inline'",
   // img.clerk.com serve os avatares das contas.
   "img-src 'self' data: blob: https://img.clerk.com https://*.clerk.com",

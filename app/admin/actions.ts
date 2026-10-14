@@ -1,8 +1,9 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 
 import { requireAdmin, type Role } from '@/lib/auth';
+import { CACHE_TAGS } from '@/lib/cacheTags';
 import { setAccountRole } from '@/lib/repositories/accounts';
 import { recordCheckin, undoCheckin } from '@/lib/repositories/attendance';
 import { registerDegree, promoteBelt, undoLastDegree } from '@/lib/repositories/graduation';
@@ -412,6 +413,7 @@ export async function saveClassAction(form: FormData): Promise<ActionResult> {
   if (!result.ok) return { ok: false, message: result.error };
 
   refreshAdmin();
+  revalidateTag(CACHE_TAGS.schedule);
   revalidatePath('/');
   return { ok: true, message: 'Turma salva. A grade do site já foi atualizada.' };
 }
@@ -425,6 +427,7 @@ export async function deleteClassAction(form: FormData): Promise<ActionResult> {
   await removeClass(id, new Date());
 
   refreshAdmin();
+  revalidateTag(CACHE_TAGS.schedule);
   revalidatePath('/');
   return { ok: true, message: 'Turma removida.' };
 }
@@ -435,6 +438,7 @@ export async function resetScheduleAction(): Promise<ActionResult> {
   await resetScheduleToSeed(new Date());
 
   refreshAdmin();
+  revalidateTag(CACHE_TAGS.schedule);
   revalidatePath('/');
   return { ok: true, message: 'Grade restaurada para os horários padrão.' };
 }
@@ -498,6 +502,7 @@ export async function savePlanAction(form: FormData): Promise<ActionResult> {
   if (!result.ok) return { ok: false, message: result.error };
 
   refreshAdmin();
+  revalidateTag(CACHE_TAGS.plans);
   revalidatePath('/');
   return { ok: true, message: 'Plano salvo. O site já foi atualizado.' };
 }
@@ -518,6 +523,7 @@ export async function deletePlanAction(form: FormData): Promise<ActionResult> {
   }
 
   refreshAdmin();
+  revalidateTag(CACHE_TAGS.plans);
   revalidatePath('/');
   return { ok: true, message: 'Plano removido do site.' };
 }
@@ -528,6 +534,7 @@ export async function resetPlansAction(): Promise<ActionResult> {
   await resetPlansToSeed(new Date());
 
   refreshAdmin();
+  revalidateTag(CACHE_TAGS.plans);
   revalidatePath('/');
   return { ok: true, message: 'Planos de exemplo restaurados.' };
 }
