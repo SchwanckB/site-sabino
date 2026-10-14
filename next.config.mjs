@@ -61,6 +61,12 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  experimental: {
+    // O padrão do Next é 1 MB, e uma foto de documento tirada no celular passa
+    // disso com folga — o envio falhava com erro de servidor antes mesmo de a
+    // validação rodar. Acompanha o MAX_DOCUMENT_BYTES (5 MB) com margem.
+    serverActions: { bodySizeLimit: '6mb' },
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [

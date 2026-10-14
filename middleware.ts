@@ -29,7 +29,14 @@ const clerkConfigured =
 
 const withClerk = clerkMiddleware(async (auth, request) => {
   if (isProtectedRoute(request)) {
-    await auth.protect();
+    // Sem `unauthenticatedUrl` o Clerk responde 404 para não revelar que a
+    // rota existe. Aqui a rota é pública por natureza (todo aluno sabe que há
+    // um painel), e 404 em sessão expirada é um beco sem saída: o certo é
+    // levar ao login e voltar para onde a pessoa queria ir.
+    const entrar = new URL('/entrar', request.url);
+    entrar.searchParams.set('redirect_url', request.url);
+
+    await auth.protect({ unauthenticatedUrl: entrar.toString() });
   }
   return NextResponse.next();
 });

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, type Role } from '@/lib/auth';
+import { setAccountRole } from '@/lib/repositories/accounts';
 import { recordCheckin, undoCheckin } from '@/lib/repositories/attendance';
 import { registerDegree, promoteBelt, undoLastDegree } from '@/lib/repositories/graduation';
 import {
@@ -435,4 +436,40 @@ export async function resetScheduleAction(): Promise<ActionResult> {
   refreshAdmin();
   revalidatePath('/');
   return { ok: true, message: 'Grade restaurada para os horários padrão.' };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Contas e permissões                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Promove uma conta a professor (ADMIN) ou devolve a aluno.
+ *
+ * Professor e administrador são o mesmo papel: quem ensina precisa aprovar
+ * matrícula, lançar presença e registrar grau.
+ */
+export async function setAccountRoleAction(form: FormData): Promise<ActionResult> {
+  const admin = await requireAdmin();
+
+  const targetId = text(form, 'userId');
+  const role = text(form, 'role');
+
+  if (role !== 'ADMIN' && role !== 'ALUNO') {
+    return { ok: false, message: 'Permissão inválida.' };
+  }
+
+  // Trava contra se trancar para fora: o último admin não pode se rebaixar
+  // sozinho e deixar a academia sem ninguém capaz de aprovar cadastros.
+  if (targetId === admin.id && role === 'ALUNO') {
+    return {
+      ok: false,
+      message: 'Você não pode remover o próprio acesso de professor. Peça a outro professor.',
+    };
+  }
+
+  const result = await setAccountRole(targetId, role as Role);
+
+  refreshAdmin();
+  revalidatePath('/admin/contas');
+  return result;
 }

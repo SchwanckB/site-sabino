@@ -92,7 +92,12 @@ export default function RootLayout({
   }
 
   return (
-    <ClerkProvider localization={ptBR} appearance={clerkAppearance}>
+    <ClerkProvider
+      localization={ptBR}
+      appearance={clerkAppearance}
+      signInUrl="/entrar"
+      signUpUrl="/cadastro"
+    >
       {content}
     </ClerkProvider>
   );

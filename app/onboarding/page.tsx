@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { requireUser } from '@/lib/auth';
+import { isBlobConfigured } from '@/lib/env';
 import { getStudent } from '@/lib/repositories/students';
 
 import { OnboardingForm } from './OnboardingForm';
@@ -47,6 +48,7 @@ export default async function OnboardingPage() {
           defaultPhone={existing?.phone ?? ''}
           defaultBirthDate={existing?.birthDate ?? ''}
           hasDocument={Boolean(existing?.docBlobKey)}
+          documentEnabled={isBlobConfigured()}
         />
       </div>
     </main>

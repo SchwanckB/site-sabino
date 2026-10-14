@@ -67,11 +67,14 @@ export function OnboardingForm({
   defaultPhone,
   defaultBirthDate,
   hasDocument,
+  documentEnabled,
 }: {
   readonly defaultName: string;
   readonly defaultPhone: string;
   readonly defaultBirthDate: string;
   readonly hasDocument: boolean;
+  /** `false` quando ainda não há armazenamento de arquivos configurado. */
+  readonly documentEnabled: boolean;
 }) {
   const [state, action] = useActionState(submitOnboarding, initialOnboardingState);
   const [birthDate, setBirthDate] = useState(defaultBirthDate);
@@ -212,6 +215,7 @@ export function OnboardingForm({
         </fieldset>
       ) : null}
 
+      {documentEnabled ? (
       <Field
         label="Documento com foto"
         name="document"
@@ -234,6 +238,12 @@ export function OnboardingForm({
           )}
         />
       </Field>
+      ) : (
+        <p className="rounded-xl border border-dashed border-hairline px-4 py-3 text-xs leading-relaxed text-muted">
+          O envio de documento está temporariamente indisponível. Siga com o cadastro — a
+          academia pede o documento pessoalmente na primeira aula.
+        </p>
+      )}
 
       <div>
         <label className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed text-muted">
