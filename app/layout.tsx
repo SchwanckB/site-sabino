@@ -1,11 +1,14 @@
+import { ClerkProvider } from '@clerk/nextjs';
+import { ptBR } from '@clerk/localizations';
 import type { Metadata, Viewport } from 'next';
 import { Inter, Oswald } from 'next/font/google';
 
+import { isClerkConfigured } from '@/lib/env';
 import { siteConfig, siteUrl } from '@/lib/site';
 
 import './globals.css';
 
-/** Titulos: condensada, pesada, com cara de cartaz de luta. */
+/** Títulos: condensada, pesada, com cara de cartaz de luta. */
 const display = Oswald({
   subsets: ['latin'],
   weight: ['500', '600', '700'],
@@ -43,10 +46,31 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+/** Clerk herda os tokens do design system em vez do tema claro padrão. */
+const clerkAppearance = {
+  variables: {
+    colorPrimary: '#C1121F',
+    colorBackground: '#17171A',
+    colorInputBackground: '#1F1F23',
+    colorText: '#F5F5F5',
+    colorTextSecondary: '#A1A1AA',
+    colorInputText: '#F5F5F5',
+    colorDanger: '#E01E2D',
+    borderRadius: '0.75rem',
+  },
+  elements: {
+    card: 'bg-surface border border-hairline shadow-soft',
+    headerTitle: 'font-display uppercase tracking-tight',
+    formButtonPrimary:
+      'bg-crimson hover:bg-crimson-hover text-foreground normal-case font-semibold',
+    footerActionLink: 'text-crimson hover:text-crimson-hover',
+  },
+} as const;
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return (
+  const content = (
     <html lang="pt-BR" className={`${display.variable} ${body.variable}`}>
       <body className="min-h-dvh bg-ink text-foreground">
         <a
@@ -58,5 +82,18 @@ export default function RootLayout({
         {children}
       </body>
     </html>
+  );
+
+  // Sem as chaves do Clerk o provider quebraria a aplicação inteira, inclusive
+  // a landing page. Nesse caso o site segue público e as rotas logadas são
+  // desviadas para /configurar pelo middleware.
+  if (!isClerkConfigured()) {
+    return content;
+  }
+
+  return (
+    <ClerkProvider localization={ptBR} appearance={clerkAppearance}>
+      {content}
+    </ClerkProvider>
   );
 }

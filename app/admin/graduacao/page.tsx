@@ -1,74 +1,106 @@
 import type { Metadata } from 'next';
 
 import type { KidsRow } from '@/components/admin/GraduationDashboard';
-import { buildDemoAdults, buildDemoKids } from '@/data/demoStudents';
+import { listCheckins } from '@/lib/repositories/attendance';
+import { listStudentsByStatus } from '@/lib/repositories/students';
 import {
   getAdultSummary,
   getKidsGraduationStatus,
   listEligibleKids,
+  type AdultBelt,
+  type AdultStudent,
   type AdultSummary,
+  type KidsStudent,
 } from '@/utils/graduationEngine';
 
-import { GraduationPreview } from './GraduationPreview';
+import { GraduationClient } from './GraduationClient';
 
-/**
- * Preview do painel de graduacao com dados ficticios.
- *
- * ATENCAO - esta rota ainda NAO esta protegida. Antes de ir para producao ela
- * precisa do middleware do Clerk exigindo `publicMetadata.role === 'ADMIN'`.
- * Enquanto isso, ela so serve dados de demonstracao de `data/demoStudents.ts`
- * e e marcada como `noindex`.
- */
-export const metadata: Metadata = {
-  title: 'Graduacao (preview)',
-  robots: { index: false, follow: false },
-};
-
-/** Sempre recalcula: a elegibilidade depende da data de hoje. */
+export const metadata: Metadata = { title: 'Graduação' };
 export const dynamic = 'force-dynamic';
 
-export default function GraduationPreviewPage() {
+const ADULT_BELTS: readonly AdultBelt[] = ['branca', 'azul', 'roxa', 'marrom', 'preta'];
+
+function toAdultBelt(belt: string): AdultBelt {
+  return (ADULT_BELTS as readonly string[]).includes(belt) ? (belt as AdultBelt) : 'branca';
+}
+
+export default async function GraduacaoPage() {
   const now = new Date();
+  const active = await listStudentsByStatus('ativo');
 
-  const students = buildDemoKids(now);
+  // A trilha infantil é a que tem automação; a adulta é só informação.
+  const kidsStudents: KidsStudent[] = active
+    .filter((student) => student.category === 'kids' && student.birthDate.length > 0)
+    .map((student) => ({
+      id: student.id,
+      name: student.name,
+      birthDate: student.birthDate,
+      joinedAt: student.joinedAt ?? student.createdAt,
+      lastGraduationAt: student.lastGraduationAt,
+      degree: student.degree,
+      belt: student.belt,
+    }));
 
-  // `listEligibleKids` ja filtra e ordena; aqui so recuperamos o aluno de cada
-  // resultado para montar as linhas do dashboard.
-  const byId = new Map(students.map((student) => [student.id, student]));
-  const kids: KidsRow[] = listEligibleKids(students, now).flatMap((result) => {
+  const byId = new Map(kidsStudents.map((student) => [student.id, student]));
+  const kids: KidsRow[] = listEligibleKids(kidsStudents, now).flatMap((result) => {
     const student = byId.get(result.studentId);
     return student ? [{ student, result }] : [];
   });
 
-  const adults: AdultSummary[] = buildDemoAdults(now).map(({ student, checkins }) =>
-    getAdultSummary(student, checkins, now),
+  const adultRecords = active.filter(
+    (student) => student.category === 'adulto' && student.birthDate.length > 0,
   );
 
-  // Contagem por status, so para o aviso de demonstracao no topo.
-  const statusCounts = students.reduce<Record<string, number>>((acc, student) => {
+  // Histórico de presenças em paralelo, para o painel adulto.
+  const adults: AdultSummary[] = await Promise.all(
+    adultRecords.map(async (student) => {
+      const checkins = await listCheckins(student.id, 400);
+      const adult: AdultStudent = {
+        id: student.id,
+        name: student.name,
+        birthDate: student.birthDate,
+        joinedAt: student.joinedAt ?? student.createdAt,
+        lastGraduationAt: student.lastGraduationAt,
+        belt: toAdultBelt(student.belt),
+        degree: student.degree,
+      };
+      return getAdultSummary(adult, checkins.map((entry) => entry.date), now);
+    }),
+  );
+
+  // Quem está esperando e quem já fechou os 12 graus, para o aviso do topo.
+  const pendingCounts = kidsStudents.reduce<Record<string, number>>((acc, student) => {
     const { status } = getKidsGraduationStatus(student, now);
     acc[status] = (acc[status] ?? 0) + 1;
     return acc;
   }, {});
 
+  const readyForBelt = pendingCounts['PRONTO_PARA_AVALIACAO'] ?? 0;
+  const toMigrate = pendingCounts['MIGRAR_PARA_ADULTO'] ?? 0;
+
   return (
-    <main className="min-h-dvh bg-ink px-5 py-10 sm:px-8 sm:py-14">
-      <div className="mx-auto w-full max-w-6xl">
+    <div>
+      {readyForBelt > 0 || toMigrate > 0 ? (
         <p
           role="note"
-          className="mb-8 rounded-xl border border-dashed border-crimson/40 bg-crimson/[.06] px-4 py-3 text-xs leading-relaxed text-muted"
+          className="mb-6 rounded-xl border border-dashed border-crimson/40 bg-crimson/[.06] px-4 py-3 text-xs leading-relaxed text-muted"
         >
-          <strong className="text-foreground">Preview com dados fictícios.</strong>{' '}
-          {students.length} crianças de exemplo:{' '}
-          {Object.entries(statusCounts)
-            .map(([status, count]) => `${count} ${status}`)
-            .join(', ')}
-          . Rota ainda sem proteção de autenticação — restringir ao papel ADMIN antes de
-          publicar.
+          {readyForBelt > 0 ? (
+            <>
+              <strong className="text-foreground">{readyForBelt}</strong> aluno(s) completaram os
+              12 graus e aguardam avaliação de faixa.{' '}
+            </>
+          ) : null}
+          {toMigrate > 0 ? (
+            <>
+              <strong className="text-foreground">{toMigrate}</strong> completaram 16 anos e
+              devem migrar para a categoria adulto.
+            </>
+          ) : null}
         </p>
+      ) : null}
 
-        <GraduationPreview initialKids={kids} adults={adults} />
-      </div>
-    </main>
+      <GraduationClient initialKids={kids} adults={adults} />
+    </div>
   );
 }

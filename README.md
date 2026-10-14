@@ -1,10 +1,10 @@
 # Sabino Academia
 
 Plataforma da Sabino Academia (Jiu-Jitsu e MMA, Três Cachoeiras/RS): landing page
-pública + base para o web app de gestão.
+pública + web app de gestão com painel do aluno e do administrador.
 
 Stack: Next.js 15 (App Router) · TypeScript `strict` · Tailwind CSS · Framer
-Motion · Upstash Redis · Vitest.
+Motion · Clerk · Upstash Redis · Vercel Blob · Vitest.
 
 ---
 
@@ -16,141 +16,224 @@ cp .env.example .env.local   # preencha o que for usar
 npm run dev                  # http://localhost:3000
 ```
 
-O site funciona **sem nenhuma variavel de ambiente**: sem Redis, a grade de
-horarios cai para `data/seed.ts`.
+A **landing page funciona sem nenhuma variável de ambiente**. A área logada
+precisa de Clerk + Redis; sem eles, `/painel` e `/admin` redirecionam para
+`/configurar`, que lista exatamente o que falta e onde conseguir.
 
 ### Scripts
 
 | Comando | O que faz |
 |---|---|
 | `npm run dev` | Servidor de desenvolvimento |
-| `npm run build` | Build de producao |
-| `npm start` | Sobe o build de producao |
-| `npm test` | Testes do motor de graduacao (Vitest) |
-| `npm run test:watch` | Testes em watch mode |
+| `npm run build` | Build de produção |
+| `npm start` | Sobe o build de produção |
+| `npm test` | 86 testes de domínio (Vitest) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
 
-### Rotas
+---
 
-| Rota | Descricao |
+## Configuração
+
+### Obrigatório
+
+| Variável | Onde conseguir |
 |---|---|
-| `/` | Landing page (estatica, revalida a cada 1h) |
-| `/admin/graduacao` | **Preview** do painel de graduacao com dados ficticios |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | clerk.com → aplicação → API Keys |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | upstash.com → Create Database (sa-east-1) → REST API |
+| `NEXT_PUBLIC_SITE_URL` | A URL pública do site |
+| `ADMIN_EMAILS` | E-mails que entram como ADMIN (veja abaixo) |
 
-> `/admin/graduacao` ainda **nao tem protecao de autenticacao**. Ela so serve
-> dados de `data/demoStudents.ts` e esta marcada como `noindex`. Antes de
-> publicar, restrinja ao papel `ADMIN` via middleware do Clerk.
+### Opcional
+
+| Variável | Para quê |
+|---|---|
+| `BLOB_READ_WRITE_TOKEN` | Upload do documento no cadastro (Vercel → Storage → Blob) |
+| `QR_TOKEN_TTL_SECONDS` | Segundos até o QR da recepção girar (padrão 120) |
+
+### O primeiro administrador
+
+Há um problema de partida: sem nenhum admin, ninguém pode aprovar cadastros —
+inclusive o próprio. `ADMIN_EMAILS` resolve isso: os e-mails listados entram
+como ADMIN mesmo sem metadado no Clerk.
+
+```
+ADMIN_EMAILS="seu-email@exemplo.com"
+```
+
+1. Defina a variável.
+2. Crie sua conta em `/cadastro` **com esse mesmo e-mail**.
+3. Entre — você cai direto em `/admin`.
+
+A **senha nunca fica no código nem em variável de ambiente**: ela é criada por
+você no cadastro e o Clerk guarda só o hash.
 
 ---
 
-## O que precisa ser substituido antes de publicar
+## Como o sistema funciona
 
-Tudo que e placeholder esta marcado com `isExample` no codigo e exibe um aviso
-visivel na interface.
+### Fluxo da matrícula
+
+```
+Aluno cria conta  →  /onboarding          →  status "pendente"
+                     (CPF, nascimento,
+                      responsável se menor,
+                      documento, LGPD)
+                                              ↓
+Admin em /admin/aprovacoes:  confere o documento,
+                             atribui as turmas,
+                             define faixa/graus,
+                             combina a mensalidade
+                                              ↓
+                             status "ativo"  →  aluno acessa /painel
+```
+
+O aluno só entra no painel depois de aprovado. Enquanto espera, vê
+`/aguardando`; se recusado, vê o motivo e pode corrigir o cadastro.
+
+### Os três modos de presença
+
+| Modo | Onde | Como funciona |
+|---|---|---|
+| **QR Code** | Aluno, em `/painel/checkin` | A recepção deixa `/admin/qr` aberto. O QR codifica a URL do check-in **já com o token** — a câmera nativa do celular abre a página e registra sozinha, sem app. O token gira a cada 2 min, então foto do QR mandada no WhatsApp não funciona. |
+| **Manual individual** | Admin, em `/admin/presenca` | Botão "Marcar presente" ao lado de cada aluno. |
+| **Manual em lote** | Admin, em `/admin/presenca` | Seleciona vários e registra todos de uma vez. |
+
+A tela de presença abre filtrada por "com aula agora": durante o treino, a
+recepção vê só quem deveria estar no tatame naquele horário.
+
+Regras garantidas no servidor: **1 presença por aluno por dia** (trava atômica
+via `SET NX`, sem janela de corrida), só alunos `ativo`, e a presença fica
+vinculada à aula que está acontecendo.
+
+### Financeiro
+
+O admin combina com o aluno: vence todo dia X, com Y dias de tolerância. O
+sistema calcula o resto.
+
+- **Semáforo**: verde (em dia), amarelo (vence em ≤5 dias ou dentro da
+  tolerância), vermelho (passou da tolerância).
+- **Parcelas acumulam**: se o aluno ficar 3 meses sem pagar, aparecem 3 parcelas
+  em aberto com o total somado — não só "vencida".
+- **Marcar como pago** avança o vencimento conforme o plano (mensal +1 mês,
+  trimestral +3, anual +12) e grava no histórico. Tem desfazer.
+- Vencimento no dia 31 cai no último dia dos meses curtos e **volta para 31** no
+  mês seguinte.
+
+### Graduação
+
+- **Infantil**: 12 graus, intervalo mínimo de 30 dias, tarja branca (1-4),
+  vermelha (5-8) e amarela (9-12). `/admin/graduacao` lista quem está elegível.
+- **Adulto**: sem automação. O painel mostra tempo na faixa, frequência total e
+  dos últimos 90 dias para o professor decidir.
+- Ao completar 16 anos o aluno sai do fluxo automático; ao fechar os 12 graus,
+  fica aguardando avaliação de faixa.
+
+---
+
+## Rotas
+
+| Rota | Quem acessa |
+|---|---|
+| `/` | Público — landing page |
+| `/cadastro`, `/entrar` | Público |
+| `/onboarding`, `/aguardando` | Logado |
+| `/painel` | Aluno ativo — faixa, graus, mensalidade, frequência, aulas, próxima aula |
+| `/painel/checkin` | Aluno ativo — check-in por QR |
+| `/admin` | ADMIN — visão geral |
+| `/admin/aprovacoes` | ADMIN — fila de cadastros |
+| `/admin/alunos`, `/admin/alunos/[id]` | ADMIN — ficha completa e edição |
+| `/admin/presenca` | ADMIN — chamada individual e em lote |
+| `/admin/financeiro` | ADMIN — mensalidades e inadimplentes |
+| `/admin/graduacao` | ADMIN — elegíveis e histórico adulto |
+| `/admin/horarios` | ADMIN — CRUD da grade (reflete no site) |
+| `/admin/qr` | ADMIN — tela da recepção |
+| `/configurar` | Público — diagnóstico de variáveis |
+
+---
+
+## Segurança
+
+- **Toda Server Action começa com `requireAdmin()` ou `requireUser()`.** Server
+  Actions são endpoints HTTP públicos; sem isso, qualquer um com o ID da action
+  poderia aprovar matrículas ou quitar mensalidades.
+- **Papel verificado na fonte**, com `currentUser()` nos layouts de `/admin` e
+  `/painel` — não no middleware, onde depender de `publicMetadata` exigiria um
+  JWT template no painel do Clerk e esquecer esse passo viraria um falso
+  positivo silencioso.
+- **Documento do aluno**: o Redis guarda só o caminho no Blob, nunca uma URL. O
+  admin vê o arquivo por `/api/admin/documento/[userId]`, que confere a sessão e
+  transmite os bytes com `no-store`. Sem sessão de ADMIN, responde 404 — não
+  confirma nem que o aluno existe.
+- **CPF** nunca sai inteiro do servidor: as telas recebem `•••.•••.•••-25` via
+  `toPublicStudent()`.
+- **`server-only`** em todos os repositórios: um import acidental em componente
+  de cliente quebra o build em vez de arrastar credenciais para o bundle. Isso
+  já pegou um erro real durante o desenvolvimento.
+- **Dado externo validado**: tudo que volta do Redis passa por coerção
+  defensiva — o cliente Upstash desserializa JSON sozinho, e um nome igual a
+  "null" ou CPF com zero à esquerda quebraria silenciosamente.
+- **CSP e cabeçalhos** em `next.config.mjs`, com `X-Powered-By` desligado.
+
+---
+
+## Domínio testado
+
+Quatro módulos puros, sem I/O, recebendo `now: Date` por parâmetro — o que os
+torna determinísticos e testáveis:
+
+| Arquivo | O que resolve |
+|---|---|
+| `utils/graduationEngine.ts` | Graus, tarjas, elegibilidade, migração aos 16 |
+| `utils/paymentEngine.ts` | Vencimento, tolerância, parcelas acumuladas |
+| `utils/attendanceEngine.ts` | Janela de check-in e próxima aula |
+| `utils/cpf.ts` | Dígitos verificadores |
+
+```bash
+npm test   # 86 testes
+```
+
+Todas as comparações de data usam **dias de calendário em `America/Sao_Paulo`**,
+nunca milissegundos — e uma data `YYYY-MM-DD` é tratada como data civil, não
+como instante UTC (senão toda data de nascimento andaria um dia para trás).
+
+---
+
+## O que ainda falta substituir
 
 ### Imagens (`/public/images/`)
 
-Os arquivos atuais sao placeholders escuros com a palavra "substituir por foto
-real". Troque mantendo **o mesmo nome e proporcao**:
+Placeholders escuros escritos "substituir por foto real". Troque mantendo o
+mesmo nome e proporção:
 
-| Arquivo | Proporcao | Onde aparece |
+| Arquivo | Proporção | Onde aparece |
 |---|---|---|
-| `hero-tatame.jpg` | 16:9 (1920×1080) | Fundo do hero |
-| `academia-tatame.jpg` | 4:5 (1200×1500) | Secao "A academia" |
-| `modalidade-jiu-jitsu.jpg` | 16:9 (1600×900) | Card grande de Jiu-Jitsu |
-| `modalidade-mma.jpg` | 4:3 (1200×900) | Card de MMA |
-| `modalidade-kids.jpg` | 4:3 (1200×900) | Card de Kids |
+| `hero-tatame.jpg` | 1920×1080 | Fundo do hero |
+| `academia-tatame.jpg` | 1200×1500 | Seção "A academia" |
+| `modalidade-jiu-jitsu.jpg` | 1600×900 | Card de Jiu-Jitsu |
+| `modalidade-mma.jpg` | 1200×900 | Card de MMA |
+| `modalidade-kids.jpg` | 1200×900 | Card infantil |
 
-Ja prontos a partir da logo oficial, **nao precisam ser trocados**:
-`/public/logo.png`, `/public/logo-light.png`, `/public/og-image.png`,
-`/app/icon.png`.
+A logo já está pronta (`logo.png`, `logo-light.png`, `og-image.png`,
+`app/icon.png`), extraída do PDF oficial.
 
-### Textos e dados
-
-**Já confirmados** (não precisam de alteração): grade de horários completa,
-endereço (Rua Josué Maggi, 155 - Centro, atrás da Escola Angelina Maggi),
-telefone `(51) 98169-1373`, Instagram `@sabinoacademia`, CEP `95580-000`, as duas
-aulas experimentais gratuitas, e as respostas do FAQ sobre idade mínima, turma
-feminina e atendimento.
-
-**Ainda pendentes** — marcados com `isExample` e com aviso visível na página:
+### Conteúdo
 
 | Onde | O que falta |
 |---|---|
-| `data/seed.ts` → `plans` | Preços reais e o que cada plano inclui |
-| `data/seed.ts` → `testimonials` | Depoimentos reais, **com autorização de uso de nome e imagem** |
-| `data/seed.ts` → `faq` | Resposta de "como funciona o cancelamento do plano?" |
+| `data/seed.ts` → `plans` | Preços reais |
+| `data/seed.ts` → `testimonials` | Depoimentos reais, com autorização de nome e imagem |
+| `data/seed.ts` → `faq` | Resposta de "como funciona o cancelamento" |
+
+Já confirmados: grade de horários, endereço, CEP, telefone, Instagram e as duas
+aulas experimentais gratuitas.
 
 ---
 
-## Arquitetura
+## Próximos passos sugeridos
 
-```
-app/
-  layout.tsx              fontes, metadata base, skip link
-  page.tsx                compoe as secoes da landing
-  admin/graduacao/        preview do painel (sem auth ainda)
-components/
-  landing/                uma secao por arquivo
-  admin/GraduationDashboard.tsx
-  ui/Reveal.tsx           wrappers de animacao com prefers-reduced-motion
-data/
-  seed.ts                 dados de exemplo + fallback da grade
-  demoStudents.ts         alunos ficticios do preview
-lib/
-  redis.ts                cliente Upstash (server-only)
-  schedule.ts             getSchedule(): Redis -> seed
-  site.ts                 contatos, URLs, navegacao
-utils/
-  graduationEngine.ts     regras de graduacao (funcao pura)
-docs/
-  redis-schema.md         modelagem completa do Redis
-```
-
-### Motor de graduacao
-
-`utils/graduationEngine.ts` e **puro**: recebe `now: Date` por parametro e nao
-faz I/O. Todas as comparacoes usam **dias de calendario em `America/Sao_Paulo`**,
-nunca milissegundos — uma data `YYYY-MM-DD` e tratada como data civil, nao como
-instante UTC (senao toda data de nascimento andaria um dia para tras).
-
-```bash
-npm test   # 40 testes
-```
-
-Cobre: 29/30 dias exatos, troca de tarja em 4→5 e 8→9, grau 12, aniversario de
-16 anos, ano bissexto, virada de mes e de ano, aluno sem `lastGraduationAt`, e
-limites de fuso a meia-noite.
-
-### Seguranca
-
-- **CSP e cabecalhos** em `next.config.mjs`: `Content-Security-Policy`,
-  `Strict-Transport-Security`, `Permissions-Policy`, `X-Content-Type-Options`,
-  `Referrer-Policy`, `X-Frame-Options`. `X-Powered-By` desligado.
-- **`server-only`** em `lib/redis.ts` e `lib/schedule.ts`: se um Client Component
-  importar esses modulos, o build falha em vez de arrastar credenciais para o
-  bundle.
-- **Dado externo validado**: a grade vinda do Redis passa por validacao campo a
-  campo antes de chegar na UI; um registro invalido e descartado sozinho.
-- **Nenhum dado pessoal em rota publica**: a landing page le apenas
-  `schedule:classes`. CPF e documentos ficam em `user:{clerkId}`, so acessivel
-  do servidor em contexto autenticado (ver `docs/redis-schema.md`, secao 10).
-
-Ao ligar Clerk e Vercel Blob, adicione os dominios deles em `script-src`,
-`connect-src`, `img-src` e `frame-src` na CSP.
-
----
-
-## Proximas rodadas
-
-1. **Auth e middleware** — Clerk, protecao de `/admin/*` e `/painel/*` por
-   `publicMetadata.role`.
-2. **Cadastro e onboarding** — CPF com digito verificador, menor de 18 com
-   responsavel, upload para o Vercel Blob privado, aceite de LGPD versionado.
-3. **Check-in por QR Code** — token rotativo em `qr:current`, trava diaria via
-   `SET NX`, ranking atualizado em transacao.
-4. **Financeiro** — `payments:due` como indice de inadimplentes, "marcar como
-   pago" e historico.
-5. **Integrar o dashboard** — trocar `data/demoStudents.ts` pelas leituras de
-   `graduation:due` e transformar os handlers do preview em Server Actions.
+1. **Ranking** — os ZSETs já são alimentados a cada check-in; falta a tela.
+2. **PWA** — manifest, ícones e cache da shell para instalar no celular.
+3. **Notificações** — avisar o aluno quando a mensalidade estiver perto de vencer.
+4. **Job diário** (Vercel Cron) — migrar quem fez 16 anos e atualizar o cache de
+   status de pagamento. Descrito em `docs/redis-schema.md`, seção 9.
