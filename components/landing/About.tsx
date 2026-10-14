@@ -10,10 +10,10 @@ export function About() {
         <div className="grid gap-12 lg:grid-cols-[minmax(0,.95fr)_minmax(0,1.05fr)] lg:items-center lg:gap-20">
           {/* Composição assimétrica: imagem maior deslocada, apoio sobreposto. */}
           <Reveal direction="right" className="relative">
-            <div className="relative aspect-[4/5] w-full overflow-hidden rounded-3xl border border-hairline">
+            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border border-hairline">
               <Image
                 src="/images/academia-tatame.jpg"
-                alt="Tatame da Sabino Academia preparado para o treino"
+                alt="Fachada da Sabino Academia no centro de Três Cachoeiras"
                 fill
                 sizes="(min-width: 1024px) 45vw, 100vw"
                 className="object-cover"

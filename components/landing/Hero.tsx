@@ -21,18 +21,14 @@ export function Hero() {
 
   return (
     <section className="grain relative isolate overflow-hidden pb-20 pt-32 sm:pb-24 sm:pt-36 lg:pb-32 lg:pt-44">
-      {/* Foto de impacto. Troque /public/images/hero-tatame.jpg pela imagem real. */}
+      {/*
+        Hero sem fotografia, por decisão da academia: em vez de uma imagem
+        genérica, o fundo é construído com profundidade própria — granulado,
+        halo carmesim e um brilho frio na diagonal oposta.
+      */}
       <div aria-hidden="true" className="absolute inset-0 -z-10">
-        <Image
-          src="/images/hero-tatame.jpg"
-          alt=""
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover object-center opacity-[.28]"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-ink/70 via-ink/85 to-ink" />
-        <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/60 to-transparent" />
+        <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_15%_0%,#1C1C21_0%,#0E0E10_60%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-ink to-transparent" />
       </div>
 
       {/* Halo carmesim discreto atras do conteudo. */}

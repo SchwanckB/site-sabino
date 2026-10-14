@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
+import { AccessLinksMobile, AccessMenu } from '@/components/landing/AccessMenu';
 import { navLinks, siteConfig, whatsappLink, whatsappMessages } from '@/lib/site';
 import { cn } from '@/lib/utils';
 
@@ -79,7 +80,8 @@ export function Header() {
           </ul>
         </nav>
 
-        <div className="hidden lg:block">
+        <div className="hidden items-center gap-3 lg:flex">
+          <AccessMenu />
           <a
             href={whatsappLink(whatsappMessages.trial)}
             target="_blank"
@@ -157,7 +159,11 @@ export function Header() {
                 </ul>
               </nav>
 
-              <div className="mt-8 flex flex-col gap-3">
+              <div className="mt-8 border-t border-hairline pt-6">
+                <AccessLinksMobile onNavigate={closeMenu} />
+              </div>
+
+              <div className="mt-6 flex flex-col gap-3">
                 <a
                   href={whatsappLink(whatsappMessages.trial)}
                   target="_blank"

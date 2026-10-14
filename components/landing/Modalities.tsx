@@ -66,7 +66,8 @@ export function Modalities() {
                   }
                   className="object-cover transition-transform duration-700 ease-organic group-hover:scale-[1.04] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/40 to-transparent" />
+                {/* Escurece só a base, onde o texto encosta - os rostos ficam legíveis. */}
+                <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/15 to-transparent" />
               </div>
 
               <div className="flex flex-1 flex-col p-6 sm:p-7">

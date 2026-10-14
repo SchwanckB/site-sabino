@@ -40,7 +40,7 @@ precisa de Clerk + Redis; sem eles, `/painel` e `/admin` redirecionam para
 | Variável | Onde conseguir |
 |---|---|
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | clerk.com → aplicação → API Keys |
-| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | upstash.com → Create Database (sa-east-1) → REST API |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | upstash.com → Create Database (sa-east-1) → REST API.<br>**Ou** ligue a integração Upstash em Vercel → Storage: ela cria `KV_REST_API_URL`/`KV_REST_API_TOKEN` e o app aceita esses nomes direto. |
 | `NEXT_PUBLIC_SITE_URL` | A URL pública do site |
 | `ADMIN_EMAILS` | E-mails que entram como ADMIN (veja abaixo) |
 

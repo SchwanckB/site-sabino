@@ -4,6 +4,8 @@ import 'server-only';
 
 import { Redis } from '@upstash/redis';
 
+import { getRedisCredentials } from '@/lib/redisEnv';
+
 /**
  * Upstash Redis client (REST - funciona em Serverless e Edge).
  *
@@ -21,15 +23,13 @@ export function getRedis(): Redis | null {
   }
   initialised = true;
 
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-  if (!url || !token) {
+  const credentials = getRedisCredentials();
+  if (!credentials) {
     client = null;
     return client;
   }
 
-  client = new Redis({ url, token });
+  client = new Redis(credentials);
   return client;
 }
 

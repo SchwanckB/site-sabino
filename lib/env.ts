@@ -6,6 +6,8 @@
  * mandam o visitante para `/configurar` com a lista do que falta.
  */
 
+import { getRedisCredentials } from '@/lib/redisEnv';
+
 export interface ServiceStatus {
   readonly clerk: boolean;
   readonly redis: boolean;
@@ -24,10 +26,7 @@ export function isClerkConfigured(): boolean {
 }
 
 export function isRedisConfigured(): boolean {
-  return (
-    filled(process.env.UPSTASH_REDIS_REST_URL) &&
-    filled(process.env.UPSTASH_REDIS_REST_TOKEN)
-  );
+  return getRedisCredentials() !== null;
 }
 
 export function isBlobConfigured(): boolean {
@@ -75,8 +74,12 @@ export function listMissingServices(): MissingService[] {
     missing.push({
       key: 'redis',
       label: 'Upstash Redis — banco de dados',
-      envVars: ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN'],
-      where: 'upstash.com → Create Database (região sa-east-1) → REST API',
+      envVars: [
+        'UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN',
+        'ou KV_REST_API_URL + KV_REST_API_TOKEN',
+      ],
+      where:
+        'Vercel → Storage → Upstash (cria as KV_* sozinho), ou upstash.com → Create Database (sa-east-1) → REST API',
       required: true,
     });
   }
