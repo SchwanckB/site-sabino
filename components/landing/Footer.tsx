@@ -65,7 +65,7 @@ export function Footer() {
                 <li key={link.href}>
                   <a
                     href={link.href}
-                    className="inline-flex min-h-[40px] items-center text-sm text-muted transition-colors hover:text-foreground"
+                    className="inline-flex min-h-[44px] items-center text-sm text-muted transition-colors hover:text-foreground"
                   >
                     {link.label}
                   </a>
@@ -83,7 +83,7 @@ export function Footer() {
                   href={whatsappLink(whatsappMessages.trial)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-[40px] items-center transition-colors hover:text-foreground"
+                  className="inline-flex min-h-[44px] items-center transition-colors hover:text-foreground"
                 >
                   {siteConfig.phoneDisplay}
                 </a>

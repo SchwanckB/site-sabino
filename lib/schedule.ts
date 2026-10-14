@@ -1,3 +1,7 @@
+// Barreira de build: se um Client Component importar este modulo, o build
+// falha em vez de arrastar credenciais e consultas do Redis para o bundle.
+import 'server-only';
+
 import { seedSchedule, type ClassSlot, type ModalityId, type Schedule, type Weekday } from '@/data/seed';
 import { getRedis, redisKeys } from '@/lib/redis';
 

@@ -45,7 +45,7 @@ export function LocationSection() {
                       href={whatsappLink(whatsappMessages.trial)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-base text-foreground underline decoration-crimson decoration-2 underline-offset-4 transition-colors hover:text-crimson"
+                      className="inline-flex min-h-[44px] items-center text-base text-foreground underline decoration-crimson decoration-2 underline-offset-4 transition-colors hover:text-crimson"
                     >
                       {siteConfig.phoneDisplay}
                     </a>
@@ -56,7 +56,7 @@ export function LocationSection() {
                   <dt className="text-xs uppercase tracking-[0.18em] text-muted">
                     Atendimento da recepcao
                     {siteConfig.openingHours.isExample ? (
-                      <span className="ml-2 rounded-full border border-dashed border-crimson/50 px-2 py-0.5 text-[10px] normal-case tracking-wider">
+                      <span className="ml-2 rounded-full border border-dashed border-crimson/50 px-2 py-0.5 align-middle text-[10px] uppercase tracking-wider text-muted">
                         exemplo
                       </span>
                     ) : null}

@@ -60,7 +60,7 @@ export function Header() {
             width={1400}
             height={1204}
             priority
-            className="h-11 w-auto sm:h-12"
+            className="h-12 w-auto sm:h-14"
           />
         </Link>
 
@@ -128,7 +128,7 @@ export function Header() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: reduceMotion ? 0 : -12 }}
             transition={{ duration: reduceMotion ? 0.15 : 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute inset-x-0 top-0 h-dvh border-b border-hairline bg-ink/97 backdrop-blur-xl lg:hidden"
+            className="absolute inset-x-0 top-0 h-dvh border-b border-hairline bg-ink lg:hidden"
           >
             <div className="container-page flex h-full flex-col justify-center pb-16 pt-24">
               <nav aria-label="Navegacao principal (mobile)">

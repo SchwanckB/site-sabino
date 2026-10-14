@@ -3,9 +3,13 @@ export function cn(...values: readonly (string | false | null | undefined)[]): s
   return values.filter((value): value is string => Boolean(value)).join(' ');
 }
 
-/** Iniciais para avatares sem foto (maximo duas letras). */
+/**
+ * Iniciais para avatares sem foto (maximo duas letras).
+ * Ignora tokens que nao comecam com letra - sufixos entre parenteses,
+ * numeros e pontuacao nao viram inicial.
+ */
 export function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const parts = name.trim().split(/\s+/).filter((part) => /^\p{L}/u.test(part));
   if (parts.length === 0) return '?';
 
   const first = parts[0]?.charAt(0) ?? '';
