@@ -19,6 +19,7 @@ import {
 } from '@/types/domain';
 import { maskCpf } from '@/utils/cpf';
 import { saoPauloDateString } from '@/utils/datetime';
+import { SCORE_MIN } from '@/utils/redisScore';
 import {
   KIDS_GRADUATION_INTERVAL_DAYS,
   calculateAge,
@@ -393,9 +394,19 @@ export async function listGraduationDueIds(now: Date): Promise<string[]> {
   if (!redis) return [];
 
   const today = dayNumber(saoPauloDateString(now));
-  return redis.zrange<string[]>(redisKeys.graduationDue(), Number.NEGATIVE_INFINITY, today, {
-    byScore: true,
-  });
+
+  try {
+    // SCORE_MIN é o literal que o Redis entende. `Number.NEGATIVE_INFINITY` vira
+    // `null` no JSON do protocolo REST e o servidor responde
+    // "min or max is not a float", derrubando a página inteira.
+    return await redis.zrange<string[]>(redisKeys.graduationDue(), SCORE_MIN, today, {
+      byScore: true,
+    });
+  } catch (error) {
+    // Leitura de painel: um erro aqui não pode zerar a tela do admin.
+    console.error('[students] falha ao ler graduation:due', error);
+    return [];
+  }
 }
 
 /** Busca simples por nome, e-mail ou CPF, feita em memória sobre a lista ativa. */

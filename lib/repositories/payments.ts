@@ -4,6 +4,7 @@ import { getRedis, redisKeys } from '@/lib/redis';
 import { asInteger, asNullableString, asString, emptyToNull } from '@/lib/repositories/parse';
 import type { PaymentEntry, PaymentMethod, PaymentPlanRecord } from '@/types/domain';
 import { saoPauloDateString } from '@/utils/datetime';
+import { SCORE_MIN } from '@/utils/redisScore';
 import {
   DEFAULT_GRACE_DAYS,
   PLAN_MONTHS,
@@ -254,12 +255,16 @@ export async function listOverdueIds(now: Date): Promise<string[]> {
   if (!redis) return [];
 
   const today = dayNumber(saoPauloDateString(now));
-  return redis.zrange<string[]>(
-    redisKeys.paymentsDue(),
-    Number.NEGATIVE_INFINITY,
-    today - 1,
-    { byScore: true },
-  );
+
+  try {
+    // Ver a nota em students.ts: SCORE_MIN é obrigatório aqui.
+    return await redis.zrange<string[]>(redisKeys.paymentsDue(), SCORE_MIN, today - 1, {
+      byScore: true,
+    });
+  } catch (error) {
+    console.error('[payments] falha ao ler payments:due', error);
+    return [];
+  }
 }
 
 /** Resumo financeiro de vários alunos de uma vez. */
