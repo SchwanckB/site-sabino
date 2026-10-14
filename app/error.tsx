@@ -43,6 +43,10 @@ export default function AppError({
           <Link href="/" className="btn-secondary">
             Voltar ao início
           </Link>
+          {/* Atalho para o diagnóstico: quase sempre o erro é configuração. */}
+          <Link href="/configurar" className="btn-ghost">
+            Ver diagnóstico
+          </Link>
         </div>
       </div>
     </main>

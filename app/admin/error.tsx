@@ -42,6 +42,9 @@ export default function AdminError({
           <Link href="/admin" className="btn-secondary">
             Voltar à visão geral
           </Link>
+          <Link href="/configurar" className="btn-ghost">
+            Ver diagnóstico
+          </Link>
         </div>
       </div>
     </div>

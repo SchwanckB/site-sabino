@@ -1,16 +1,21 @@
 import 'server-only';
 
+import { clerkClient } from '@clerk/nextjs/server';
+
+import { isBlobConfigured, isClerkConfigured } from '@/lib/env';
 import { getRedis } from '@/lib/redis';
 import { getRedisCredentials } from '@/lib/redisEnv';
-import { isBlobConfigured, isClerkConfigured } from '@/lib/env';
 
 /**
  * Diagnóstico de verdade dos serviços.
  *
  * Checar se a variável de ambiente existe não prova nada: a chave pode estar
- * errada, o banco pausado ou a rede bloqueada, e o sintoma chega ao usuário
- * como "erro no banco" sem nenhuma pista. Aqui cada serviço é realmente
- * exercitado, e o erro bruto aparece na tela de configuração.
+ * errada, o banco pausado ou as duas chaves do Clerk pertencerem a aplicações
+ * diferentes. Esse último caso é traiçoeiro — o cadastro funciona (é o
+ * navegador falando com a instância da chave publicável) e só o servidor
+ * falha, o que chega ao usuário como "algo deu errado" sem explicação.
+ *
+ * Por isso cada serviço é realmente exercitado, e o erro bruto aparece na tela.
  */
 
 export type CheckState = 'ok' | 'erro' | 'nao_configurado';
@@ -19,8 +24,80 @@ export interface HealthCheck {
   readonly service: string;
   readonly state: CheckState;
   readonly detail: string;
-  /** Tempo da ida e volta, quando houve chamada. */
   readonly latencyMs: number | null;
+}
+
+/**
+ * A chave publicável carrega o host da instância em base64.
+ * `pk_test_<base64("exemplo-1234.clerk.accounts.dev$")>`
+ */
+export function clerkInstanceHost(publishableKey: string): string | null {
+  const parts = publishableKey.split('_');
+  const encoded = parts[2];
+  if (!encoded) return null;
+
+  try {
+    const decoded = Buffer.from(encoded, 'base64').toString('utf8');
+    const host = decoded.replace(/\$$/, '').trim();
+    return host.length > 0 ? host : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Chama a API do Clerk com a chave secreta — é o que o servidor faz. */
+export async function checkClerk(): Promise<HealthCheck> {
+  if (!isClerkConfigured()) {
+    return {
+      service: 'Clerk (login)',
+      state: 'nao_configurado',
+      detail: 'Defina NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY e CLERK_SECRET_KEY.',
+      latencyMs: null,
+    };
+  }
+
+  const publishable = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '';
+  const secret = process.env.CLERK_SECRET_KEY ?? '';
+  const host = clerkInstanceHost(publishable);
+
+  // pk_test com sk_live (ou o contrário) nunca vai funcionar.
+  const publishableAmbiente = publishable.startsWith('pk_live') ? 'live' : 'test';
+  const secretAmbiente = secret.startsWith('sk_live') ? 'live' : 'test';
+
+  if (publishableAmbiente !== secretAmbiente) {
+    return {
+      service: 'Clerk (login)',
+      state: 'erro',
+      detail: `A chave publicável é "${publishableAmbiente}" e a secreta é "${secretAmbiente}". As duas têm de ser do mesmo ambiente e da mesma aplicação.`,
+      latencyMs: null,
+    };
+  }
+
+  const started = Date.now();
+
+  try {
+    const client = await clerkClient();
+    const total = await client.users.getCount();
+
+    return {
+      service: 'Clerk (login)',
+      state: 'ok',
+      detail: `Chave secreta válida${host ? ` para ${host}` : ''}. ${total} conta(s) criada(s).`,
+      latencyMs: Date.now() - started,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    return {
+      service: 'Clerk (login)',
+      state: 'erro',
+      detail:
+        `A chave secreta foi recusada${host ? ` (a publicável aponta para ${host})` : ''}. ` +
+        'Confira se CLERK_SECRET_KEY e NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY saíram da MESMA aplicação no painel do Clerk. ' +
+        `Resposta: ${message.slice(0, 200)}`,
+      latencyMs: Date.now() - started,
+    };
+  }
 }
 
 /** Faz uma escrita e uma leitura reais, que é o que a aplicação precisa. */
@@ -78,27 +155,10 @@ export async function checkRedis(): Promise<HealthCheck> {
     return {
       service: 'Upstash Redis',
       state: 'erro',
-      // A mensagem bruta é o que resolve: "WRONGPASS", "not a float", timeout…
       detail: message.slice(0, 300),
       latencyMs: Date.now() - started,
     };
   }
-}
-
-export function checkClerk(): HealthCheck {
-  return isClerkConfigured()
-    ? {
-        service: 'Clerk (login)',
-        state: 'ok',
-        detail: 'Chaves presentes.',
-        latencyMs: null,
-      }
-    : {
-        service: 'Clerk (login)',
-        state: 'nao_configurado',
-        detail: 'Defina NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY e CLERK_SECRET_KEY.',
-        latencyMs: null,
-      };
 }
 
 export function checkBlob(): HealthCheck {
@@ -119,5 +179,6 @@ export function checkBlob(): HealthCheck {
 }
 
 export async function runHealthChecks(): Promise<HealthCheck[]> {
-  return [checkClerk(), await checkRedis(), checkBlob()];
+  const [clerk, redis] = await Promise.all([checkClerk(), checkRedis()]);
+  return [clerk, redis, checkBlob()];
 }

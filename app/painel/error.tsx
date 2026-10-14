@@ -42,6 +42,9 @@ export default function PainelError({
           <Link href="/painel" className="btn-secondary">
             Voltar ao meu painel
           </Link>
+          <Link href="/configurar" className="btn-ghost">
+            Ver diagnóstico
+          </Link>
         </div>
       </div>
     </div>

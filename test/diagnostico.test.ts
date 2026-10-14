@@ -5,9 +5,9 @@ import { UpstashMock } from './upstashMock';
 /**
  * Diagnóstico dos serviços.
  *
- * O objetivo é que "erro no banco" nunca mais chegue ao usuário sem resposta:
- * a tela de configuração precisa distinguir "não configurado" de "configurado
- * mas falhando", e mostrar a mensagem real do servidor.
+ * O objetivo é que "algo deu errado" nunca mais chegue ao usuário sem
+ * resposta: a tela precisa distinguir "não configurado" de "configurado mas
+ * falhando", e mostrar a mensagem real do servidor.
  */
 
 const mock = new UpstashMock();
@@ -68,9 +68,8 @@ describe('checkRedis', () => {
     const result = await checkRedis();
 
     expect(result.state).toBe('erro');
+    // A mensagem bruta é o que permite agir — não pode vir vazia.
     expect(result.detail.length).toBeGreaterThan(0);
-    // A mensagem bruta é o que permite agir - não pode vir vazia.
-    expect(result.detail).not.toBe('');
   });
 
   it('não confunde KV_URL (protocolo TCP) com a API REST', async () => {
@@ -85,22 +84,63 @@ describe('checkRedis', () => {
   });
 });
 
-describe('checkClerk e checkBlob', () => {
-  it('reporta Clerk conforme as chaves', async () => {
+describe('checkClerk', () => {
+  it('reporta "não configurado" sem as chaves', async () => {
     delete process.env['NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY'];
     delete process.env['CLERK_SECRET_KEY'];
 
-    const semChaves = await import('@/lib/health');
-    expect(semChaves.checkClerk().state).toBe('nao_configurado');
-
-    vi.resetModules();
-    process.env['NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY'] = 'pk_test_x';
-    process.env['CLERK_SECRET_KEY'] = 'sk_test_x';
-
-    const comChaves = await import('@/lib/health');
-    expect(comChaves.checkClerk().state).toBe('ok');
+    const { checkClerk } = await import('@/lib/health');
+    expect((await checkClerk()).state).toBe('nao_configurado');
   });
 
+  it('acusa chaves de ambientes diferentes antes de chamar a API', async () => {
+    // pk_test com sk_live nunca funciona. Detectar pelo formato dá uma
+    // mensagem útil em vez de um 401 genérico.
+    process.env['NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY'] = 'pk_test_abc';
+    process.env['CLERK_SECRET_KEY'] = 'sk_live_abc';
+
+    const { checkClerk } = await import('@/lib/health');
+    const result = await checkClerk();
+
+    expect(result.state).toBe('erro');
+    expect(result.detail).toContain('mesma aplicação');
+  });
+
+  it('reporta erro quando a chave secreta é recusada', async () => {
+    process.env['NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY'] = 'pk_test_abc';
+    process.env['CLERK_SECRET_KEY'] = 'sk_test_invalida';
+
+    const { checkClerk } = await import('@/lib/health');
+    const result = await checkClerk();
+
+    expect(result.state).toBe('erro');
+    // É o caso em que o cadastro funciona mas o servidor falha depois.
+    expect(result.detail).toContain('MESMA aplicação');
+  });
+});
+
+describe('clerkInstanceHost', () => {
+  it('extrai o host da instância da chave publicável', async () => {
+    const { clerkInstanceHost } = await import('@/lib/health');
+
+    const host = 'native-skunk-1448.clerk.accounts.dev';
+    const chave = `pk_test_${Buffer.from(`${host}$`).toString('base64')}`;
+
+    // É esse host que permite conferir, a olho, se as duas chaves saíram da
+    // mesma aplicação do Clerk.
+    expect(clerkInstanceHost(chave)).toBe(host);
+  });
+
+  it('devolve null para chave malformada', async () => {
+    const { clerkInstanceHost } = await import('@/lib/health');
+
+    expect(clerkInstanceHost('pk_test_')).toBeNull();
+    expect(clerkInstanceHost('lixo')).toBeNull();
+    expect(clerkInstanceHost('')).toBeNull();
+  });
+});
+
+describe('checkBlob', () => {
   it('trata o Blob como opcional', async () => {
     delete process.env['BLOB_READ_WRITE_TOKEN'];
 
