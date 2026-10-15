@@ -44,7 +44,10 @@ export async function GET(
       'Content-Disposition': `inline; filename="documento-${userId}"`,
       'Cache-Control': 'no-store, private, max-age=0',
       'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "default-src 'none'; img-src 'self' blob: data:; object-src 'self'",
+      // O visualizador nativo do navegador aplica estilos inline na imagem;
+      // sem liberar style-src ele enche o console de violação à toa.
+      'Content-Security-Policy':
+        "default-src 'none'; img-src 'self' blob: data:; object-src 'self'; style-src 'unsafe-inline'; plugin-types application/pdf",
     },
   });
 }
