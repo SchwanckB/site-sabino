@@ -18,6 +18,20 @@ export const STATUS_LABELS: Readonly<Record<UserStatus, string>> = {
   inativo: 'Inativo',
 };
 
+/**
+ * Sexo do aluno. Usado nos filtros do painel e na turma feminina.
+ * Opcional de propósito: ninguém fica barrado na matrícula por não informar.
+ */
+export type Gender = 'masculino' | 'feminino' | 'nao_informado';
+
+export const GENDERS: readonly Gender[] = ['masculino', 'feminino', 'nao_informado'];
+
+export const GENDER_LABELS: Readonly<Record<Gender, string>> = {
+  masculino: 'Masculino',
+  feminino: 'Feminino',
+  nao_informado: 'Não informado',
+};
+
 /** Trilha de graduação. Derivada da idade, revista no aniversário de 16 anos. */
 export type Category = 'kids' | 'adulto';
 
@@ -57,6 +71,7 @@ export interface StudentRecord {
   readonly birthDate: string;
   readonly status: UserStatus;
   readonly category: Category;
+  readonly gender: Gender;
   readonly belt: string;
   readonly degree: number;
   readonly guardianName: string | null;
@@ -92,6 +107,7 @@ export interface PublicStudent {
   readonly age: number;
   readonly status: UserStatus;
   readonly category: Category;
+  readonly gender: Gender;
   readonly belt: string;
   readonly degree: number;
   readonly guardianName: string | null;

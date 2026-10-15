@@ -13,6 +13,7 @@ const base = (overrides: Partial<OnboardingInput> = {}): OnboardingInput => ({
   guardianName: '',
   guardianPhone: '',
   guardianCpf: '',
+  gender: 'feminino',
   consent: true,
   hasDocument: true,
   documentRequired: true,

@@ -147,6 +147,14 @@ describe('formatMinutes', () => {
     expect(formatMinutes(0)).toBe('0min');
     expect(formatMinutes(-10)).toBe('0min');
   });
+
+  it('passa a contar em dias quando a aula é longe', () => {
+    // 116h51 até a próxima aula não se lê; "5 dias" sim.
+    expect(formatMinutes(116 * 60 + 51)).toBe('5 dias');
+    expect(formatMinutes(24 * 60)).toBe('1 dia');
+    expect(formatMinutes(23 * 60 + 59)).toBe('23h59');
+    expect(formatMinutes(36 * 60)).toBe('2 dias');
+  });
 });
 
 describe('validação de CPF', () => {

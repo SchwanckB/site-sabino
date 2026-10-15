@@ -2,8 +2,15 @@
 
 import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
 import { cn } from '@/lib/utils';
-import { ADULT_BELTS, KIDS_BELTS, STATUS_LABELS, USER_STATUSES } from '@/types/domain';
-import type { UserStatus } from '@/types/domain';
+import {
+  ADULT_BELTS,
+  GENDER_LABELS,
+  GENDERS,
+  KIDS_BELTS,
+  STATUS_LABELS,
+  USER_STATUSES,
+} from '@/types/domain';
+import type { Gender, UserStatus } from '@/types/domain';
 
 import {
   promoteBeltAction,
@@ -28,6 +35,7 @@ export function StudentEditor({
   degree,
   notes,
   status,
+  gender,
   isKids,
   assignedClassIds,
   classOptions,
@@ -37,6 +45,7 @@ export function StudentEditor({
   readonly degree: number;
   readonly notes: string;
   readonly status: UserStatus;
+  readonly gender: Gender;
   readonly isKids: boolean;
   readonly assignedClassIds: readonly string[];
   readonly classOptions: readonly ClassOption[];
@@ -115,6 +124,24 @@ export function StudentEditor({
               className={cn(inputClass, 'mt-2')}
             />
           </div>
+        </div>
+
+        <div className="mt-5">
+          <label htmlFor="gender" className="block text-sm font-medium">
+            Sexo
+          </label>
+          <select
+            id="gender"
+            name="gender"
+            defaultValue={gender}
+            className={cn(inputClass, 'mt-2')}
+          >
+            {GENDERS.map((value) => (
+              <option key={value} value={value}>
+                {GENDER_LABELS[value]}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="mt-5">

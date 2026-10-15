@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { AppShell, type NavItem } from '@/components/app/AppShell';
+import { AppShell, type NavItem, type PrimaryAction } from '@/components/app/AppShell';
 import { getSessionUser } from '@/lib/auth';
 import { getStudent } from '@/lib/repositories/students';
 
@@ -30,12 +30,22 @@ export default async function PainelLayout({
   }
 
   const items: NavItem[] = [
-    { href: '/painel', label: 'Meu painel' },
-    { href: '/painel/checkin', label: 'Check-in' },
+    { href: '/painel', label: 'Início', icon: 'inicio', primary: true },
+    { href: '/painel#mensalidade', label: 'Mensalidade', short: 'Pagar', icon: 'dinheiro', primary: true },
+    { href: '/painel#frequencia', label: 'Treinos', icon: 'grafico', primary: true },
+    { href: '/painel/checkin', label: 'Check-in', icon: 'qr' },
   ];
 
+  // O aluno abre o painel na porta da academia: o leitor de QR fica a um
+  // toque, no centro da barra, e já sobe com a câmera ligada.
+  const primaryAction: PrimaryAction = {
+    href: '/painel/checkin?abrir=1',
+    label: 'Marcar presença',
+    short: 'Presença',
+    icon: 'qr',
+  };
   return (
-    <AppShell items={items} title="Área do aluno">
+    <AppShell items={items} title="Área do aluno" primaryAction={primaryAction}>
       {children}
     </AppShell>
   );

@@ -12,6 +12,7 @@ import {
   getDegreeColor,
   getKidsGraduationStatus,
   listEligibleKids,
+  listKidsAgenda,
   toIsoDate,
   type AdultStudent,
   type KidsStudent,
@@ -458,5 +459,63 @@ describe('date helpers', () => {
 
   it('rejects unparseable input', () => {
     expect(() => toIsoDate('amanha')).toThrow(RangeError);
+  });
+});
+
+describe('listKidsAgenda', () => {
+  const now = spNoon('2026-03-10');
+
+  const turma: KidsStudent[] = [
+    kid({ id: 'elegivel-ha-muito', lastGraduationAt: '2025-12-01', degree: 2 }),
+    kid({ id: 'elegivel-recente', lastGraduationAt: '2026-02-08', degree: 2 }),
+    kid({ id: 'vence-em-5-dias', lastGraduationAt: '2026-02-18', degree: 3 }),
+    kid({ id: 'vence-em-25-dias', lastGraduationAt: '2026-03-07', degree: 1 }),
+    kid({ id: 'escada-completa', lastGraduationAt: '2026-01-01', degree: 12 }),
+    kid({ id: 'virou-adulto', birthDate: '2010-01-01', lastGraduationAt: '2026-01-01' }),
+  ];
+
+  it('devolve a turma inteira, não só quem já venceu', () => {
+    expect(listKidsAgenda(turma, now)).toHaveLength(turma.length);
+    expect(listEligibleKids(turma, now)).toHaveLength(2);
+  });
+
+  it('coloca os elegíveis primeiro, maior espera no topo', () => {
+    const agenda = listKidsAgenda(turma, now);
+
+    expect(agenda[0]?.studentId).toBe('elegivel-ha-muito');
+    expect(agenda[1]?.studentId).toBe('elegivel-recente');
+    expect(agenda[0]?.status).toBe('ELEGIVEL');
+  });
+
+  it('ordena quem aguarda pela data prevista mais próxima', () => {
+    const aguardando = listKidsAgenda(turma, now).filter((r) => r.status === 'AGUARDANDO');
+
+    expect(aguardando.map((r) => r.studentId)).toEqual(['vence-em-5-dias', 'vence-em-25-dias']);
+    expect(aguardando[0]?.daysUntilEligible).toBeLessThan(
+      aguardando[1]?.daysUntilEligible ?? 0,
+    );
+  });
+
+  it('informa a data prevista de cada próximo grau', () => {
+    const agenda = listKidsAgenda(turma, now);
+    const proximo = agenda.find((r) => r.studentId === 'vence-em-5-dias');
+
+    // 18/02 + 30 dias = 20/03 — é esta data que o professor precisa ver.
+    expect(proximo?.eligibleAt).toBe('2026-03-20');
+    expect(proximo?.daysUntilEligible).toBe(10);
+    expect(proximo?.nextDegree).toBe(4);
+    expect(proximo?.nextDegreeColor).toBe('branca');
+  });
+
+  it('joga para o fim quem saiu do fluxo automático', () => {
+    const agenda = listKidsAgenda(turma, now);
+    const finais = agenda.slice(-2).map((r) => r.status);
+
+    expect(finais).toContain('PRONTO_PARA_AVALIACAO');
+    expect(finais).toContain('MIGRAR_PARA_ADULTO');
+  });
+
+  it('aguenta turma vazia', () => {
+    expect(listKidsAgenda([], now)).toEqual([]);
   });
 });

@@ -53,6 +53,7 @@ const fichaBase = {
   phone: '51999998888',
   cpf: '52998224725',
   birthDate: '1995-04-20',
+  gender: 'masculino' as const,
   belt: 'branca',
   guardianName: null,
   guardianPhone: null,

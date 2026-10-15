@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { getTodayCheckins } from '@/lib/repositories/attendance';
+import { getTodayCheckins, listCheckins } from '@/lib/repositories/attendance';
 import { getPaymentPlans } from '@/lib/repositories/payments';
 import {
   countByStatus,
@@ -9,15 +9,18 @@ import {
   listStudentsByStatus,
 } from '@/lib/repositories/students';
 import { getSchedule } from '@/lib/schedule';
-import { cn } from '@/lib/utils';
 import { findOpenClasses } from '@/utils/attendanceEngine';
-import { formatCents, getPaymentSummary } from '@/utils/paymentEngine';
+import { daysBetween, saoPauloDateString } from '@/utils/datetime';
+import { getPaymentSummary } from '@/utils/paymentEngine';
+
+import { Dashboards, type DashboardRow } from './Dashboards';
 
 export const metadata: Metadata = { title: 'Visão geral' };
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
   const now = new Date();
+  const hoje = saoPauloDateString(now);
 
   const [counts, active, schedule, dueIds] = await Promise.all([
     countByStatus(),
@@ -27,87 +30,73 @@ export default async function AdminPage() {
   ]);
 
   const ids = active.map((student) => student.id);
-  const [plans, checkins] = await Promise.all([
+  const [plans, checkinsHoje] = await Promise.all([
     getPaymentPlans(ids),
     getTodayCheckins(ids, now),
   ]);
 
-  const overdue = [...plans.values()].filter(
-    (plan) => getPaymentSummary(plan, now).status === 'vencida',
+  // Histórico por aluno: alimenta frequência e o alerta de evasão.
+  const historicos = await Promise.all(
+    active.map(async (student) => ({
+      id: student.id,
+      entries: await listCheckins(student.id, 200),
+    })),
   );
-  const totalOpen = overdue.reduce(
-    (sum, plan) => sum + getPaymentSummary(plan, now).totalOpenCents,
-    0,
-  );
+  const porAluno = new Map(historicos.map((h) => [h.id, h.entries]));
+
+  const rows: DashboardRow[] = active.map((student) => {
+    const plan = plans.get(student.id);
+    const summary = plan ? getPaymentSummary(plan, now) : null;
+    const entries = porAluno.get(student.id) ?? [];
+
+    const checkins30 = entries.filter((e) => daysBetween(hoje, e.date) < 30).length;
+    const ultimo = entries[0]?.date ?? null;
+
+    return {
+      id: student.id,
+      name: student.name,
+      category: student.category,
+      gender: student.gender,
+      belt: student.belt,
+      paymentStatus: summary?.status ?? null,
+      openCents: summary?.totalOpenCents ?? 0,
+      dueDate: summary?.dueDate ?? '',
+      checkins30,
+      checkinsTotal: entries.length,
+      lastCheckinAt: ultimo,
+      daysSinceLastCheckin: ultimo ? daysBetween(hoje, ultimo) : null,
+    };
+  });
 
   const inClassNow = active.filter(
     (student) => findOpenClasses(schedule.classes, student.classIds, now).length > 0,
   );
-  const presentNow = inClassNow.filter((student) => checkins.has(student.id)).length;
-
-  const cards = [
-    {
-      href: '/admin/aprovacoes',
-      label: 'Cadastros aguardando',
-      value: String(counts.pendente),
-      accent: counts.pendente > 0,
-    },
-    {
-      href: '/admin/financeiro',
-      label: 'Mensalidades vencidas',
-      value: String(overdue.length),
-      hint: totalOpen > 0 ? `${formatCents(totalOpen)} em aberto` : undefined,
-      accent: overdue.length > 0,
-    },
-    {
-      href: '/admin/graduacao',
-      label: 'Elegíveis a grau',
-      value: String(dueIds.length),
-      accent: false,
-    },
-    {
-      href: '/admin/alunos',
-      label: 'Alunos ativos',
-      value: String(counts.ativo),
-      accent: false,
-    },
-  ];
+  const presentNow = inClassNow.filter((student) => checkinsHoje.has(student.id)).length;
 
   return (
     <div>
-      <header>
-        <p className="eyebrow">Painel do admin</p>
-        <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Visão geral</h1>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="eyebrow">Painel do admin</p>
+          <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Visão geral</h1>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {counts.pendente > 0 ? (
+            <Link href="/admin/aprovacoes" className="btn-primary text-sm">
+              {counts.pendente} {counts.pendente === 1 ? 'cadastro aguardando' : 'cadastros aguardando'}
+            </Link>
+          ) : null}
+          {dueIds.length > 0 ? (
+            <Link href="/admin/graduacao" className="btn-secondary text-sm">
+              {dueIds.length} {dueIds.length === 1 ? 'grau liberado' : 'graus liberados'}
+            </Link>
+          ) : null}
+        </div>
       </header>
 
-      <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map((card) => (
-          <li key={card.href}>
-            <Link
-              href={card.href}
-              className={cn(
-                'block rounded-2xl border p-5 backdrop-blur-md transition-colors',
-                card.accent
-                  ? 'border-crimson/40 bg-crimson/[.07] hover:border-crimson/60'
-                  : 'border-hairline bg-white/[.04] hover:border-white/20',
-              )}
-            >
-              <p className="text-xs text-muted">{card.label}</p>
-              <p
-                className={cn(
-                  'mt-2 font-display text-4xl leading-none tabular-nums',
-                  card.accent ? 'text-crimson' : 'text-foreground',
-                )}
-              >
-                {card.value}
-              </p>
-              {card.hint ? <p className="mt-1 text-xs text-muted">{card.hint}</p> : null}
-            </Link>
-          </li>
-        ))}
-      </ul>
-
-      <section className="surface-card mt-8 p-5 sm:p-6">
+      {/* Agora no tatame -------------------------------------------------- */}
+      <section className="surface-card mt-6 p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-lg normal-case tracking-normal">Agora no tatame</h2>
@@ -118,11 +107,11 @@ export default async function AdminPage() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Link href="/admin/presenca" className="btn-primary">
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/presenca" className="btn-primary text-sm">
               Fazer a chamada
             </Link>
-            <Link href="/admin/qr" className="btn-secondary">
+            <Link href="/admin/qr" className="btn-secondary text-sm">
               Abrir QR
             </Link>
           </div>
@@ -130,7 +119,7 @@ export default async function AdminPage() {
 
         {inClassNow.length > 0 ? (
           <div
-            className="mt-5 h-2 overflow-hidden rounded-full bg-white/[.07]"
+            className="mt-4 h-2 overflow-hidden rounded-full bg-white/[.07]"
             role="progressbar"
             aria-valuenow={presentNow}
             aria-valuemin={0}
@@ -144,6 +133,19 @@ export default async function AdminPage() {
           </div>
         ) : null}
       </section>
+
+      {active.length === 0 ? (
+        <div className="surface-card mt-6 px-6 py-16 text-center">
+          <p className="font-display text-lg uppercase tracking-tight">Nenhum aluno ativo ainda</p>
+          <p className="mt-2 text-sm text-muted">
+            Aprove os cadastros em Aprovações e os indicadores aparecem aqui.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-8">
+          <Dashboards rows={rows} />
+        </div>
+      )}
     </div>
   );
 }

@@ -31,6 +31,8 @@ export interface OnboardingInput {
   readonly guardianName: string;
   readonly guardianPhone: string;
   readonly guardianCpf: string;
+  /** Opcional — vazio vira 'nao_informado'. */
+  readonly gender: string;
   readonly consent: boolean;
   /** Já existe documento enviado antes, ou um novo veio no formulário. */
   readonly hasDocument: boolean;
@@ -52,6 +54,7 @@ export interface OnboardingValidation {
     readonly guardianName: string | null;
     readonly guardianPhone: string | null;
     readonly guardianCpf: string | null;
+    readonly gender: 'masculino' | 'feminino' | 'nao_informado';
   };
 }
 
@@ -148,6 +151,10 @@ export function validateOnboarding(
       guardianName: isMinor ? guardianName : null,
       guardianPhone: isMinor ? guardianPhone : null,
       guardianCpf: isMinor && guardianCpf.length > 0 ? guardianCpf : null,
+      gender:
+        input.gender === 'masculino' || input.gender === 'feminino'
+          ? input.gender
+          : 'nao_informado',
     },
   };
 }

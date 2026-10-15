@@ -18,7 +18,9 @@ const BELT_FILL: Readonly<Record<string, string>> = {
   azul: '#1D4ED8',
   roxa: '#6D28D9',
   marrom: '#78350F',
-  preta: '#1A1A1D',
+  // Um pouco acima do preto puro: no fundo escuro do painel, #1A1A1D
+  // desaparecia e a faixa virava um buraco na tela.
+  preta: '#26262B',
 };
 
 const STRIPE_FILL: Readonly<Record<string, string>> = {
@@ -68,7 +70,7 @@ export function BeltDisplay({
         height="28"
         rx="4"
         fill="none"
-        stroke="rgba(0,0,0,.35)"
+        stroke="rgba(255,255,255,.28)"
         strokeWidth="1"
       />
       {/* Sombra interna, para a faixa não parecer um retângulo chapado */}
@@ -83,7 +85,7 @@ export function BeltDisplay({
         height="36"
         rx="3"
         fill="none"
-        stroke="rgba(255,255,255,.12)"
+        stroke="rgba(255,255,255,.3)"
         strokeWidth="1"
       />
 

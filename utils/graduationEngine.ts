@@ -355,6 +355,44 @@ export function listEligibleKids(
     .sort((a, b) => b.daysSinceLastGraduation - a.daysSinceLastGraduation);
 }
 
+/** Janela padrão da agenda: quanto à frente o painel enxerga. */
+export const AGENDA_HORIZON_DAYS = 60;
+
+/**
+ * Agenda de graduação infantil.
+ *
+ * Diferente de {@link listEligibleKids}, devolve **todos** os alunos da trilha
+ * infantil com a data prevista do próximo grau — inclusive quem ainda está
+ * esperando. É o que permite ao professor planejar ("dia 19 do mês que vem
+ * fecham três graus") em vez de só reagir ao que já venceu.
+ *
+ * Ordem: quem está elegível há mais tempo primeiro, depois por data prevista.
+ * Quem saiu do fluxo (16 anos ou 12 graus) vai para o fim — não tem data.
+ */
+export function listKidsAgenda(
+  students: readonly KidsStudent[],
+  now: Date,
+): GraduationResult[] {
+  const weight = (result: GraduationResult): number => {
+    if (result.status === 'ELEGIVEL') return 0;
+    if (result.status === 'AGUARDANDO') return 1;
+    return 2;
+  };
+
+  return students
+    .map((student) => getKidsGraduationStatus(student, now))
+    .sort((a, b) => {
+      const byStatus = weight(a) - weight(b);
+      if (byStatus !== 0) return byStatus;
+
+      // Elegíveis: maior espera primeiro. Aguardando: quem vence antes.
+      if (a.status === 'ELEGIVEL') {
+        return b.daysSinceLastGraduation - a.daysSinceLastGraduation;
+      }
+      return a.daysUntilEligible - b.daysUntilEligible;
+    });
+}
+
 /**
  * Decision support for adults - no automation, just the facts the professor
  * needs. `checkins` is the full check-in history for the student.

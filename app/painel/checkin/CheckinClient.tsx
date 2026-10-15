@@ -21,6 +21,8 @@ type Phase = 'idle' | 'enviando' | 'ok' | 'erro' | 'escaneando';
 export function CheckinClient() {
   const params = useSearchParams();
   const tokenFromUrl = params.get('t') ?? '';
+  /** Veio do botão de QR da barra inferior: abre a câmera sem pedir toque. */
+  const abrirDireto = params.get('abrir') === '1';
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<CheckinResult | null>(null);
@@ -90,6 +92,15 @@ export function CheckinClient() {
       });
     }
   }, [submit]);
+
+  // Chegou pelo botão de QR da barra: liga a câmera na hora. O aluno está em
+  // pé na recepção — um toque a menos conta.
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!abrirDireto || tokenFromUrl.length > 0 || autoStarted.current) return;
+    autoStarted.current = true;
+    void startScanner();
+  }, [abrirDireto, tokenFromUrl, startScanner]);
 
   return (
     <div className="mx-auto w-full max-w-md">

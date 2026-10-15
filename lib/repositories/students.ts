@@ -11,8 +11,10 @@ import {
 } from '@/lib/repositories/parse';
 import {
   ADULT_AGE,
+  GENDERS,
   USER_STATUSES,
   type Category,
+  type Gender,
   type PublicStudent,
   type StudentRecord,
   type UserStatus,
@@ -49,6 +51,11 @@ function rowToStudent(id: string, row: Record<string, unknown>): StudentRecord {
 
   const category: Category = asString(row['category']) === 'adulto' ? 'adulto' : 'kids';
 
+  const rawGender = asString(row['gender']);
+  const gender: Gender = (GENDERS as readonly string[]).includes(rawGender)
+    ? (rawGender as Gender)
+    : 'nao_informado';
+
   return {
     id,
     name: asString(row['name']),
@@ -58,6 +65,7 @@ function rowToStudent(id: string, row: Record<string, unknown>): StudentRecord {
     birthDate: asString(row['birthDate']),
     status,
     category,
+    gender,
     belt: asString(row['belt'], 'branca'),
     degree: asInteger(row['degree'], 0),
     guardianName: asNullableString(row['guardianName']),
@@ -86,6 +94,7 @@ function studentToRow(student: StudentRecord): Record<string, string | number> {
     birthDate: student.birthDate,
     status: student.status,
     category: student.category,
+    gender: student.gender,
     belt: student.belt,
     degree: student.degree,
     guardianName: student.guardianName ?? '',
@@ -119,6 +128,7 @@ export function toPublicStudent(student: StudentRecord, now: Date): PublicStuden
     age: student.birthDate ? calculateAge(student.birthDate, now) : 0,
     status: student.status,
     category: student.category,
+    gender: student.gender,
     belt: student.belt,
     degree: student.degree,
     guardianName: student.guardianName,

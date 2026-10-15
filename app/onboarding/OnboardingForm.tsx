@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import { ACCEPTED_DOCUMENT_LABEL, DOCUMENT_ACCEPT_ATTR } from '@/lib/documentRules';
 import { cn } from '@/lib/utils';
-import { GUARDIAN_REQUIRED_AGE } from '@/types/domain';
+import { GENDER_LABELS, GENDERS, GUARDIAN_REQUIRED_AGE } from '@/types/domain';
 import { calculateAge } from '@/utils/graduationEngine';
 
 import { submitOnboarding } from './actions';
@@ -157,6 +157,20 @@ export function OnboardingForm({
           aria-invalid={Boolean(errors['birthDate'])}
           className={inputClass}
         />
+      </Field>
+
+      <Field
+        label="Sexo"
+        name="gender"
+        hint="Usado para organizar as turmas (inclusive a feminina) e os relatórios."
+      >
+        <select id="gender" name="gender" defaultValue="nao_informado" className={inputClass}>
+          {GENDERS.map((value) => (
+            <option key={value} value={value}>
+              {GENDER_LABELS[value]}
+            </option>
+          ))}
+        </select>
       </Field>
 
       {isMinor ? (

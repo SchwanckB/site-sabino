@@ -162,6 +162,13 @@ export function formatMinutes(minutes: number): string {
   const hours = Math.floor(safe / 60);
   const rest = safe % 60;
 
+  // Acima de um dia, hora e minuto não dizem nada: "116h51" até a próxima aula
+  // obriga o aluno a fazer conta. Em dias a frase se lê de primeira.
+  if (hours >= 24) {
+    const days = Math.round(safe / (60 * 24));
+    return days === 1 ? '1 dia' : `${days} dias`;
+  }
+
   if (hours === 0) return `${rest}min`;
   if (rest === 0) return `${hours}h`;
   return `${hours}h${String(rest).padStart(2, '0')}`;

@@ -6,6 +6,7 @@ import { requireAdmin, type Role } from '@/lib/auth';
 import { CACHE_TAGS } from '@/lib/cacheTags';
 import { setAccountRole } from '@/lib/repositories/accounts';
 import { recordCheckin, undoCheckin } from '@/lib/repositories/attendance';
+import { removeEvent, upsertEvent } from '@/lib/repositories/calendar';
 import { registerDegree, promoteBelt, undoLastDegree } from '@/lib/repositories/graduation';
 import {
   getPaymentPlan,
@@ -24,8 +25,10 @@ import {
 } from '@/lib/repositories/students';
 import { getSchedule } from '@/lib/schedule';
 import {
+  GENDERS,
   PAYMENT_METHODS,
   USER_STATUSES,
+  type Gender,
   type PaymentMethod,
   type UserStatus,
 } from '@/types/domain';
@@ -157,9 +160,14 @@ export async function updateStudentAction(form: FormData): Promise<ActionResult>
   const degreeRaw = Number(text(form, 'degree'));
   const degree = Number.isFinite(degreeRaw) ? Math.max(0, Math.trunc(degreeRaw)) : student.degree;
 
+  const genderInput = text(form, 'gender');
+  const gender: Gender = (GENDERS as readonly string[]).includes(genderInput)
+    ? (genderInput as Gender)
+    : student.gender;
+
   await updateStudent(
     student.id,
-    { classIds, belt, degree, notes: text(form, 'notes') },
+    { classIds, belt, degree, gender, notes: text(form, 'notes') },
     new Date(),
   );
 
@@ -537,4 +545,42 @@ export async function resetPlansAction(): Promise<ActionResult> {
   revalidateTag(CACHE_TAGS.plans);
   revalidatePath('/');
   return { ok: true, message: 'Planos de exemplo restaurados.' };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Calendário                                                                 */
+/* -------------------------------------------------------------------------- */
+
+export async function saveEventAction(form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const result = await upsertEvent(
+    {
+      id: text(form, 'id') || undefined,
+      date: text(form, 'date'),
+      title: text(form, 'title'),
+      kind: text(form, 'kind'),
+      time: text(form, 'time'),
+      note: text(form, 'note'),
+      closesAcademy: form.get('closesAcademy') === 'on',
+    },
+    new Date(),
+  );
+
+  if (!result.ok) return { ok: false, message: result.error };
+
+  refreshAdmin();
+  return { ok: true, message: 'Evento salvo no calendário.' };
+}
+
+export async function deleteEventAction(form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const id = text(form, 'id');
+  if (id.length === 0) return { ok: false, message: 'Evento inválido.' };
+
+  await removeEvent(id, new Date());
+
+  refreshAdmin();
+  return { ok: true, message: 'Evento removido.' };
 }

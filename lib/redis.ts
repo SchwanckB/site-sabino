@@ -50,5 +50,6 @@ export const redisKeys = {
   paymentsDue: () => 'payments:due',
   scheduleClasses: () => 'schedule:classes',
   landingPlans: () => 'landing:plans',
+  calendarEvents: () => 'calendar:events',
   qrCurrent: () => 'qr:current',
 } as const;

@@ -139,6 +139,10 @@ export default async function PainelPage() {
 
         {/* Mensalidade -------------------------------------------------- */}
         <section
+          id="mensalidade"
+          // Alvo do atalho na barra inferior; a margem evita que o cabeçalho
+          // fixo cubra o título ao pular para cá.
+          style={{ scrollMarginTop: 80 }}
           className={cn(
             'rounded-2xl border p-5 backdrop-blur-md sm:p-6',
             paymentStyle ? paymentStyle.className : 'border-hairline bg-white/[.04]',
@@ -222,7 +226,11 @@ export default async function PainelPage() {
         </section>
 
         {/* Frequência --------------------------------------------------- */}
-        <section className="surface-card p-5 sm:p-6">
+        <section
+          id="frequencia"
+          style={{ scrollMarginTop: 80 }}
+          className="surface-card p-5 sm:p-6"
+        >
           <h2 className="text-lg normal-case tracking-normal">Sua frequência</h2>
 
           <dl className="mt-5 space-y-4">

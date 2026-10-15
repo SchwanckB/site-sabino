@@ -190,6 +190,7 @@ export default async function AlunoPage({
           degree={student.degree}
           notes={student.notes}
           status={student.status}
+          gender={student.gender}
           isKids={isKids}
           assignedClassIds={student.classIds}
           classOptions={classOptions}

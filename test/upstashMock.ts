@@ -28,7 +28,7 @@ export class UpstashMock {
   /** Comandos executados, para asserções sobre o que foi enviado de fato. */
   readonly log: string[][] = [];
 
-  async start(): Promise<{ url: string; token: string }> {
+  async start(port = 0): Promise<{ url: string; token: string }> {
     this.server = createServer((request, response) => {
       let body = '';
       request.on('data', (chunk) => {
@@ -71,7 +71,7 @@ export class UpstashMock {
     });
 
     await new Promise<void>((resolve) => {
-      this.server?.listen(0, '127.0.0.1', resolve);
+      this.server?.listen(port, '127.0.0.1', resolve);
     });
 
     const address = this.server.address();
