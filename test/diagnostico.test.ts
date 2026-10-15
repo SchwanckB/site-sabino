@@ -145,7 +145,7 @@ describe('checkBlob', () => {
     delete process.env['BLOB_READ_WRITE_TOKEN'];
 
     const { checkBlob } = await import('@/lib/health');
-    const result = checkBlob();
+    const result = await checkBlob();
 
     expect(result.state).toBe('nao_configurado');
     expect(result.detail).toContain('Opcional');

@@ -3,6 +3,7 @@ import 'server-only';
 import { clerkClient } from '@clerk/nextjs/server';
 
 import { isBlobConfigured, isClerkConfigured } from '@/lib/env';
+import { checkBlobUpload } from '@/lib/repositories/documents';
 import { getRedis } from '@/lib/redis';
 import { getRedisCredentials } from '@/lib/redisEnv';
 
@@ -161,24 +162,30 @@ export async function checkRedis(): Promise<HealthCheck> {
   }
 }
 
-export function checkBlob(): HealthCheck {
-  return isBlobConfigured()
-    ? {
-        service: 'Vercel Blob (documentos)',
-        state: 'ok',
-        detail: 'Token presente. O upload de documento está liberado.',
-        latencyMs: null,
-      }
-    : {
-        service: 'Vercel Blob (documentos)',
-        state: 'nao_configurado',
-        detail:
-          'Opcional. Sem ele o cadastro funciona, mas sem anexar documento. Crie em Vercel → Storage → Blob.',
-        latencyMs: null,
-      };
+/** Grava e apaga um arquivo de teste — token presente não prova que funciona. */
+export async function checkBlob(): Promise<HealthCheck> {
+  if (!isBlobConfigured()) {
+    return {
+      service: 'Vercel Blob (documentos)',
+      state: 'nao_configurado',
+      detail:
+        'Opcional. Sem ele o cadastro funciona, mas sem anexar documento. Crie em Vercel → Storage → Blob.',
+      latencyMs: null,
+    };
+  }
+
+  const started = Date.now();
+  const result = await checkBlobUpload();
+
+  return {
+    service: 'Vercel Blob (documentos)',
+    state: result.ok ? 'ok' : 'erro',
+    detail: result.detail,
+    latencyMs: Date.now() - started,
+  };
 }
 
 export async function runHealthChecks(): Promise<HealthCheck[]> {
-  const [clerk, redis] = await Promise.all([checkClerk(), checkRedis()]);
-  return [clerk, redis, checkBlob()];
+  const [clerk, redis, blob] = await Promise.all([checkClerk(), checkRedis(), checkBlob()]);
+  return [clerk, redis, blob];
 }
