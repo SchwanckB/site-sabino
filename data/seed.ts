@@ -265,8 +265,14 @@ export const benefits: readonly Benefit[] = [
 ] as const;
 
 /* -------------------------------------------------------------------------- */
-/* Depoimentos (EXEMPLO)                                                      */
+/* Depoimentos (EXEMPLO) - FORA DO AR                                         */
 /* -------------------------------------------------------------------------- */
+/*
+ * A secao de depoimentos saiu da landing: nao ha relatos reais ainda, e
+ * publicar exemplo como se fosse avaliacao de aluno engana quem visita.
+ * Os dados ficam aqui para quando houver depoimento com autorizacao de uso de
+ * nome e imagem - ai basta recriar o componente e inseri-lo em app/page.tsx.
+ */
 
 export interface Testimonial {
   readonly id: string;

@@ -10,9 +10,11 @@ import {
 } from '@/lib/repositories/students';
 import { getSchedule } from '@/lib/schedule';
 import { findOpenClasses } from '@/utils/attendanceEngine';
-import { daysBetween, saoPauloDateString } from '@/utils/datetime';
+import { daysBetween, saoPauloDateString, saoPauloParts } from '@/utils/datetime';
 import { getPaymentSummary } from '@/utils/paymentEngine';
+import { listAgeTransitions, listBirthdays, type PersonLike } from '@/utils/roster';
 
+import { Alertas } from './Alertas';
 import { Dashboards, type DashboardRow } from './Dashboards';
 
 export const metadata: Metadata = { title: 'Visão geral' };
@@ -67,6 +69,18 @@ export default async function AdminPage() {
       daysSinceLastCheckin: ultimo ? daysBetween(hoje, ultimo) : null,
     };
   });
+
+  // Avisos derivados da data de nascimento: aniversário do mês e os 16 anos.
+  const comNascimento: PersonLike[] = active
+    .filter((student) => student.birthDate.length > 0)
+    .map((student) => ({ id: student.id, name: student.name, birthDate: student.birthDate }));
+
+  const { year, month } = saoPauloParts(now);
+  const birthdays = listBirthdays(comNascimento, year, month, now);
+  const transitions = listAgeTransitions(
+    comNascimento.filter((p) => active.find((s) => s.id === p.id)?.category === 'kids'),
+    now,
+  );
 
   const inClassNow = active.filter(
     (student) => findOpenClasses(schedule.classes, student.classIds, now).length > 0,
@@ -133,6 +147,8 @@ export default async function AdminPage() {
           </div>
         ) : null}
       </section>
+
+      <Alertas birthdays={birthdays} transitions={transitions} />
 
       {active.length === 0 ? (
         <div className="surface-card mt-6 px-6 py-16 text-center">

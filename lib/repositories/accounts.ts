@@ -29,6 +29,14 @@ export interface Account {
    * pode ser removido pela interface — só editando a variável de ambiente.
    */
   readonly roleFromEnv: boolean;
+  /**
+   * O papel está gravado em `publicMetadata` no Clerk.
+   *
+   * Quem é ADMIN só por `ADMIN_EMAILS` perde o acesso se a variável mudar no
+   * painel da hospedagem. Distinguir os dois casos é o que permite oferecer
+   * "fixar na conta" para quem ainda depende do ambiente.
+   */
+  readonly rolePersisted: boolean;
   /** Situação da ficha, ou `null` se a pessoa nunca preencheu o cadastro. */
   readonly enrollmentStatus: UserStatus | null;
   readonly createdAt: string;
@@ -83,6 +91,7 @@ export async function listAccounts(): Promise<Account[]> {
       imageUrl: user.imageUrl ?? null,
       role,
       roleFromEnv: fromEnv,
+      rolePersisted: metadataRole === 'ADMIN',
       enrollmentStatus: byId.get(user.id)?.status ?? null,
       createdAt: new Date(user.createdAt).toISOString(),
       lastSignInAt: user.lastSignInAt ? new Date(user.lastSignInAt).toISOString() : null,

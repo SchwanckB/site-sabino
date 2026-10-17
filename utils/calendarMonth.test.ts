@@ -186,3 +186,66 @@ describe('shiftMonth', () => {
     expect(MONTH_NAMES).toHaveLength(12);
   });
 });
+
+describe('buildMonth - aniversários', () => {
+  const aniversario = {
+    id: 'kid-1',
+    date: '2026-03-18',
+    name: 'Ana Clara',
+    turning: 9,
+  };
+
+  it('mostra o aniversariante e a idade que ele completa', () => {
+    const dias = buildMonth(
+      2026, 3,
+      { classes: [], events: [], graduations: [], birthdays: [aniversario] },
+      now,
+    );
+    const item = dias.find((d) => d.date === '2026-03-18')?.items.find((i) => i.kind === 'aniversario');
+
+    expect(item?.title).toBe('Ana Clara');
+    expect(item?.detail).toBe('faz 9 anos');
+  });
+
+  it('agrupa dois aniversariantes no mesmo dia', () => {
+    const dias = buildMonth(
+      2026, 3,
+      {
+        classes: [], events: [], graduations: [],
+        birthdays: [aniversario, { ...aniversario, id: 'kid-2', name: 'Bruno' }],
+      },
+      now,
+    );
+
+    expect(
+      dias.find((d) => d.date === '2026-03-18')?.items.filter((i) => i.kind === 'aniversario'),
+    ).toHaveLength(2);
+  });
+
+  it('a fonte é opcional: calendário sem aniversários continua funcionando', () => {
+    const dias = buildMonth(2026, 3, { classes: [], events: [], graduations: [] }, now);
+
+    expect(dias.some((d) => d.items.some((i) => i.kind === 'aniversario'))).toBe(false);
+  });
+
+  it('aniversário não some num feriado que fecha a academia', () => {
+    // O feriado cancela aulas, não a vida das pessoas.
+    const dias = buildMonth(
+      2026, 3,
+      {
+        classes: [],
+        events: [{
+          id: 'f1', date: '2026-03-18', title: 'Feriado', kind: 'feriado',
+          time: '', note: '', closesAcademy: true,
+        }],
+        graduations: [],
+        birthdays: [aniversario],
+      },
+      now,
+    );
+
+    expect(
+      dias.find((d) => d.date === '2026-03-18')?.items.some((i) => i.kind === 'aniversario'),
+    ).toBe(true);
+  });
+});

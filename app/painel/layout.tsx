@@ -32,7 +32,8 @@ export default async function PainelLayout({
   const items: NavItem[] = [
     { href: '/painel', label: 'Início', icon: 'inicio', primary: true },
     { href: '/painel#mensalidade', label: 'Mensalidade', short: 'Pagar', icon: 'dinheiro', primary: true },
-    { href: '/painel#frequencia', label: 'Treinos', icon: 'grafico', primary: true },
+    { href: '/painel#frequencia', label: 'Meus treinos', short: 'Treinos', icon: 'grafico' },
+    { href: '/painel/ranking', label: 'Ranking', icon: 'trofeu', primary: true },
     { href: '/painel/checkin', label: 'Check-in', icon: 'qr' },
   ];
 

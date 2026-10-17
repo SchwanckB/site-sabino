@@ -15,6 +15,7 @@ import {
   undoLastPayment,
 } from '@/lib/repositories/payments';
 import { removePlan, resetPlansToSeed, upsertPlan } from '@/lib/repositories/plansAdmin';
+import { saveAcademySettings } from '@/lib/repositories/settings';
 import { removeClass, resetScheduleToSeed, upsertClass } from '@/lib/repositories/scheduleAdmin';
 import {
   approveStudent,
@@ -583,4 +584,17 @@ export async function deleteEventAction(form: FormData): Promise<ActionResult> {
 
   refreshAdmin();
   return { ok: true, message: 'Evento removido.' };
+}
+
+/** Ajustes da academia — hoje só a chave Pix usada na cobrança. */
+export async function saveSettingsAction(form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  await saveAcademySettings(
+    { pixKey: text(form, 'pixKey'), pixOwner: text(form, 'pixOwner') },
+    new Date(),
+  );
+
+  refreshAdmin();
+  return { ok: true, message: 'Dados de cobrança salvos.' };
 }

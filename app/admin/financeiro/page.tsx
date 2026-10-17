@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 
 import { getPaymentPlans } from '@/lib/repositories/payments';
+import { getAcademySettings } from '@/lib/repositories/settings';
 import { listStudentsByStatus } from '@/lib/repositories/students';
+import { siteConfig } from '@/lib/site';
 import { getPaymentSummary } from '@/utils/paymentEngine';
 
 import { FinanceList, type FinanceRow } from './FinanceList';
@@ -13,6 +15,7 @@ export default async function FinanceiroPage() {
   const now = new Date();
   const students = await listStudentsByStatus('ativo');
   const plans = await getPaymentPlans(students.map((student) => student.id));
+  const settings = await getAcademySettings();
 
   const rows: FinanceRow[] = students
     .map((student) => {
@@ -33,6 +36,7 @@ export default async function FinanceiroPage() {
           totalOpenCents: 0,
           lastPaidAt: null,
           hasPlan: false,
+          phone: student.guardianPhone ?? student.phone,
         };
       }
 
@@ -52,6 +56,7 @@ export default async function FinanceiroPage() {
         totalOpenCents: summary.totalOpenCents,
         lastPaidAt: summary.lastPaidAt,
         hasPlan: true,
+        phone: student.guardianPhone ?? student.phone,
       };
     })
     // Vencidas primeiro, depois por data de vencimento.
@@ -82,7 +87,12 @@ export default async function FinanceiroPage() {
         </div>
       ) : (
         <div className="mt-8">
-          <FinanceList rows={rows} />
+          <FinanceList
+            rows={rows}
+            pixKey={settings.pixKey}
+            pixOwner={settings.pixOwner}
+            academyName={siteConfig.name}
+          />
         </div>
       )}
     </div>

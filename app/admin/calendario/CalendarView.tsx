@@ -15,6 +15,7 @@ import {
   type RecurringClass,
 } from '@/utils/calendarMonth';
 import { formatBr } from '@/utils/datetime';
+import { listBirthdays, type PersonLike } from '@/utils/roster';
 
 import { deleteEventAction, saveEventAction } from '../actions';
 
@@ -25,6 +26,7 @@ const KIND_STYLE: Readonly<Record<CalendarItemKind, { dot: string; chip: string;
   evento: { dot: 'bg-emerald-400', chip: 'border-emerald-400/40 bg-emerald-400/10 text-emerald-200', label: 'Evento' },
   feriado: { dot: 'bg-amber-400', chip: 'border-amber-400/40 bg-amber-400/10 text-amber-200', label: 'Feriado' },
   aviso: { dot: 'bg-violet-400', chip: 'border-violet-400/40 bg-violet-400/10 text-violet-200', label: 'Aviso' },
+  aniversario: { dot: 'bg-pink-400', chip: 'border-pink-400/40 bg-pink-400/10 text-pink-200', label: 'Aniversário' },
 };
 
 type Filter = 'tudo' | CalendarItemKind;
@@ -36,6 +38,7 @@ const FILTERS: readonly { id: Filter; label: string }[] = [
   { id: 'evento', label: 'Eventos' },
   { id: 'feriado', label: 'Feriados' },
   { id: 'aviso', label: 'Avisos' },
+  { id: 'aniversario', label: 'Aniversários' },
 ];
 
 const inputClass =
@@ -52,6 +55,7 @@ export function CalendarView({
   classes,
   events,
   graduations,
+  people,
   today,
   initialYear,
   initialMonth,
@@ -59,6 +63,8 @@ export function CalendarView({
   readonly classes: readonly RecurringClass[];
   readonly events: readonly DatedEvent[];
   readonly graduations: readonly PredictedGraduation[];
+  /** Alunos ativos — os aniversários são derivados do mês exibido. */
+  readonly people: readonly PersonLike[];
   /** `YYYY-MM-DD` de hoje em São Paulo, calculado no servidor. */
   readonly today: string;
   readonly initialYear: number;
@@ -72,9 +78,30 @@ export function CalendarView({
 
   // `buildMonth` recebe `now` por parâmetro; aqui ele vem do servidor para que
   // "hoje" não dependa do relógio do aparelho.
+  const agora = useMemo(() => new Date(`${today}T12:00:00-03:00`), [today]);
+
+  // Aniversários mudam com o mês navegado; derivar aqui evita mandar doze
+  // listas prontas do servidor só porque o professor pode virar a página.
+  const birthdays = useMemo(
+    () =>
+      listBirthdays(people, cursor.year, cursor.month, agora).map((b) => ({
+        id: b.id,
+        date: b.date,
+        name: b.name,
+        turning: b.turning,
+      })),
+    [people, cursor, agora],
+  );
+
   const dias = useMemo(
-    () => buildMonth(cursor.year, cursor.month, { classes, events, graduations }, new Date(`${today}T12:00:00-03:00`)),
-    [cursor, classes, events, graduations, today],
+    () =>
+      buildMonth(
+        cursor.year,
+        cursor.month,
+        { classes, events, graduations, birthdays },
+        agora,
+      ),
+    [cursor, classes, events, graduations, birthdays, agora],
   );
 
   const passaFiltro = useMemo(

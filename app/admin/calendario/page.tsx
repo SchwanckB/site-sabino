@@ -6,6 +6,7 @@ import { getSchedule } from '@/lib/schedule';
 import { saoPauloDateString, saoPauloParts } from '@/utils/datetime';
 import { listKidsAgenda, type KidsStudent } from '@/utils/graduationEngine';
 import type { PredictedGraduation, RecurringClass } from '@/utils/calendarMonth';
+import type { PersonLike } from '@/utils/roster';
 
 import { CalendarView } from './CalendarView';
 
@@ -55,6 +56,11 @@ export default async function CalendarioPage() {
       stripeColor: r.nextDegreeColor,
     }));
 
+  // Aniversariantes: todo aluno ativo com data de nascimento no cadastro.
+  const people: PersonLike[] = active
+    .filter((student) => student.birthDate.length > 0)
+    .map((student) => ({ id: student.id, name: student.name, birthDate: student.birthDate }));
+
   const { year, month } = saoPauloParts(now);
 
   return (
@@ -63,8 +69,9 @@ export default async function CalendarioPage() {
         <p className="eyebrow">Agenda</p>
         <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Calendário</h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-          Junta três coisas num lugar só: as aulas da grade, os eventos que você marcar e as
-          graduações infantis previstas. Use os filtros para isolar o que interessa.
+          Junta num lugar só as aulas da grade, os eventos que você marcar, as graduações
+          infantis previstas e os aniversários dos alunos. Use os filtros para isolar o que
+          interessa.
         </p>
       </header>
 
@@ -73,6 +80,7 @@ export default async function CalendarioPage() {
           classes={classes}
           events={events}
           graduations={graduations}
+          people={people}
           today={saoPauloDateString(now)}
           initialYear={year}
           initialMonth={month}

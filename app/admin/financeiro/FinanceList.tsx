@@ -6,9 +6,10 @@ import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
 import { cn } from '@/lib/utils';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHODS } from '@/types/domain';
 import { formatBr } from '@/utils/datetime';
+import { buildBillingMessage, whatsappLinkTo } from '@/utils/billingMessage';
 import { formatCents, PLAN_LABELS, type PaymentStatus, type PlanId } from '@/utils/paymentEngine';
 
-import { registerPaymentAction, undoPaymentAction, updatePlanAction } from '../actions';
+import { registerPaymentAction, saveSettingsAction, undoPaymentAction, updatePlanAction } from '../actions';
 
 export interface FinanceRow {
   readonly id: string;
@@ -24,6 +25,8 @@ export interface FinanceRow {
   readonly totalOpenCents: number;
   readonly lastPaidAt: string | null;
   readonly hasPlan: boolean;
+  /** Telefone do aluno; nas crianças, o do responsável. */
+  readonly phone: string;
 }
 
 type Filter = 'vencidas' | 'em_breve' | 'todos' | 'sem_plano';
@@ -50,7 +53,17 @@ const STATUS_LABEL: Readonly<Record<PaymentStatus, string>> = {
 const inputClass =
   'w-full min-h-[44px] rounded-xl border border-hairline bg-white/[.04] px-3 py-2 text-sm text-foreground focus:border-crimson focus:outline-none';
 
-export function FinanceList({ rows }: { readonly rows: readonly FinanceRow[] }) {
+export function FinanceList({
+  rows,
+  pixKey,
+  pixOwner,
+  academyName,
+}: {
+  readonly rows: readonly FinanceRow[];
+  readonly pixKey: string;
+  readonly pixOwner: string;
+  readonly academyName: string;
+}) {
   const [filter, setFilter] = useState<Filter>('vencidas');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
@@ -93,6 +106,62 @@ export function FinanceList({ rows }: { readonly rows: readonly FinanceRow[] }) 
           </p>
         </div>
       </div>
+
+      {/*
+        A chave Pix entra na mensagem de cobrança. Fica aqui, e não numa
+        variável de ambiente, para o professor poder trocá-la sozinho — sem
+        acesso ao painel da hospedagem e sem novo deploy.
+      */}
+      <details className="surface-card mt-4 overflow-hidden">
+        <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-medium">
+          <span>
+            Dados de cobrança
+            {pixKey.trim().length === 0 ? (
+              <span className="ml-2 text-xs font-normal text-amber-300">
+                chave Pix não definida
+              </span>
+            ) : (
+              <span className="ml-2 text-xs font-normal text-muted">Pix: {pixKey}</span>
+            )}
+          </span>
+          <span aria-hidden="true" className="text-muted">
+            ▾
+          </span>
+        </summary>
+
+        <ActionForm action={saveSettingsAction} className="border-t border-hairline p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="pixKey" className="block text-xs text-muted">
+                Chave Pix
+              </label>
+              <input
+                id="pixKey"
+                name="pixKey"
+                type="text"
+                defaultValue={pixKey}
+                placeholder="CPF, telefone, e-mail ou chave aleatória"
+                className={cn(inputClass, 'mt-1')}
+              />
+            </div>
+            <div>
+              <label htmlFor="pixOwner" className="block text-xs text-muted">
+                Titular da chave
+              </label>
+              <input
+                id="pixOwner"
+                name="pixOwner"
+                type="text"
+                defaultValue={pixOwner}
+                placeholder="Nome que aparece para o aluno confirmar"
+                className={cn(inputClass, 'mt-1')}
+              />
+            </div>
+          </div>
+
+          <SubmitButton className="btn-secondary mt-4">Salvar</SubmitButton>
+        </ActionForm>
+      </details>
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
         <div role="group" aria-label="Filtrar" className="flex flex-wrap gap-2">
@@ -248,6 +317,15 @@ export function FinanceList({ rows }: { readonly rows: readonly FinanceRow[] }) 
                   {editing === row.id ? 'Fechar' : row.hasPlan ? 'Editar mensalidade' : 'Definir mensalidade'}
                 </button>
 
+                {row.hasPlan ? (
+                  <BillingButton
+                    row={row}
+                    pixKey={pixKey}
+                    pixOwner={pixOwner}
+                    academyName={academyName}
+                  />
+                ) : null}
+
                 {row.hasPlan && row.lastPaidAt ? (
                   <ActionForm
                     action={undoPaymentAction}
@@ -347,5 +425,63 @@ export function FinanceList({ rows }: { readonly rows: readonly FinanceRow[] }) 
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * Abre o WhatsApp do aluno com a cobrança já escrita.
+ *
+ * O texto é montado no cliente, a partir dos mesmos dados que a linha já
+ * mostra — não há chamada ao servidor nem nada gravado. Sem telefone válido
+ * o botão fica desabilitado e diz o porquê: abrir conversa com o número
+ * errado é pior do que não abrir nenhuma.
+ */
+function BillingButton({
+  row,
+  pixKey,
+  pixOwner,
+  academyName,
+}: {
+  readonly row: FinanceRow;
+  readonly pixKey: string;
+  readonly pixOwner: string;
+  readonly academyName: string;
+}) {
+  const chave = pixOwner.trim().length > 0 ? `${pixKey} (${pixOwner})` : pixKey;
+
+  const mensagem = buildBillingMessage({
+    name: row.name,
+    amountCents: row.amountCents,
+    dueDate: row.dueDate,
+    limitDate: row.limitDate,
+    openInstallments: row.openInstallments,
+    totalOpenCents: row.totalOpenCents,
+    overdue: row.status === 'vencida',
+    pixKey: chave,
+    academyName,
+  });
+
+  const link = whatsappLinkTo(row.phone, mensagem);
+
+  if (!link) {
+    return (
+      <span className="text-xs text-muted" title="Cadastro sem telefone utilizável">
+        Sem telefone para cobrar
+      </span>
+    );
+  }
+
+  return (
+    <a
+      href={link}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/[.08] px-3.5 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/[.14]"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="currentColor">
+        <path d="M12.04 2c-5.46 0-9.9 4.44-9.9 9.9 0 1.75.46 3.45 1.32 4.95L2 22l5.3-1.39a9.86 9.86 0 0 0 4.74 1.21h.01c5.46 0 9.9-4.44 9.9-9.9 0-2.64-1.03-5.13-2.9-7A9.82 9.82 0 0 0 12.04 2m0 1.67c2.2 0 4.27.86 5.82 2.42a8.19 8.19 0 0 1 2.42 5.82c0 4.54-3.7 8.23-8.24 8.23a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.05-.2-.31a8.18 8.18 0 0 1-1.26-4.37c0-4.54 3.7-8.23 8.24-8.23M8.53 7.33c-.16 0-.43.06-.65.3-.22.24-.87.85-.87 2.07 0 1.22.89 2.4 1.01 2.56.12.17 1.72 2.76 4.25 3.76 2.1.83 2.53.67 2.99.63.46-.04 1.48-.6 1.69-1.19.21-.59.21-1.09.14-1.19-.06-.1-.22-.16-.46-.28-.24-.12-1.45-.72-1.67-.8-.22-.08-.39-.12-.55.12-.16.25-.63.8-.77.96-.14.17-.28.19-.52.07-.24-.12-1.03-.38-1.96-1.21-.72-.65-1.21-1.45-1.35-1.69-.14-.24-.02-.37.1-.49.11-.11.24-.28.37-.42.12-.14.16-.24.24-.4.08-.17.04-.31-.02-.43-.06-.12-.54-1.34-.75-1.83-.2-.48-.4-.42-.55-.42z" />
+      </svg>
+      Cobrar no WhatsApp
+    </a>
   );
 }

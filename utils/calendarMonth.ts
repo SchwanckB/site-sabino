@@ -12,7 +12,13 @@
 
 import { civilDate, lastDayOfMonth, saoPauloDateString } from './datetime';
 
-export type CalendarItemKind = 'aula' | 'evento' | 'feriado' | 'graduacao' | 'aviso';
+export type CalendarItemKind =
+  | 'aula'
+  | 'evento'
+  | 'feriado'
+  | 'graduacao'
+  | 'aviso'
+  | 'aniversario';
 
 export interface CalendarItem {
   readonly id: string;
@@ -64,10 +70,19 @@ export interface PredictedGraduation {
   readonly stripeColor: string | null;
 }
 
+export interface DatedBirthday {
+  readonly id: string;
+  /** `YYYY-MM-DD` já no mês exibido. */
+  readonly date: string;
+  readonly name: string;
+  readonly turning: number;
+}
+
 export interface MonthSources {
   readonly classes: readonly RecurringClass[];
   readonly events: readonly DatedEvent[];
   readonly graduations: readonly PredictedGraduation[];
+  readonly birthdays?: readonly DatedBirthday[];
 }
 
 /** Dias da grade exibida: sempre semanas completas, começando no domingo. */
@@ -99,6 +114,13 @@ export function buildMonth(
     const bucket = graduationsByDate.get(graduation.date);
     if (bucket) bucket.push(graduation);
     else graduationsByDate.set(graduation.date, [graduation]);
+  }
+
+  const birthdaysByDate = new Map<string, DatedBirthday[]>();
+  for (const birthday of sources.birthdays ?? []) {
+    const bucket = birthdaysByDate.get(birthday.date);
+    if (bucket) bucket.push(birthday);
+    else birthdaysByDate.set(birthday.date, [birthday]);
   }
 
   const days: CalendarDay[] = [];
@@ -149,6 +171,17 @@ export function buildMonth(
         title: graduation.studentName,
         time: '',
         detail: [grau, tarja].filter(Boolean).join(' · '),
+        classId: null,
+      });
+    }
+
+    for (const birthday of birthdaysByDate.get(date) ?? []) {
+      items.push({
+        id: `${date}-aniv-${birthday.id}`,
+        kind: 'aniversario',
+        title: birthday.name,
+        time: '',
+        detail: `faz ${birthday.turning} anos`,
         classId: null,
       });
     }

@@ -16,6 +16,7 @@ export interface AccountRow {
   readonly email: string;
   readonly role: 'ADMIN' | 'ALUNO';
   readonly roleFromEnv: boolean;
+  readonly rolePersisted: boolean;
   readonly enrollmentStatus: UserStatus | null;
   readonly createdAt: string;
   readonly lastSignInAt: string | null;
@@ -181,9 +182,9 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
                       </span>
                     )}
 
-                    {row.roleFromEnv ? (
-                      <span className="rounded-full border border-dashed border-crimson/40 px-2.5 py-1 text-[11px] text-muted">
-                        via ADMIN_EMAILS
+                    {row.roleFromEnv && !row.rolePersisted ? (
+                      <span className="rounded-full border border-dashed border-amber-500/50 px-2.5 py-1 text-[11px] text-amber-200">
+                        acesso só via ADMIN_EMAILS
                       </span>
                     ) : null}
                   </div>
@@ -212,22 +213,43 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
                     </SubmitButton>
                   </ActionForm>
                 ) : (
-                  <ActionForm
-                    action={setAccountRoleAction}
-                    confirm={`Remover o acesso de professor de ${row.name}?`}
-                  >
-                    <input type="hidden" name="userId" value={row.id} />
-                    <input type="hidden" name="role" value="ALUNO" />
-                    <SubmitButton
-                      className={cn(
-                        'btn-ghost text-xs',
-                        (row.isSelf || row.roleFromEnv) && 'pointer-events-none opacity-40',
-                      )}
-                      pendingLabel="…"
+                  <>
+                    {/*
+                      Papel vindo só de ADMIN_EMAILS some junto com a variável:
+                      um deploy sem ela e o professor perde o painel. Gravar na
+                      conta tira essa dependência — e sem este botão não havia
+                      como fazê-lo, já que a tela já o mostrava como professor.
+                    */}
+                    {row.roleFromEnv && !row.rolePersisted ? (
+                      <ActionForm
+                        action={setAccountRoleAction}
+                        confirm={`Gravar o acesso de professor na conta de ${row.name}? Assim ele não depende mais da variável ADMIN_EMAILS.`}
+                      >
+                        <input type="hidden" name="userId" value={row.id} />
+                        <input type="hidden" name="role" value="ADMIN" />
+                        <SubmitButton className="btn-secondary text-xs" pendingLabel="Gravando…">
+                          Fixar acesso na conta
+                        </SubmitButton>
+                      </ActionForm>
+                    ) : null}
+
+                    <ActionForm
+                      action={setAccountRoleAction}
+                      confirm={`Remover o acesso de professor de ${row.name}?`}
                     >
-                      Remover acesso de professor
-                    </SubmitButton>
-                  </ActionForm>
+                      <input type="hidden" name="userId" value={row.id} />
+                      <input type="hidden" name="role" value="ALUNO" />
+                      <SubmitButton
+                        className={cn(
+                          'btn-ghost text-xs',
+                          (row.isSelf || row.roleFromEnv) && 'pointer-events-none opacity-40',
+                        )}
+                        pendingLabel="…"
+                      >
+                        Remover acesso de professor
+                      </SubmitButton>
+                    </ActionForm>
+                  </>
                 )}
 
                 {row.enrollmentStatus ? (

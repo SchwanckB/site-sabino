@@ -17,6 +17,7 @@ export type IconName =
   | 'faixa'
   | 'relogio'
   | 'grafico'
+  | 'trofeu'
   | 'horarios'
   | 'plano'
   | 'aprovacao'
@@ -72,6 +73,13 @@ const PATHS: Readonly<Record<IconName, React.ReactNode>> = {
     </>
   ),
   grafico: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
+  trofeu: (
+    <>
+      <path d="M7 4.5h10v4.5a5 5 0 0 1-10 0z" />
+      <path d="M7 6H4.8a.8.8 0 0 0-.8.8c0 1.9 1.4 3.5 3.2 3.8M17 6h2.2a.8.8 0 0 1 .8.8c0 1.9-1.4 3.5-3.2 3.8" />
+      <path d="M12 14v3.5M8.5 20h7M9.5 17.5h5V20h-5z" />
+    </>
+  ),
   horarios: (
     <>
       <rect x="3.5" y="4.5" width="17" height="16" rx="2" />

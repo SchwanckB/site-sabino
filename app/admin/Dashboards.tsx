@@ -231,7 +231,7 @@ export function Dashboards({ rows }: { readonly rows: readonly DashboardRow[] })
 
       {/* Frequência -------------------------------------------------------- */}
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <section className="surface-card p-5">
+        <section className="surface-card min-w-0 p-5">
           <h3 className="text-base normal-case tracking-normal">Quem mais treina</h3>
           <p className="mt-1 text-xs text-muted">Últimos 30 dias, no recorte atual.</p>
 
@@ -279,7 +279,7 @@ export function Dashboards({ rows }: { readonly rows: readonly DashboardRow[] })
           )}
         </section>
 
-        <section className="surface-card p-5">
+        <section className="surface-card min-w-0 p-5">
           <h3 className="text-base normal-case tracking-normal">Sumidos do tatame</h3>
           <p className="mt-1 text-xs text-muted">
             Sem treinar há {DIAS_SUMIDO} dias ou mais — vale um contato antes de virar evasão.

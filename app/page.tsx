@@ -11,7 +11,6 @@ import { LocationSection } from '@/components/landing/LocationSection';
 import { Modalities } from '@/components/landing/Modalities';
 import { Plans } from '@/components/landing/Plans';
 import { ScheduleSection } from '@/components/landing/ScheduleSection';
-import { Testimonials } from '@/components/landing/Testimonials';
 import { WhatsappFab } from '@/components/landing/WhatsappFab';
 import { getPlans } from '@/lib/repositories/plansAdmin';
 import { getSchedule } from '@/lib/schedule';
@@ -89,7 +88,6 @@ export default async function HomePage() {
         <Benefits />
         <Plans plans={planSet.plans} />
         <ScheduleSection schedule={schedule} />
-        <Testimonials />
         <Faq />
         <LocationSection />
       </main>

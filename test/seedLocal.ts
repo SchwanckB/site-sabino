@@ -27,15 +27,15 @@ type Dados = readonly [
 
 /** Nome comprido de propósito no meio da lista: é onde o layout quebra. */
 const KIDS: readonly Dados[] = [
-  ['Ana Clara Figueiredo Sabino', 'feminino', '2017-04-12', 'cinza', 3, 40, 11],
+  ['Ana Clara Figueiredo Sabino', 'feminino', 'ANIV_HOJE', 'cinza', 3, 40, 11],
   ['Bruno Lima', 'masculino', '2015-09-02', 'amarela', 4, 62, 9],
   ['Clara Souza', 'feminino', '2019-01-23', 'branca', 0, 12, 4],
   ['Davi Rocha', 'masculino', '2013-06-07', 'verde', 10, 31, 13],
   ['Eduarda Dias', 'feminino', '2020-11-19', 'branca', 1, 5, 2],
   ['Felipe Alves', 'masculino', '2016-03-05', 'laranja', 6, 29, 7],
   ['Gabriela Melo', 'feminino', '2018-08-14', 'cinza', 2, 55, 0],
-  ['Heitor Pinto', 'masculino', '2014-02-28', 'amarela', 12, 90, 6],
-  ['Isabela Nunes', 'feminino', '2016-07-30', 'laranja', 11, 28, 10],
+  ['Heitor Pinto', 'masculino', 'ANIV_FIM', 'amarela', 12, 90, 6],
+  ['Isabela Nunes', 'feminino', 'QUASE_16', 'laranja', 11, 28, 10],
   ['João Vitor Krause', 'masculino', '2018-05-09', 'cinza', 1, 33, 5],
 ];
 
@@ -65,9 +65,23 @@ async function main(): Promise<void> {
   const atras = (dias: number) => new Date(now.getTime() - dias * 86_400_000);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   const mes = iso(now).slice(0, 7);
+  /** Nasceu no mes corrente: garante aniversariante na tela de teste. */
+  const nasceuEsteMes = (ano: number, dia: number) =>
+    ano + '-' + mes.slice(5, 7) + '-' + String(dia).padStart(2, '0');
 
   async function criar(id: string, dados: Dados, turmas: readonly string[]): Promise<void> {
-    const [nome, sexo, nascimento, faixa, grau, diasGrad, treinos] = dados;
+    const [nome, sexo, marcador, faixa, grau, diasGrad, treinos] = dados;
+
+    // Marcadores viram datas reais em torno de hoje, para os avisos da tela
+    // de teste nunca aparecerem vazios.
+    const nascimento =
+      marcador === 'ANIV_HOJE'
+        ? '2017-' + iso(now).slice(5)
+        : marcador === 'ANIV_FIM'
+          ? nasceuEsteMes(2014, 28)
+          : marcador === 'QUASE_16'
+            ? iso(new Date(now.getTime() + 40 * 86_400_000 - 16 * 365.25 * 86_400_000))
+            : marcador;
 
     const ficha = await students.createPendingStudent(
       {
@@ -187,6 +201,12 @@ async function main(): Promise<void> {
 
   // Eventos: feriado que fecha, feriado que não fecha, nome longo, e dois no
   // mesmo dia — os quatro casos que apertam a célula do calendário.
+  const settings = await import('../lib/repositories/settings');
+  await settings.saveAcademySettings(
+    { pixKey: '51981691373', pixOwner: 'Sabino Academia' },
+    now,
+  );
+
   const eventos = [
     { date: mes + '-07', title: 'Feriado — academia fechada', kind: 'feriado', time: '', note: '', closesAcademy: true },
     { date: mes + '-15', title: 'Ponto facultativo', kind: 'feriado', time: '', note: 'Aulas mantidas', closesAcademy: false },

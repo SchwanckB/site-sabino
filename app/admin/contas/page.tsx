@@ -19,6 +19,7 @@ export default async function ContasPage() {
       email: account.email,
       role: account.role,
       roleFromEnv: account.roleFromEnv,
+      rolePersisted: account.rolePersisted,
       enrollmentStatus: account.enrollmentStatus,
       createdAt: account.createdAt,
       lastSignInAt: account.lastSignInAt,
