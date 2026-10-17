@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+import { PageHeader } from '@/components/app/PageHeader';
+
 import { weekdayShortLabels, type Weekday } from '@/data/seed';
 import { listCheckins } from '@/lib/repositories/attendance';
 import { listStudentsByStatus } from '@/lib/repositories/students';
@@ -65,29 +67,21 @@ export default async function RelatoriosPage() {
 
   return (
     <div>
-      <header>
-        <p className="eyebrow">Números</p>
-        <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Relatórios</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-          Tudo aqui segue a academia escolhida no topo da página — agora,{' '}
-          <strong className="text-foreground">{UNIT_SCOPE_LABELS[scope]}</strong>.
-        </p>
-      </header>
+      <PageHeader title="Relatórios" meta={UNIT_SCOPE_LABELS[scope]} />
 
       {/* Exportação ------------------------------------------------------- */}
-      <section className="surface-card mt-8 p-5 sm:p-6">
-        <h2 className="text-lg normal-case tracking-normal">Baixar planilha</h2>
-        <p className="mt-1 text-sm leading-relaxed text-muted">
-          Abre direto no Excel. Serve para o contador e para ter uma cópia dos dados fora do
-          sistema. Por segurança, CPF e documentos não entram na planilha.
-        </p>
+      <section className="panel panel-pad mt-5">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="panel-title">Baixar planilha</h2>
+          <span className="text-[11px] text-muted">sem CPF nem documentos</span>
+        </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="mt-3.5 grid gap-2 sm:grid-cols-3">
           {EXPORTS.map((item) => (
             <a
               key={item.tipo}
               href={`/api/admin/exportar/${item.tipo}`}
-              className="flex min-h-[44px] flex-col justify-center rounded-xl border border-hairline bg-white/[.04] p-4 transition-colors hover:border-white/25"
+              className="flex min-h-[44px] flex-col justify-center rounded-lg border border-white/[.07] bg-white/[.03] px-3.5 py-3 transition-colors hover:border-white/20 hover:bg-white/[.06]"
             >
               <span className="text-sm font-medium text-foreground">{item.label}</span>
               <span className="mt-1 text-xs leading-snug text-muted">{item.hint}</span>
@@ -97,21 +91,22 @@ export default async function RelatoriosPage() {
       </section>
 
       {/* Turmas ------------------------------------------------------------ */}
-      <section className="surface-card mt-4 p-5 sm:p-6">
-        <h2 className="text-lg normal-case tracking-normal">Frequência por turma</h2>
-        <p className="mt-1 text-sm leading-relaxed text-muted">
-          Últimos {REPORT_WINDOW_DAYS} dias, comparados com os {REPORT_WINDOW_DAYS} anteriores. A
-          lista de alunos mostra quem parou; isto mostra o horário que está esvaziando.
-        </p>
+      <section className="panel panel-pad mt-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="panel-title">Frequência por turma</h2>
+          <span className="text-[11px] text-muted">
+            {REPORT_WINDOW_DAYS}d vs. {REPORT_WINDOW_DAYS}d anteriores
+          </span>
+        </div>
 
         {report.length === 0 ? (
           <p className="mt-5 text-sm text-muted">
             Nenhuma turma cadastrada nesta academia. Monte a grade em Horários.
           </p>
         ) : (
-          <ul className="mt-5 divide-y divide-hairline">
+          <ul className="mt-3.5 divide-y divide-white/[.05]">
             {report.map((row) => (
-              <li key={row.id} className="py-4 first:pt-0 last:pb-0">
+              <li key={row.id} className="py-3 first:pt-0 last:pb-0">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                     {row.label}

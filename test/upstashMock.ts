@@ -355,6 +355,12 @@ export class UpstashMock {
         return target.length;
       }
 
+      case 'rpush': {
+        const target = this.list(key);
+        for (const raw of args.slice(1)) target.push(String(raw));
+        return target.length;
+      }
+
       case 'lpop': {
         const target = this.list(key);
         return target.shift() ?? null;

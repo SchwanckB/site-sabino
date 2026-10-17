@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+import { PageHeader } from '@/components/app/PageHeader';
+
 import { weekdayLabels, type Weekday } from '@/data/seed';
 import { getSchedule } from '@/lib/schedule';
 import { listStudentsByStatus, toPublicStudent } from '@/lib/repositories/students';
@@ -34,18 +36,9 @@ export default async function AprovacoesPage() {
 
   return (
     <div>
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow">Fila de aprovação</p>
-          <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Aprovações</h1>
-        </div>
-        <p aria-live="polite" className="surface-card px-4 py-3 text-sm text-muted">
-          <span className="font-display text-2xl leading-none text-crimson tabular-nums">
-            {ordered.length}
-          </span>{' '}
-          {ordered.length === 1 ? 'cadastro aguardando' : 'cadastros aguardando'}
-        </p>
-      </header>
+      <PageHeader
+        title="Aprovações"
+      />
 
       {ordered.length === 0 ? (
         <div className="surface-card mt-8 px-6 py-16 text-center">

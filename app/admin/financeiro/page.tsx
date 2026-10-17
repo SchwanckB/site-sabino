@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+import { PageHeader } from '@/components/app/PageHeader';
+
 import { getPaymentPlans, listPaymentHistory } from '@/lib/repositories/payments';
 import { getAcademySettings } from '@/lib/repositories/settings';
 import { listStudentsByStatus } from '@/lib/repositories/students';
@@ -92,14 +94,10 @@ export default async function FinanceiroPage() {
 
   return (
     <div>
-      <header>
-        <p className="eyebrow">Mensalidades</p>
-        <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Financeiro</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-          Quando o aluno mandar o comprovante no WhatsApp, marque como pago aqui. O vencimento
-          avança sozinho para o mês seguinte.
-        </p>
-      </header>
+      <PageHeader
+        title="Financeiro"
+        meta="Marque como pago quando o comprovante chegar; o vencimento avança sozinho."
+      />
 
       {students.length === 0 ? (
         <div className="surface-card mt-8 px-6 py-16 text-center">

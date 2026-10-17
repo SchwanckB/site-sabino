@@ -16,6 +16,7 @@ import { getPaymentSummary } from '@/utils/paymentEngine';
 import { listAgeTransitions, listBirthdays, type PersonLike } from '@/utils/roster';
 import { buildHaystack } from '@/utils/searchText';
 
+import { PageHeader } from '@/components/app/PageHeader';
 import { QuickSearch, type SearchEntry } from '@/components/app/QuickSearch';
 
 import { Alertas } from './Alertas';
@@ -124,55 +125,63 @@ export default async function AdminPage() {
 
   return (
     <div>
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow">Painel do admin</p>
-          <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Visão geral</h1>
-        </div>
+      <PageHeader
+        title="Visão geral"
+        actions={
+          <>
+            {aguardando > 0 ? (
+              <Link href="/admin/aprovacoes" className="btn-primary text-sm">
+                {aguardando} {aguardando === 1 ? 'cadastro aguardando' : 'cadastros aguardando'}
+              </Link>
+            ) : null}
+            {dueIds.length > 0 ? (
+              <Link href="/admin/graduacao" className="btn-secondary text-sm">
+                {dueIds.length} {dueIds.length === 1 ? 'grau liberado' : 'graus liberados'}
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
-        <div className="flex flex-wrap gap-2">
-          {aguardando > 0 ? (
-            <Link href="/admin/aprovacoes" className="btn-primary text-sm">
-              {aguardando} {aguardando === 1 ? 'cadastro aguardando' : 'cadastros aguardando'}
-            </Link>
-          ) : null}
-          {dueIds.length > 0 ? (
-            <Link href="/admin/graduacao" className="btn-secondary text-sm">
-              {dueIds.length} {dueIds.length === 1 ? 'grau liberado' : 'graus liberados'}
-            </Link>
-          ) : null}
-        </div>
-      </header>
-
-      <div className="mt-6">
+      <div className="mt-5">
         <QuickSearch entries={buscaveis} />
       </div>
 
-      {/* Agora no tatame -------------------------------------------------- */}
-      <section className="surface-card mt-6 p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg normal-case tracking-normal">Agora no tatame</h2>
-            <p className="mt-1 text-sm text-muted">
+      {/*
+        A aula de agora é a única coisa desta tela com hora marcada; por isso
+        tem destaque próprio, e não mais um cartão igual aos outros.
+      */}
+      <section className="panel panel-pad mt-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <p className="panel-title">Agora no tatame</p>
+            <p className="mt-1.5 text-sm text-foreground">
               {inClassNow.length === 0
-                ? 'Nenhuma turma na janela de check-in neste horário.'
-                : `${presentNow} de ${inClassNow.length} alunos já registraram presença.`}
+                ? 'Nenhuma turma na janela de check-in.'
+                : (
+                  <>
+                    <span className="font-display text-xl tabular-nums text-crimson">
+                      {presentNow}
+                    </span>
+                    <span className="text-muted"> de {inClassNow.length} já marcaram presença</span>
+                  </>
+                )}
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Link href="/admin/presenca" className="btn-primary text-sm">
-              Fazer a chamada
+            <Link href="/admin/aula" className="btn-primary text-sm">
+              Abrir a aula
             </Link>
             <Link href="/admin/qr" className="btn-secondary text-sm">
-              Abrir QR
+              QR da recepção
             </Link>
           </div>
         </div>
 
         {inClassNow.length > 0 ? (
           <div
-            className="mt-4 h-2 overflow-hidden rounded-full bg-white/[.07]"
+            className="mt-3.5 h-1.5 overflow-hidden rounded-full bg-white/[.07]"
             role="progressbar"
             aria-valuenow={presentNow}
             aria-valuemin={0}

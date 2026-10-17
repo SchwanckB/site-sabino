@@ -30,7 +30,8 @@ export default async function AdminLayout({
     { href: '/admin', label: 'Visão geral', short: 'Visão', icon: 'grafico', primary: true },
     { href: '/admin/alunos', label: 'Alunos', icon: 'alunos', primary: true },
     { href: '/admin/aprovacoes', label: 'Aprovações', icon: 'aprovacao', badge: pendentes },
-    { href: '/admin/presenca', label: 'Presença', icon: 'presenca' },
+    { href: '/admin/aula', label: 'Modo aula', short: 'Aula', icon: 'presenca' },
+    { href: '/admin/presenca', label: 'Presença', icon: 'relogio' },
     { href: '/admin/calendario', label: 'Calendário', short: 'Agenda', icon: 'calendario', primary: true },
     { href: '/admin/financeiro', label: 'Financeiro', icon: 'dinheiro' },
     { href: '/admin/graduacao', label: 'Graduação', icon: 'faixa' },
@@ -41,11 +42,11 @@ export default async function AdminLayout({
     { href: '/admin/contas', label: 'Contas', icon: 'conta' },
   ];
 
-  // A ação do dia a dia do professor: marcar quem treinou.
+  // A ação do dia a dia do professor: abrir a aula que está começando.
   const primaryAction: PrimaryAction = {
-    href: '/admin/presenca',
-    label: 'Marcar presença',
-    short: 'Presença',
+    href: '/admin/aula',
+    label: 'Abrir a aula',
+    short: 'Aula',
     icon: 'presenca',
   };
   return (

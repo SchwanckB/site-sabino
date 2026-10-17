@@ -7,6 +7,7 @@ import { CACHE_TAGS } from '@/lib/cacheTags';
 import { setAccountRole } from '@/lib/repositories/accounts';
 import { recordCheckin, undoCheckin } from '@/lib/repositories/attendance';
 import { removeEvent, upsertEvent } from '@/lib/repositories/calendar';
+import { saveClassLog } from '@/lib/repositories/classLog';
 import { registerDegree, promoteBelt, undoLastDegree } from '@/lib/repositories/graduation';
 import {
   getPaymentPlan,
@@ -619,4 +620,84 @@ export async function setUnitScopeAction(form: FormData): Promise<void> {
 
   // O seletor não mostra mensagem: a tela inteira já muda, e isso basta.
   revalidatePath('/admin', 'layout');
+}
+
+/* -------------------------------------------------------------------------- */
+/* Modo aula                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Presença dentro de uma turma escolhida na tela.
+ *
+ * Diferente de `markPresenceAction`, que infere a aula pelo horário: aqui o
+ * professor já disse qual é. Isso resolve dois casos que a inferência erra —
+ * o aluno que veio treinar num dia que não é o dele (presença avulsa) e a
+ * chamada feita depois que a aula acabou.
+ */
+export async function markPresenceInClassAction(form: FormData): Promise<ActionResult> {
+  const admin = await requireAdmin();
+
+  const studentId = text(form, 'studentId');
+  const classId = text(form, 'classId');
+
+  const student = await getStudent(studentId);
+  if (!student) return { ok: false, message: 'Aluno não encontrado.' };
+  if (student.status !== 'ativo') return { ok: false, message: 'Aluno não está ativo.' };
+
+  const schedule = await getSchedule();
+  const slot = schedule.classes.find((item) => item.id === classId) ?? null;
+  if (!slot) return { ok: false, message: 'Turma não encontrada.' };
+
+  if (slot.unit !== student.unit) {
+    return {
+      ok: false,
+      message: `${student.name} é aluno de outra academia. Troque a unidade na ficha dele antes.`,
+    };
+  }
+
+  const result = await recordCheckin(
+    {
+      student,
+      classId: slot.id,
+      classTitle: slot.title,
+      source: 'manual',
+      registeredBy: admin.id,
+    },
+    new Date(),
+  );
+
+  refreshAdmin();
+
+  if (!result.ok) {
+    return result.reason === 'ja_registrado'
+      ? { ok: false, message: `${student.name} já tem presença hoje.` }
+      : { ok: false, message: 'Banco de dados não configurado.' };
+  }
+
+  const avulso = !student.classIds.includes(slot.id);
+  return {
+    ok: true,
+    message: avulso
+      ? `Presença avulsa de ${student.name} em ${slot.title}.`
+      : `${student.name} presente.`,
+  };
+}
+
+/** Registra o que foi treinado na aula. */
+export async function saveClassLogAction(form: FormData): Promise<ActionResult> {
+  const admin = await requireAdmin();
+
+  const now = new Date();
+  const result = await saveClassLog(
+    text(form, 'classId'),
+    text(form, 'date') || saoPauloDateString(now),
+    text(form, 'text'),
+    admin.id,
+    now,
+  );
+
+  if (!result.ok) return { ok: false, message: result.error };
+
+  refreshAdmin();
+  return { ok: true, message: 'Aula registrada no diário.' };
 }

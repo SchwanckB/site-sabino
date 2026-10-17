@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
+import { Stat, StatStrip } from '@/components/app/PageHeader';
 import { cn, pluralize } from '@/lib/utils';
-import { formatBr } from '@/utils/datetime';
 import { formatCents, type PaymentStatus } from '@/utils/paymentEngine';
 
 export interface DashboardRow {
@@ -40,51 +40,6 @@ const SEXOS: readonly { id: Sexo; label: string }[] = [
 
 /** Quantos dias sem treinar já merecem um telefonema. */
 const DIAS_SUMIDO = 21;
-
-function Tile({
-  label,
-  value,
-  hint,
-  tone = 'neutro',
-  href,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly hint?: string;
-  readonly tone?: 'neutro' | 'alerta' | 'bom';
-  readonly href?: string;
-}) {
-  const body = (
-    <>
-      <p className="text-xs text-muted">{label}</p>
-      <p
-        className={cn(
-          'mt-1 font-display text-3xl leading-none tabular-nums',
-          tone === 'alerta' ? 'text-crimson' : tone === 'bom' ? 'text-emerald-300' : 'text-foreground',
-        )}
-      >
-        {value}
-      </p>
-      {hint ? <p className="mt-1 text-xs leading-snug text-muted">{hint}</p> : null}
-    </>
-  );
-
-  const classes = cn(
-    'block rounded-2xl border p-4 backdrop-blur-md transition-colors',
-    tone === 'alerta'
-      ? 'border-crimson/40 bg-crimson/[.07]'
-      : 'border-hairline bg-white/[.04]',
-    href && 'hover:border-white/25',
-  );
-
-  return href ? (
-    <Link href={href} className={classes}>
-      {body}
-    </Link>
-  ) : (
-    <div className={classes}>{body}</div>
-  );
-}
 
 /**
  * Painéis da visão geral.
@@ -132,108 +87,76 @@ export function Dashboards({ rows }: { readonly rows: readonly DashboardRow[] })
 
   return (
     <div>
-      {/* Recortes --------------------------------------------------------- */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <div role="group" aria-label="Filtrar por categoria" className="flex flex-wrap gap-2">
-          {RECORTES.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setRecorte(item.id)}
-              aria-pressed={recorte === item.id}
-              className={cn(
-                'inline-flex min-h-[44px] items-center rounded-xl border px-4 text-sm font-medium transition-colors',
-                recorte === item.id
-                  ? 'border-crimson bg-crimson text-foreground'
-                  : 'border-hairline bg-white/[.04] text-muted hover:text-foreground',
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+      {/*
+        Recortes como controle segmentado, não como pílulas soltas: um bloco
+        com divisórias internas ocupa menos espaço, deixa claro que as opções
+        são excludentes e é o que um painel de gestão usa.
+      */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Segmented
+          label="Filtrar por categoria"
+          options={RECORTES}
+          value={recorte}
+          onChange={setRecorte}
+        />
+        <Segmented label="Filtrar por sexo" options={SEXOS} value={sexo} onChange={setSexo} />
 
-        <div role="group" aria-label="Filtrar por sexo" className="flex flex-wrap gap-2">
-          {SEXOS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setSexo(item.id)}
-              aria-pressed={sexo === item.id}
-              className={cn(
-                'inline-flex min-h-[44px] items-center rounded-xl border px-3.5 text-sm transition-colors',
-                sexo === item.id
-                  ? 'border-white/25 bg-white/[.08] text-foreground'
-                  : 'border-hairline bg-white/[.04] text-muted hover:text-foreground',
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <p aria-live="polite" className="text-xs text-muted">
+          {filtrados.length} {pluralize(filtrados.length, 'aluno', 'alunos')}
+        </p>
       </div>
-
-      <p aria-live="polite" className="mt-4 text-sm text-muted">
-        {filtrados.length} {pluralize(filtrados.length, 'aluno ativo', 'alunos ativos')} no recorte
-      </p>
 
       {/* Números ---------------------------------------------------------- */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Tile
-          label="Alunos ativos"
-          value={String(filtrados.length)}
-          hint={`${filtrados.filter((r) => r.category === 'kids').length} crianças · ${filtrados.filter((r) => r.category === 'adulto').length} adultos`}
-          href="/admin/alunos"
-        />
-        <Tile
-          label="Mensalidades em dia"
-          value={`${percentualEmDia}%`}
-          hint={`${emDia} de ${filtrados.length}`}
-          tone={percentualEmDia >= 80 ? 'bom' : 'neutro'}
-          href="/admin/financeiro"
-        />
-        <Tile
-          label="Inadimplentes"
-          value={String(vencidas.length)}
-          hint={totalAberto > 0 ? `${formatCents(totalAberto)} em aberto` : 'nada em aberto'}
-          tone={vencidas.length > 0 ? 'alerta' : 'bom'}
-          href="/admin/financeiro"
-        />
-        <Tile
-          label="Treinos em 30 dias"
-          value={String(treinosNoMes)}
-          hint={`média de ${mediaTreinos.toFixed(1)} por aluno`}
-          href="/admin/presenca"
-        />
+      <div className="mt-3">
+        <StatStrip>
+          <Stat
+            label="Alunos ativos"
+            value={String(filtrados.length)}
+            hint={`${filtrados.filter((r) => r.category === 'kids').length} crianças · ${filtrados.filter((r) => r.category === 'adulto').length} adultos`}
+          />
+          <Stat
+            label="Em dia"
+            value={`${percentualEmDia}%`}
+            hint={`${emDia} de ${filtrados.length}`}
+            tone={percentualEmDia >= 80 ? 'bom' : 'neutro'}
+          />
+          <Stat
+            label="Inadimplentes"
+            value={String(vencidas.length)}
+            hint={totalAberto > 0 ? `${formatCents(totalAberto)} em aberto` : 'nada em aberto'}
+            tone={vencidas.length > 0 ? 'alerta' : 'bom'}
+          />
+          <Stat
+            label="Treinos / 30d"
+            value={String(treinosNoMes)}
+            hint={`média ${mediaTreinos.toFixed(1)} por aluno`}
+          />
+        </StatStrip>
       </div>
 
-      {(emBreve.length > 0 || semPlano.length > 0) ? (
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      {emBreve.length > 0 || semPlano.length > 0 ? (
+        <p className="mt-2.5 text-xs text-muted">
           {emBreve.length > 0 ? (
-            <Tile
-              label="Vencem nos próximos dias"
-              value={String(emBreve.length)}
-              hint={`próximo: ${formatBr(emBreve.map((r) => r.dueDate).sort()[0] ?? null)}`}
-              href="/admin/financeiro"
-            />
+            <Link href="/admin/financeiro" className="text-amber-300 hover:underline">
+              {emBreve.length} vence{emBreve.length === 1 ? '' : 'm'} nos próximos dias
+            </Link>
           ) : null}
+          {emBreve.length > 0 && semPlano.length > 0 ? ' · ' : ''}
           {semPlano.length > 0 ? (
-            <Tile
-              label="Sem mensalidade definida"
-              value={String(semPlano.length)}
-              hint="defina o valor para entrar na cobrança"
-              tone="alerta"
-              href="/admin/financeiro"
-            />
+            <Link href="/admin/financeiro" className="text-crimson hover:underline">
+              {semPlano.length} sem mensalidade definida
+            </Link>
           ) : null}
-        </div>
+        </p>
       ) : null}
 
       {/* Frequência -------------------------------------------------------- */}
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <section className="surface-card min-w-0 p-5">
-          <h3 className="text-base normal-case tracking-normal">Quem mais treina</h3>
-          <p className="mt-1 text-xs text-muted">Últimos 30 dias, no recorte atual.</p>
+      <div className="mt-3 grid items-start gap-3 lg:grid-cols-2">
+        <section className="panel panel-pad min-w-0">
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="panel-title">Quem mais treina</h3>
+            <span className="text-[11px] text-muted">30 dias</span>
+          </div>
 
           {maisPresentes.length === 0 ? (
             <p className="mt-4 text-sm text-muted">Nenhum treino registrado neste período.</p>
@@ -279,11 +202,11 @@ export function Dashboards({ rows }: { readonly rows: readonly DashboardRow[] })
           )}
         </section>
 
-        <section className="surface-card min-w-0 p-5">
-          <h3 className="text-base normal-case tracking-normal">Sumidos do tatame</h3>
-          <p className="mt-1 text-xs text-muted">
-            Sem treinar há {DIAS_SUMIDO} dias ou mais — vale um contato antes de virar evasão.
-          </p>
+        <section className="panel panel-pad min-w-0">
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="panel-title">Sumidos do tatame</h3>
+            <span className="text-[11px] text-muted">{DIAS_SUMIDO}+ dias</span>
+          </div>
 
           {sumidos.length === 0 ? (
             <p className="mt-4 text-sm text-emerald-300">Ninguém sumido no recorte. Bom sinal.</p>
@@ -310,6 +233,52 @@ export function Dashboards({ rows }: { readonly rows: readonly DashboardRow[] })
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Controle segmentado.
+ *
+ * Um bloco só, com divisórias internas, em vez de botões soltos com `gap`.
+ * Ocupa menos largura, comunica que as opções são excludentes e não compete
+ * em peso visual com os botões de ação de verdade da tela.
+ */
+function Segmented<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  readonly label: string;
+  readonly options: readonly { id: T; label: string }[];
+  readonly value: T;
+  readonly onChange: (value: T) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="inline-flex overflow-hidden rounded-lg border border-white/[.09] bg-white/[.025]"
+    >
+      {options.map((item, index) => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={() => onChange(item.id)}
+          aria-pressed={value === item.id}
+          className={cn(
+            // 44px: compactar o controle nao pode custar o alvo de toque.
+            'min-h-[44px] px-3.5 text-[13px] font-medium transition-colors',
+            index > 0 && 'border-l border-white/[.09]',
+            value === item.id
+              ? 'bg-crimson text-foreground'
+              : 'text-muted hover:bg-white/[.05] hover:text-foreground',
+          )}
+        >
+          {item.label}
+        </button>
+      ))}
     </div>
   );
 }

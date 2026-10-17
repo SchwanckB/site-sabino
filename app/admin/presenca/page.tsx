@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+
+import { PageHeader } from '@/components/app/PageHeader';
 
 import { getTodayCheckins } from '@/lib/repositories/attendance';
 import { listStudentsByStatus } from '@/lib/repositories/students';
@@ -68,20 +69,9 @@ export default async function PresencaPage() {
 
   return (
     <div>
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow">Chamada</p>
-          <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Presença</h1>
-          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">
-            Marque um aluno por vez ou selecione vários e registre em lote. O aluno também pode
-            registrar sozinho lendo o{' '}
-            <Link href="/admin/qr" className="text-crimson underline-offset-4 hover:underline">
-              QR Code da recepção
-            </Link>
-            .
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        title="Presença"
+      />
 
       {students.length === 0 ? (
         <div className="surface-card mt-8 px-6 py-16 text-center">

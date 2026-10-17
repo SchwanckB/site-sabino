@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+import { PageHeader } from '@/components/app/PageHeader';
+
 import { listCheckins } from '@/lib/repositories/attendance';
 import { listStudentsByStatus } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
@@ -91,15 +93,10 @@ export default async function GraduacaoPage() {
 
   return (
     <div>
-      <header>
-        <p className="eyebrow">Graus e faixas</p>
-        <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Graduação</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-          Na trilha infantil o grau sai a cada 30 dias, então dá para planejar: a agenda mostra
-          quem já está liberado e quando cada criança gradua. No adulto não há automação — a
-          tabela reúne os dados para a sua decisão.
-        </p>
-      </header>
+      <PageHeader
+        title="Graduação"
+        meta="Na trilha infantil o grau sai a cada 30 dias. No adulto, a decisão é sua."
+      />
 
       <div className="mt-8">
         <GraduationTabs

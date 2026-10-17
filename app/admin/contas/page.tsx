@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+import { PageHeader } from '@/components/app/PageHeader';
+
 import { requireAdmin } from '@/lib/auth';
 import { listAccounts } from '@/lib/repositories/accounts';
 
@@ -35,16 +37,10 @@ export default async function ContasPage() {
 
   return (
     <div>
-      <header>
-        <p className="eyebrow">Permissões</p>
-        <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Contas e acessos</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-          Toda conta criada no site aparece aqui — inclusive quem se cadastrou e parou antes de
-          preencher a ficha. <strong className="text-foreground">Professor e administrador são
-          o mesmo acesso</strong>: quem ensina precisa aprovar matrícula, lançar presença e
-          registrar graduação.
-        </p>
-      </header>
+      <PageHeader
+        title="Contas e acessos"
+        meta="Professor e administrador são o mesmo acesso."
+      />
 
       {accounts.length === 0 ? (
         <div className="surface-card mt-8 px-6 py-16 text-center">

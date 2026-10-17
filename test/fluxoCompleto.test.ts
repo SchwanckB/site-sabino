@@ -21,6 +21,7 @@ let attendance: typeof import('@/lib/repositories/attendance');
 let graduation: typeof import('@/lib/repositories/graduation');
 let qr: typeof import('@/lib/repositories/qr');
 let scheduleAdmin: typeof import('@/lib/repositories/scheduleAdmin');
+let classLog: typeof import('@/lib/repositories/classLog');
 
 beforeAll(async () => {
   const { url, token } = await mock.start();
@@ -33,6 +34,7 @@ beforeAll(async () => {
   graduation = await import('@/lib/repositories/graduation');
   qr = await import('@/lib/repositories/qr');
   scheduleAdmin = await import('@/lib/repositories/scheduleAdmin');
+  classLog = await import('@/lib/repositories/classLog');
 });
 
 afterAll(async () => {
@@ -777,5 +779,65 @@ describe('mudança de situação', () => {
     const counts = await students.countByStatus();
     expect(counts.ativo).toBe(0);
     expect(counts.inativo).toBe(1);
+  });
+});
+
+describe('diário de aula', () => {
+  const TURMA = 'tres-cachoeiras-1-1930-mma';
+  const QUARTA = new Date('2026-03-04T21:40:00-03:00');
+
+  it('grava e lê o que foi treinado', async () => {
+    const result = await classLog.saveClassLog(
+      TURMA,
+      '2026-03-02',
+      'Passagem de guarda em pé, 6 rounds de 5 min.',
+      'admin_1',
+      DURANTE_MMA,
+    );
+
+    expect(result.ok).toBe(true);
+
+    const entradas = await classLog.listClassLog(TURMA);
+    expect(entradas).toHaveLength(1);
+    expect(entradas[0]?.text).toContain('Passagem de guarda');
+    expect(entradas[0]?.author).toBe('admin_1');
+  });
+
+  it('salvar de novo no mesmo dia substitui, não duplica', async () => {
+    // O professor escreve no fim da aula, às vezes em duas tentativas.
+    await classLog.saveClassLog(TURMA, '2026-03-02', 'Primeira versão', 'admin_1', DURANTE_MMA);
+    await classLog.saveClassLog(TURMA, '2026-03-02', 'Versão corrigida', 'admin_1', DURANTE_MMA);
+
+    const entradas = await classLog.listClassLog(TURMA);
+    expect(entradas).toHaveLength(1);
+    expect(entradas[0]?.text).toBe('Versão corrigida');
+  });
+
+  it('lista da aula mais recente para a mais antiga', async () => {
+    await classLog.saveClassLog(TURMA, '2026-03-02', 'Segunda', 'admin_1', DURANTE_MMA);
+    await classLog.saveClassLog(TURMA, '2026-03-04', 'Quarta', 'admin_1', QUARTA);
+
+    const entradas = await classLog.listClassLog(TURMA);
+    expect(entradas.map((e) => e.date)).toEqual(['2026-03-04', '2026-03-02']);
+  });
+
+  it('cada turma tem o seu diário', async () => {
+    await classLog.saveClassLog(TURMA, '2026-03-02', 'MMA', 'admin_1', DURANTE_MMA);
+    await classLog.saveClassLog('outra-turma', '2026-03-02', 'Kids', 'admin_1', DURANTE_MMA);
+
+    expect((await classLog.listClassLog(TURMA))[0]?.text).toBe('MMA');
+    expect((await classLog.listClassLog('outra-turma'))[0]?.text).toBe('Kids');
+  });
+
+  it('recusa texto vazio e data inválida', async () => {
+    const vazio = await classLog.saveClassLog(TURMA, '2026-03-02', '   ', 'admin_1', DURANTE_MMA);
+    expect(vazio.ok).toBe(false);
+
+    const data = await classLog.saveClassLog(TURMA, '02/03/2026', 'Algo', 'admin_1', DURANTE_MMA);
+    expect(data.ok).toBe(false);
+  });
+
+  it('turma sem diário devolve lista vazia', async () => {
+    expect(await classLog.listClassLog('turma-nova')).toEqual([]);
   });
 });

@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+import { PageHeader } from '@/components/app/PageHeader';
+
 import { getPlans } from '@/lib/repositories/plansAdmin';
 
 import { PlansEditor } from './PlansEditor';
@@ -13,14 +15,9 @@ export default async function PlanosPage() {
 
   return (
     <div>
-      <header>
-        <p className="eyebrow">Vitrine</p>
-        <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Planos</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-          São os planos que aparecem na página pública. O que você salvar aqui entra no site
-          imediatamente.
-        </p>
-      </header>
+      <PageHeader
+        title="Planos"
+      />
 
       {temExemplo ? (
         <p

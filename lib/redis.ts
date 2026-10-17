@@ -51,6 +51,7 @@ export const redisKeys = {
   scheduleClasses: () => 'schedule:classes',
   landingPlans: () => 'landing:plans',
   calendarEvents: () => 'calendar:events',
+  classLog: (classId: string) => 'class:log:' + classId,
   academySettings: () => 'settings:academy',
   qrCurrent: (classId: string) => 'qr:current:' + classId,
   /** Caminho inverso: token lido pela câmera -> turma. */

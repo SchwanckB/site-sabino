@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+import { PageHeader } from '@/components/app/PageHeader';
+
 import { listAllStudents } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
 import { filterByUnit } from '@/types/domain';
@@ -33,13 +35,9 @@ export default async function AlunosPage() {
 
   return (
     <div>
-      <header>
-        <p className="eyebrow">Cadastro</p>
-        <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Alunos</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-          Abra a ficha de um aluno para ajustar turmas, faixa, graus, mensalidade e situação.
-        </p>
-      </header>
+      <PageHeader
+        title="Alunos"
+      />
 
       <div className="mt-8">
         <StudentsList rows={rows} scope={scope} />

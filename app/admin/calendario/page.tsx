@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+import { PageHeader } from '@/components/app/PageHeader';
+
 import { listEvents } from '@/lib/repositories/calendar';
 import { listStudentsByStatus } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
@@ -73,15 +75,9 @@ export default async function CalendarioPage() {
 
   return (
     <div>
-      <header>
-        <p className="eyebrow">Agenda</p>
-        <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Calendário</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-          Junta num lugar só as aulas da grade, os eventos que você marcar, as graduações
-          infantis previstas e os aniversários dos alunos. Use os filtros para isolar o que
-          interessa.
-        </p>
-      </header>
+      <PageHeader
+        title="Calendário"
+      />
 
       <div className="mt-8">
         <CalendarView

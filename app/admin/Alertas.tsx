@@ -25,18 +25,15 @@ export function Alertas({
       estica a faixa inteira para além da tela. Com min-width zerado a faixa
       volta a seguir o container e o nome é que corta.
     */
-    <div className="mt-6 grid gap-4 lg:grid-cols-2">
+    <div className="mt-3 grid items-start gap-3 lg:grid-cols-2">
       {birthdays.length > 0 ? (
-        <section className="surface-card min-w-0 p-5">
+        <section className="panel panel-pad min-w-0">
           <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-base normal-case tracking-normal">Aniversariantes do mês</h2>
+            <h2 className="panel-title">Aniversariantes do mês</h2>
             <span className="shrink-0 text-xs tabular-nums text-muted">{birthdays.length}</span>
           </div>
-          <p className="mt-1 text-xs text-muted">
-            Uma mensagem no dia custa nada e segura aluno.
-          </p>
 
-          <ul className="mt-4 divide-y divide-hairline">
+          <ul className="mt-2 divide-y divide-hairline">
             {birthdays.map((item) => (
               <li key={item.id}>
                 <Link
@@ -73,22 +70,23 @@ export function Alertas({
       {transitions.length > 0 ? (
         <section
           className={cn(
-            'min-w-0 rounded-2xl border p-5 backdrop-blur-md',
+            'min-w-0 rounded-xl border p-4 sm:p-5',
             transitions.some((t) => t.overdue)
               ? 'border-crimson/40 bg-crimson/[.07]'
               : 'border-amber-500/30 bg-amber-500/[.05]',
           )}
         >
           <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-base normal-case tracking-normal">Saindo da trilha infantil</h2>
-            <span className="shrink-0 text-xs tabular-nums text-muted">{transitions.length}</span>
+            <h2 className="panel-title">Saindo da trilha infantil</h2>
+            <span
+              title="Aos 16 anos o grau deixa de sair a cada 30 dias e o aluno passa para a faixa adulta."
+              className="shrink-0 text-xs tabular-nums text-muted"
+            >
+              {transitions.length}
+            </span>
           </div>
-          <p className="mt-1 text-xs leading-relaxed text-muted">
-            Aos 16 anos o grau deixa de sair a cada 30 dias e o aluno passa para a faixa adulta.
-            Sem aviso, isso só aparece quando alguém estranha que ele parou de graduar.
-          </p>
 
-          <ul className="mt-4 divide-y divide-white/10">
+          <ul className="mt-2 divide-y divide-white/10">
             {transitions.map((item) => (
               <li key={item.id}>
                 <Link

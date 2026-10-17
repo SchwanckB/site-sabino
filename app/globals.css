@@ -99,6 +99,64 @@
     @apply btn text-muted hover:text-foreground;
   }
 
+  /*
+   * ---------------------------------------------------------------------
+   * Vocabulario do painel
+   * ---------------------------------------------------------------------
+   * A landing vende; o painel trabalha. Sao linguagens diferentes, e usar a
+   * mesma nos dois deixava o admin com cara de pagina de marketing: tudo
+   * dentro do mesmo cartao arredondado, com a mesma folga, sem hierarquia.
+   *
+   * Aqui a superficie e mais discreta e mais apertada, o numero manda e o
+   * texto de apoio encolhe. Densidade e o que um painel de gestao precisa:
+   * mais informacao por tela, lida de relance.
+   */
+
+  /* Painel: borda mais firme e fundo mais calmo que o .surface-card. */
+  .panel {
+    @apply rounded-xl border border-white/[.07] bg-white/[.025];
+  }
+
+  .panel-pad {
+    @apply p-4 sm:p-5;
+  }
+
+  /* Cabecalho interno de bloco: linha de base do painel inteiro. */
+  .panel-title {
+    @apply font-display text-[13px] font-semibold uppercase tracking-[0.1em] text-muted;
+  }
+
+  /* Numero grande de indicador. Tabular para alinhar coluna a coluna. */
+  .stat-value {
+    @apply font-display text-[1.75rem] leading-none tabular-nums text-foreground sm:text-3xl;
+  }
+
+  .stat-label {
+    @apply text-[11px] uppercase tracking-[0.08em] text-muted;
+  }
+
+  /* Tabela densa do desktop. No celular as listas viram cartoes. */
+  .data-table {
+    @apply w-full border-collapse text-sm;
+  }
+
+  .data-table thead th {
+    @apply border-b border-white/[.07] px-3 py-2 text-left text-[11px] font-semibold
+           uppercase tracking-[0.08em] text-muted;
+  }
+
+  .data-table tbody td {
+    @apply border-b border-white/[.05] px-3 py-2.5 align-middle;
+  }
+
+  .data-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .data-table tbody tr {
+    @apply transition-colors hover:bg-white/[.03];
+  }
+
   /* Textura de granulado: tira o aspecto "chapado" dos fundos escuros. */
   .grain::after {
     content: '';
