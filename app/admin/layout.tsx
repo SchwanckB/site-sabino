@@ -35,6 +35,7 @@ export default async function AdminLayout({
     { href: '/admin/financeiro', label: 'Financeiro', icon: 'dinheiro' },
     { href: '/admin/graduacao', label: 'Graduação', icon: 'faixa' },
     { href: '/admin/horarios', label: 'Horários', icon: 'horarios' },
+    { href: '/admin/relatorios', label: 'Relatórios', icon: 'grafico' },
     { href: '/admin/planos', label: 'Planos', icon: 'plano' },
     { href: '/admin/qr', label: 'QR da recepção', icon: 'qr' },
     { href: '/admin/contas', label: 'Contas', icon: 'conta' },

@@ -8,6 +8,10 @@ import { siteUrl } from '@/lib/site';
 /**
  * Token + imagem do QR da recepção.
  *
+ * Cada turma tem o seu QR: o token amarra a presença àquela aula, e não à
+ * janela de horário — o que resolve a ambiguidade de dois horários colados e
+ * impede que o código de uma academia sirva na outra.
+ *
  * O QR não carrega apenas o token: ele codifica a **URL da página de check-in
  * já com o token**. Assim a câmera nativa do celular resolve tudo — não é
  * preciso app nem leitor dedicado, e a mãe que leva o filho consegue registrar
@@ -22,8 +26,20 @@ export async function GET(request: Request): Promise<NextResponse> {
     return new NextResponse('Não encontrado', { status: 404 });
   }
 
-  const force = new URL(request.url).searchParams.get('rotate') === '1';
-  const current = force ? await rotateQrToken() : await getCurrentQrToken();
+  const params = new URL(request.url).searchParams;
+  const classId = (params.get('classId') ?? '').trim();
+  const force = params.get('rotate') === '1';
+
+  if (classId.length === 0) {
+    return NextResponse.json(
+      { error: 'Escolha a turma antes de gerar o QR.' },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
+  const current = force
+    ? await rotateQrToken(classId)
+    : await getCurrentQrToken(classId);
 
   if (!current) {
     return NextResponse.json(
@@ -42,7 +58,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   });
 
   return NextResponse.json(
-    { dataUrl, expiresIn: current.expiresIn },
+    { dataUrl, expiresIn: current.expiresIn, classId: current.classId },
     { headers: { 'Cache-Control': 'no-store' } },
   );
 }

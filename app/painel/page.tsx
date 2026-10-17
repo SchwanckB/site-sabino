@@ -17,7 +17,8 @@ import {
   formatMinutes,
   groupAssignedByWeekday,
 } from '@/utils/attendanceEngine';
-import { daysBetween, formatBr, saoPauloDateString } from '@/utils/datetime';
+import { daysBetween, formatBr, saoPauloDateString, saoPauloParts } from '@/utils/datetime';
+import { occurrencesInMonth } from '@/utils/classReport';
 import { getDegreeColor } from '@/utils/graduationEngine';
 import { formatCents, getPaymentSummary, PLAN_LABELS } from '@/utils/paymentEngine';
 
@@ -56,7 +57,23 @@ export default async function PainelPage() {
   const last90 = checkins.filter((entry) => daysBetween(today, entry.date) < 90).length;
   const thisMonth = checkins.filter((entry) => entry.date.startsWith(today.slice(0, 7))).length;
 
+  // Meta do mês: quantas vezes as turmas do aluno acontecem no mês corrente.
+  // Não é número inventado — é a grade dele. "8 de 12" diz mais do que "8".
+  const { year, month } = saoPauloParts(now);
+  const aulasNoMes = schedule.classes
+    .filter((slot) => student.classIds.includes(slot.id))
+    .reduce(
+      (soma, slot) => soma + occurrencesInMonth(slot.weekday, year, month),
+      0,
+    );
+
   const payment = plan ? getPaymentSummary(plan, now) : null;
+  // Vence em até três dias: merece destaque, não uma linha no meio da ficha.
+  const diasAteVencer = payment ? daysBetween(payment.dueDate, today) : null;
+  const avisoMensalidade =
+    payment !== null &&
+    (payment.status === 'vencida' ||
+      (diasAteVencer !== null && diasAteVencer >= 0 && diasAteVencer <= 3));
   const paymentStyle = payment ? STATUS_STYLES[payment.status] : null;
 
   const nextDegreeColor = isKids ? getDegreeColor(student.degree + 1) : null;
@@ -67,6 +84,38 @@ export default async function PainelPage() {
         <p className="eyebrow">Olá, {student.name.split(' ')[0]}</p>
         <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Meu painel</h1>
       </header>
+
+      {/*
+        Mensalidade perto do vencimento sobe para o topo. No meio da ficha o
+        aluno só a vê quando já está atrasada — e aí a conversa é outra.
+      */}
+      {avisoMensalidade && payment ? (
+        <div
+          role="status"
+          className={cn(
+            'mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4',
+            payment.status === 'vencida'
+              ? 'border-crimson/45 bg-crimson/[.09]'
+              : 'border-amber-500/40 bg-amber-500/[.07]',
+          )}
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">
+              {payment.status === 'vencida'
+                ? `Mensalidade vencida em ${formatBr(payment.dueDate)}`
+                : diasAteVencer === 0
+                  ? 'Sua mensalidade vence hoje'
+                  : `Sua mensalidade vence em ${diasAteVencer} ${diasAteVencer === 1 ? 'dia' : 'dias'}`}
+            </p>
+            <p className="mt-0.5 text-xs text-muted">
+              {formatCents(payment.amountCents)} · pode pagar até {formatBr(payment.limitDate)}
+            </p>
+          </div>
+          <Link href="#mensalidade" className="btn-secondary shrink-0 text-xs">
+            Ver detalhes
+          </Link>
+        </div>
+      ) : null}
 
       {/* Check-in em destaque: é a ação do dia. ------------------------- */}
       <section
@@ -243,7 +292,12 @@ export default async function PainelPage() {
             <div className="grid grid-cols-2 gap-4 border-t border-hairline pt-4">
               <div>
                 <dt className="text-xs text-muted">Este mês</dt>
-                <dd className="mt-1 font-display text-xl tabular-nums">{thisMonth}</dd>
+                <dd className="mt-1 font-display text-xl tabular-nums">
+                  {thisMonth}
+                  {aulasNoMes > 0 ? (
+                    <span className="text-base text-muted">/{aulasNoMes}</span>
+                  ) : null}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-muted">Últimos 90 dias</dt>

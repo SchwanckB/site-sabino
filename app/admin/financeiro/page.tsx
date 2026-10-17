@@ -1,10 +1,15 @@
 import type { Metadata } from 'next';
 
-import { getPaymentPlans } from '@/lib/repositories/payments';
+import { getPaymentPlans, listPaymentHistory } from '@/lib/repositories/payments';
 import { getAcademySettings } from '@/lib/repositories/settings';
 import { listStudentsByStatus } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
-import { filterByUnit } from '@/types/domain';
+import {
+  PAYMENT_METHOD_LABELS,
+  UNIT_LABELS,
+  filterByUnit,
+  type PaymentMethod,
+} from '@/types/domain';
 import { siteConfig } from '@/lib/site';
 import { getPaymentSummary } from '@/utils/paymentEngine';
 
@@ -19,6 +24,17 @@ export default async function FinanceiroPage() {
   const students = filterByUnit(await listStudentsByStatus('ativo'), scope);
   const plans = await getPaymentPlans(students.map((student) => student.id));
   const settings = await getAcademySettings();
+
+  // Só o último lançamento de cada aluno: é o que o recibo descreve.
+  const ultimos = new Map(
+    await Promise.all(
+      students.map(async (student): Promise<[string, string]> => {
+        const historico = await listPaymentHistory(student.id, 1);
+        const metodo = historico[0]?.method ?? '';
+        return [student.id, PAYMENT_METHOD_LABELS[metodo as PaymentMethod] ?? metodo];
+      }),
+    ),
+  );
 
   const rows: FinanceRow[] = students
     .map((student) => {
@@ -40,6 +56,8 @@ export default async function FinanceiroPage() {
           lastPaidAt: null,
           hasPlan: false,
           phone: student.guardianPhone ?? student.phone,
+          unitLabel: UNIT_LABELS[student.unit],
+          lastMethod: ultimos.get(student.id) ?? '',
         };
       }
 
@@ -60,6 +78,8 @@ export default async function FinanceiroPage() {
         lastPaidAt: summary.lastPaidAt,
         hasPlan: true,
         phone: student.guardianPhone ?? student.phone,
+        unitLabel: UNIT_LABELS[student.unit],
+        lastMethod: ultimos.get(student.id) ?? '',
       };
     })
     // Vencidas primeiro, depois por data de vencimento.

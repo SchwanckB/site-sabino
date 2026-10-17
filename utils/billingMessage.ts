@@ -104,3 +104,43 @@ export function whatsappLinkTo(phone: string, message: string): string | null {
   if (!numero) return null;
   return `https://wa.me/${numero}?text=${encodeURIComponent(message)}`;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Recibo                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export interface ReceiptInput {
+  readonly name: string;
+  readonly amountCents: number;
+  /** ISO do pagamento. */
+  readonly paidAt: string;
+  /** `YYYY-MM-DD` do vencimento quitado. */
+  readonly dueDate: string;
+  readonly method: string;
+  readonly academyName: string;
+  readonly unitLabel: string;
+}
+
+/**
+ * Recibo em texto, para mandar no WhatsApp.
+ *
+ * Texto e não PDF de propósito: o aluno recebe no mesmo lugar onde mandou o
+ * comprovante, lê sem baixar nada e consegue encaminhar. Um PDF exigiria
+ * biblioteca nova, abrir anexo no celular e não resolveria nada a mais.
+ */
+export function buildReceipt(input: ReceiptInput): string {
+  const linhas: string[] = [];
+
+  linhas.push(`*Recibo — ${input.academyName}*`);
+  linhas.push(input.unitLabel);
+  linhas.push('');
+  linhas.push(`Aluno: ${input.name}`);
+  linhas.push(`Valor: ${formatCents(input.amountCents)}`);
+  linhas.push(`Referente a: mensalidade com vencimento em ${formatBr(input.dueDate)}`);
+  linhas.push(`Forma: ${input.method}`);
+  linhas.push(`Pago em: ${formatBr(input.paidAt.slice(0, 10))}`);
+  linhas.push('');
+  linhas.push('Obrigado! Bom treino.');
+
+  return linhas.join('\n');
+}

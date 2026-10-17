@@ -10,6 +10,13 @@ interface QrState {
   readonly expiresIn: number;
 }
 
+export interface TurmaOption {
+  readonly id: string;
+  readonly label: string;
+  /** `true` quando a aula está acontecendo agora. */
+  readonly openNow: boolean;
+}
+
 /**
  * Tela da recepção: QR em tela cheia que gira sozinho.
  *
@@ -17,39 +24,55 @@ interface QrState {
  * WhatsApp deixa de valer na próxima janela. O recarregamento acontece um
  * pouco antes de expirar, para nunca exibir um código já morto.
  */
-export function QrScreen() {
+export function QrScreen({ turmas }: { readonly turmas: readonly TurmaOption[] }) {
+  // Abre já na aula que está rolando: é o caso de 99% das vezes que o
+  // professor abre esta tela.
+  const [classId, setClassId] = useState<string>(
+    turmas.find((t) => t.openNow)?.id ?? turmas[0]?.id ?? '',
+  );
   const [qr, setQr] = useState<QrState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const load = useCallback(async (rotate: boolean) => {
-    try {
-      const response = await fetch(`/api/admin/qr${rotate ? '?rotate=1' : ''}`, {
-        cache: 'no-store',
-      });
-
-      if (!response.ok) {
-        const body: unknown = await response.json().catch(() => null);
-        const message =
-          body && typeof body === 'object' && 'error' in body
-            ? String((body as { error: unknown }).error)
-            : 'Não foi possível gerar o código.';
-        setError(message);
+  const load = useCallback(
+    async (rotate: boolean) => {
+      if (classId.length === 0) {
+        setError('Nenhuma turma cadastrada nesta academia.');
         return;
       }
 
-      const data = (await response.json()) as QrState;
-      setQr(data);
-      setSecondsLeft(data.expiresIn);
-      setError(null);
-    } catch {
-      setError('Sem conexão com o servidor.');
-    }
-  }, []);
+      try {
+        const query = new URLSearchParams({ classId });
+        if (rotate) query.set('rotate', '1');
+        const response = await fetch(`/api/admin/qr?${query.toString()}`, {
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          const body: unknown = await response.json().catch(() => null);
+          const message =
+            body && typeof body === 'object' && 'error' in body
+              ? String((body as { error: unknown }).error)
+              : 'Não foi possível gerar o código.';
+          setError(message);
+          return;
+        }
+
+        const data = (await response.json()) as QrState;
+        setQr(data);
+        setSecondsLeft(data.expiresIn);
+        setError(null);
+      } catch {
+        setError('Sem conexão com o servidor.');
+      }
+    },
+    [classId],
+  );
 
   useEffect(() => {
+    setQr(null);
     void load(false);
   }, [load]);
 
@@ -93,6 +116,28 @@ export function QrScreen() {
         fullscreen && 'h-dvh w-dvw justify-center bg-ink p-6',
       )}
     >
+      {turmas.length > 0 && !fullscreen ? (
+        <label className="mb-6 w-full max-w-md">
+          <span className="block text-xs text-muted">Turma deste QR</span>
+          <select
+            value={classId}
+            onChange={(event) => setClassId(event.target.value)}
+            className="mt-1 min-h-[48px] w-full rounded-xl border border-hairline bg-white/[.04] px-3 text-sm text-foreground focus:border-crimson focus:outline-none"
+          >
+            {turmas.map((turma) => (
+              <option key={turma.id} value={turma.id}>
+                {turma.openNow ? '• ' : ''}
+                {turma.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-xs leading-relaxed text-muted">
+            A presença cai exatamente nesta turma. O ponto marca a aula que está
+            acontecendo agora.
+          </p>
+        </label>
+      ) : null}
+
       {error ? (
         <div
           role="alert"

@@ -52,5 +52,7 @@ export const redisKeys = {
   landingPlans: () => 'landing:plans',
   calendarEvents: () => 'calendar:events',
   academySettings: () => 'settings:academy',
-  qrCurrent: () => 'qr:current',
+  qrCurrent: (classId: string) => 'qr:current:' + classId,
+  /** Caminho inverso: token lido pela câmera -> turma. */
+  qrToken: (token: string) => 'qr:token:' + token,
 } as const;

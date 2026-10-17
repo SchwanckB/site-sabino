@@ -4,6 +4,7 @@ import { formatCents } from './paymentEngine';
 
 import {
   buildBillingMessage,
+  buildReceipt,
   normalizePhone,
   whatsappLinkTo,
   type BillingInput,
@@ -120,5 +121,39 @@ describe('whatsappLinkTo', () => {
     expect(link).not.toBeNull();
     expect(link).toContain('wa.me/5551981691373');
     expect(decodeURIComponent(link?.split('text=')[1] ?? '')).toBe(texto);
+  });
+});
+
+describe('buildReceipt', () => {
+  const recibo = {
+    name: 'Ana Clara Figueiredo',
+    amountCents: 15_000,
+    paidAt: '2026-03-12T14:30:00.000Z',
+    dueDate: '2026-03-11',
+    method: 'Pix',
+    academyName: 'Sabino Academia',
+    unitLabel: 'Três Cachoeiras',
+  };
+
+  it('traz aluno, valor, referência e data do pagamento', () => {
+    const texto = buildReceipt(recibo);
+
+    expect(texto).toContain('Ana Clara Figueiredo');
+    expect(texto).toContain(formatCents(15_000));
+    expect(texto).toContain('11/03/2026');
+    expect(texto).toContain('12/03/2026');
+    expect(texto).toContain('Pix');
+  });
+
+  it('identifica a academia e a unidade', () => {
+    const texto = buildReceipt(recibo);
+
+    expect(texto).toContain('Sabino Academia');
+    expect(texto).toContain('Três Cachoeiras');
+  });
+
+  it('usa o nome completo, diferente da cobrança', () => {
+    // Recibo é documento: o primeiro nome não basta.
+    expect(buildReceipt(recibo)).toContain('Figueiredo');
   });
 });

@@ -6,6 +6,7 @@ import { BeltDisplay } from '@/components/app/BeltDisplay';
 import { weekdayLabels, type Weekday } from '@/data/seed';
 import { countCheckins, listCheckins } from '@/lib/repositories/attendance';
 import { listGraduationHistory } from '@/lib/repositories/graduation';
+import { buildTimeline, formatSpan } from '@/utils/graduationTimeline';
 import { getPaymentPlan, listPaymentHistory } from '@/lib/repositories/payments';
 import { getStudent, toPublicStudent } from '@/lib/repositories/students';
 import { getSchedule } from '@/lib/schedule';
@@ -44,6 +45,9 @@ export default async function AlunoPage({
     listGraduationHistory(student.id, 20),
     listPaymentHistory(student.id, 12),
   ]);
+
+  // A lista crua de datas vira tempo por faixa e intervalo entre graus.
+  const timeline = buildTimeline(graduations, student.joinedAt, now);
 
   const publicStudent = toPublicStudent(student, now);
   const isKids = student.category === 'kids';
@@ -203,18 +207,55 @@ export default async function AlunoPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <section className="surface-card p-5 sm:p-6">
           <h2 className="text-lg normal-case tracking-normal">Graduações</h2>
-          {graduations.length === 0 ? (
+          {timeline.daysSinceLast !== null ? (
+            <p className="mt-1 text-xs text-muted">
+              Última há {formatSpan(timeline.daysSinceLast)}.
+            </p>
+          ) : null}
+
+          {timeline.belts.length > 0 ? (
+            <ul className="mt-4 space-y-1.5">
+              {timeline.belts.map((spell) => (
+                <li
+                  key={spell.belt + spell.from}
+                  className="flex items-baseline justify-between gap-3 text-xs"
+                >
+                  <span className="capitalize text-foreground">
+                    {spell.belt}
+                    {spell.to === null ? ' (atual)' : ''}
+                  </span>
+                  <span className="shrink-0 text-muted">
+                    {formatSpan(spell.days)}
+                    {spell.degreesEarned > 0
+                      ? ` · ${spell.degreesEarned} ${spell.degreesEarned === 1 ? 'grau' : 'graus'}`
+                      : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {timeline.entries.length === 0 ? (
             <p className="mt-3 text-sm text-muted">Nenhuma graduação registrada.</p>
           ) : (
-            <ul className="mt-4 divide-y divide-hairline text-sm">
-              {graduations.map((entry) => (
-                <li key={entry.at} className="py-3">
-                  <p className="text-foreground">
-                    {entry.fromBelt === entry.toBelt
-                      ? `Grau ${entry.toDegree}`
-                      : `Faixa ${entry.toBelt}`}
-                  </p>
-                  <p className="text-xs text-muted">{formatBr(entry.at.slice(0, 10))}</p>
+            <ul className="mt-4 divide-y divide-hairline border-t border-hairline text-sm">
+              {timeline.entries.map((entry) => (
+                <li key={entry.at} className="flex items-baseline justify-between gap-3 py-3">
+                  <span>
+                    <span className="block text-foreground">
+                      {entry.isBeltChange
+                        ? `Faixa ${entry.toBelt}`
+                        : `Grau ${entry.toDegree}`}
+                    </span>
+                    <span className="block text-xs text-muted">
+                      {formatBr(entry.at.slice(0, 10))}
+                    </span>
+                  </span>
+                  {entry.daysSincePrevious !== null ? (
+                    <span className="shrink-0 text-xs text-muted">
+                      +{formatSpan(entry.daysSincePrevious)}
+                    </span>
+                  ) : null}
                 </li>
               ))}
             </ul>

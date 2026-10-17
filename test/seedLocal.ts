@@ -69,7 +69,12 @@ async function main(): Promise<void> {
   const nasceuEsteMes = (ano: number, dia: number) =>
     ano + '-' + mes.slice(5, 7) + '-' + String(dia).padStart(2, '0');
 
-  async function criar(id: string, dados: Dados, turmas: readonly string[]): Promise<void> {
+  async function criar(
+    id: string,
+    dados: Dados,
+    turmas: readonly string[],
+    unit: 'tres-cachoeiras' | 'terra-de-areia' = 'tres-cachoeiras',
+  ): Promise<void> {
     const [nome, sexo, marcador, faixa, grau, diasGrad, treinos] = dados;
 
     // Marcadores viram datas reais em torno de hoje, para os avisos da tela
@@ -100,6 +105,7 @@ async function main(): Promise<void> {
         consentVersion: 'lgpd-2026-01',
         consentAt: now.toISOString(),
         degree: grau,
+        unit,
       },
       atras(400),
     );
@@ -142,10 +148,10 @@ async function main(): Promise<void> {
 
   for (const [i, dados] of KIDS.entries()) {
     const turmas = i % 2 === 0 ? ['seg-1830-kids', 'qui-1830-kids'] : ['ter-1830-infantil'];
-    await criar('kid_' + i, dados, turmas);
+    await criar('kid_' + i, dados, turmas, i % 3 === 0 ? 'terra-de-areia' : 'tres-cachoeiras');
   }
   for (const [i, dados] of ADULTOS.entries()) {
-    await criar('adt_' + i, dados, ['seg-1930-mma', 'seg-2030-jj']);
+    await criar('adt_' + i, dados, ['seg-1930-mma', 'seg-2030-jj'], i % 3 === 0 ? 'terra-de-areia' : 'tres-cachoeiras');
   }
 
   // Ficha para o ID real do Clerk usado nos testes de tela: sem ela o painel

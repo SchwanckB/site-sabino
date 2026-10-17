@@ -8,7 +8,6 @@ import { validateQrToken } from '@/lib/repositories/qr';
 import { getStudent } from '@/lib/repositories/students';
 import { getSchedule } from '@/lib/schedule';
 import type { CheckinResult } from '@/types/domain';
-import { findOpenClasses } from '@/utils/attendanceEngine';
 
 /**
  * Check-in do aluno pelo QR Code da recepção.
@@ -52,22 +51,31 @@ export async function checkinAction(token: string): Promise<CheckinResult> {
 
   const now = new Date();
   const schedule = await getSchedule();
-  const open = findOpenClasses(schedule.classes, student.classIds, now);
-  const current = open[0] ?? null;
+
+  // A turma vem do próprio QR, não da janela de horário: cada turma tem o
+  // seu código, e isso tira a ambiguidade de dois horários encostados.
+  const current = schedule.classes.find((slot) => slot.id === validation.classId) ?? null;
 
   if (!current) {
     return {
       ok: false,
+      reason: 'erro',
+      message: 'Este QR é de uma turma que não existe mais. Chame o professor.',
+    };
+  }
+
+  if (!student.classIds.includes(current.id)) {
+    return {
+      ok: false,
       reason: 'sem_aula_agora',
-      message:
-        'Nenhuma das suas turmas está acontecendo agora. Confira seus horários no painel.',
+      message: `Você não está matriculado em ${current.title}. Fale com o professor.`,
     };
   }
 
   const result = await recordCheckin(
     {
       student,
-      classId: current.classId,
+      classId: current.id,
       classTitle: current.title,
       source: 'qr',
       registeredBy: student.id,

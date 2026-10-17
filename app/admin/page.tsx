@@ -9,11 +9,14 @@ import {
 } from '@/lib/repositories/students';
 import { getSchedule } from '@/lib/schedule';
 import { getUnitScope } from '@/lib/unitScope';
-import { filterByUnit } from '@/types/domain';
+import { STATUS_LABELS, UNIT_SHORT, filterByUnit } from '@/types/domain';
 import { findOpenClasses } from '@/utils/attendanceEngine';
 import { daysBetween, saoPauloDateString, saoPauloParts } from '@/utils/datetime';
 import { getPaymentSummary } from '@/utils/paymentEngine';
 import { listAgeTransitions, listBirthdays, type PersonLike } from '@/utils/roster';
+import { buildHaystack } from '@/utils/searchText';
+
+import { QuickSearch, type SearchEntry } from '@/components/app/QuickSearch';
 
 import { Alertas } from './Alertas';
 import { Dashboards, type DashboardRow } from './Dashboards';
@@ -91,6 +94,29 @@ export default async function AdminPage() {
     now,
   );
 
+  // Busca única: nome e telefone normalizados no servidor, para o filtro no
+  // cliente não refazer isso a cada tecla.
+  const buscaveis: SearchEntry[] = todosAtivos
+    .concat(pendentes)
+    .map((student) => ({
+      id: student.id,
+      name: student.name,
+      detail: [
+        UNIT_SHORT[student.unit],
+        student.belt,
+        student.status === 'ativo' ? null : STATUS_LABELS[student.status],
+        student.guardianPhone ?? student.phone,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      haystack: buildHaystack([
+        student.name,
+        student.phone,
+        student.guardianPhone,
+        student.email,
+      ]),
+    }));
+
   const inClassNow = active.filter(
     (student) => findOpenClasses(classes, student.classIds, now).length > 0,
   );
@@ -117,6 +143,10 @@ export default async function AdminPage() {
           ) : null}
         </div>
       </header>
+
+      <div className="mt-6">
+        <QuickSearch entries={buscaveis} />
+      </div>
 
       {/* Agora no tatame -------------------------------------------------- */}
       <section className="surface-card mt-6 p-5 sm:p-6">

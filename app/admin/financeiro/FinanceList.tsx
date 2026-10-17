@@ -6,7 +6,7 @@ import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
 import { cn } from '@/lib/utils';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHODS } from '@/types/domain';
 import { formatBr } from '@/utils/datetime';
-import { buildBillingMessage, whatsappLinkTo } from '@/utils/billingMessage';
+import { buildBillingMessage, buildReceipt, whatsappLinkTo } from '@/utils/billingMessage';
 import { formatCents, PLAN_LABELS, type PaymentStatus, type PlanId } from '@/utils/paymentEngine';
 
 import { registerPaymentAction, saveSettingsAction, undoPaymentAction, updatePlanAction } from '../actions';
@@ -27,6 +27,8 @@ export interface FinanceRow {
   readonly hasPlan: boolean;
   /** Telefone do aluno; nas crianças, o do responsável. */
   readonly phone: string;
+  readonly unitLabel: string;
+  readonly lastMethod: string;
 }
 
 type Filter = 'vencidas' | 'em_breve' | 'todos' | 'sem_plano';
@@ -52,6 +54,31 @@ const STATUS_LABEL: Readonly<Record<PaymentStatus, string>> = {
 
 const inputClass =
   'w-full min-h-[44px] rounded-xl border border-hairline bg-white/[.04] px-3 py-2 text-sm text-foreground focus:border-crimson focus:outline-none';
+
+/** Link de cobrança de uma linha. Sem telefone utilizável, `null`. */
+function cobrancaDe(
+  row: FinanceRow,
+  pixKey: string,
+  pixOwner: string,
+  academyName: string,
+): string | null {
+  const chave = pixOwner.trim().length > 0 ? `${pixKey} (${pixOwner})` : pixKey;
+
+  return whatsappLinkTo(
+    row.phone,
+    buildBillingMessage({
+      name: row.name,
+      amountCents: row.amountCents,
+      dueDate: row.dueDate,
+      limitDate: row.limitDate,
+      openInstallments: row.openInstallments,
+      totalOpenCents: row.totalOpenCents,
+      overdue: row.status === 'vencida',
+      pixKey: chave,
+      academyName,
+    }),
+  );
+}
 
 export function FinanceList({
   rows,
@@ -195,9 +222,18 @@ export function FinanceList({
         </label>
       </div>
 
-      <p aria-live="polite" className="mt-4 text-sm text-muted">
-        {visible.length} {visible.length === 1 ? 'aluno' : 'alunos'}
-      </p>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p aria-live="polite" className="text-sm text-muted">
+          {visible.length} {visible.length === 1 ? 'aluno' : 'alunos'}
+        </p>
+
+        <CobrancaEmLote
+          rows={visible}
+          pixKey={pixKey}
+          pixOwner={pixOwner}
+          academyName={academyName}
+        />
+      </div>
 
       {visible.length === 0 ? (
         <div className="surface-card mt-4 px-6 py-14 text-center">
@@ -326,6 +362,8 @@ export function FinanceList({
                   />
                 ) : null}
 
+                {row.hasPlan ? <ReceiptButton row={row} academyName={academyName} /> : null}
+
                 {row.hasPlan && row.lastPaidAt ? (
                   <ActionForm
                     action={undoPaymentAction}
@@ -447,21 +485,7 @@ function BillingButton({
   readonly pixOwner: string;
   readonly academyName: string;
 }) {
-  const chave = pixOwner.trim().length > 0 ? `${pixKey} (${pixOwner})` : pixKey;
-
-  const mensagem = buildBillingMessage({
-    name: row.name,
-    amountCents: row.amountCents,
-    dueDate: row.dueDate,
-    limitDate: row.limitDate,
-    openInstallments: row.openInstallments,
-    totalOpenCents: row.totalOpenCents,
-    overdue: row.status === 'vencida',
-    pixKey: chave,
-    academyName,
-  });
-
-  const link = whatsappLinkTo(row.phone, mensagem);
+  const link = cobrancaDe(row, pixKey, pixOwner, academyName);
 
   if (!link) {
     return (
@@ -482,6 +506,128 @@ function BillingButton({
         <path d="M12.04 2c-5.46 0-9.9 4.44-9.9 9.9 0 1.75.46 3.45 1.32 4.95L2 22l5.3-1.39a9.86 9.86 0 0 0 4.74 1.21h.01c5.46 0 9.9-4.44 9.9-9.9 0-2.64-1.03-5.13-2.9-7A9.82 9.82 0 0 0 12.04 2m0 1.67c2.2 0 4.27.86 5.82 2.42a8.19 8.19 0 0 1 2.42 5.82c0 4.54-3.7 8.23-8.24 8.23a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.05-.2-.31a8.18 8.18 0 0 1-1.26-4.37c0-4.54 3.7-8.23 8.24-8.23M8.53 7.33c-.16 0-.43.06-.65.3-.22.24-.87.85-.87 2.07 0 1.22.89 2.4 1.01 2.56.12.17 1.72 2.76 4.25 3.76 2.1.83 2.53.67 2.99.63.46-.04 1.48-.6 1.69-1.19.21-.59.21-1.09.14-1.19-.06-.1-.22-.16-.46-.28-.24-.12-1.45-.72-1.67-.8-.22-.08-.39-.12-.55.12-.16.25-.63.8-.77.96-.14.17-.28.19-.52.07-.24-.12-1.03-.38-1.96-1.21-.72-.65-1.21-1.45-1.35-1.69-.14-.24-.02-.37.1-.49.11-.11.24-.28.37-.42.12-.14.16-.24.24-.4.08-.17.04-.31-.02-.43-.06-.12-.54-1.34-.75-1.83-.2-.48-.4-.42-.55-.42z" />
       </svg>
       Cobrar no WhatsApp
+    </a>
+  );
+}
+
+/**
+ * Cobra todos os alunos da lista visível, um de cada vez.
+ *
+ * Não abre as conversas em sequência automática: o navegador bloqueia várias
+ * abas abertas de uma vez, e mesmo que não bloqueasse, o professor precisa
+ * conferir cada mensagem antes de mandar. O botão avança um por vez e mostra
+ * onde parou — dá para interromper no meio e retomar depois.
+ */
+function CobrancaEmLote({
+  rows,
+  pixKey,
+  pixOwner,
+  academyName,
+}: {
+  readonly rows: readonly FinanceRow[];
+  readonly pixKey: string;
+  readonly pixOwner: string;
+  readonly academyName: string;
+}) {
+  const [indice, setIndice] = useState(0);
+
+  const fila = useMemo(
+    () =>
+      rows
+        .filter((row) => row.hasPlan && row.status !== 'em_dia')
+        .map((row) => ({ row, link: cobrancaDe(row, pixKey, pixOwner, academyName) }))
+        .filter((item): item is { row: FinanceRow; link: string } => item.link !== null),
+    [rows, pixKey, pixOwner, academyName],
+  );
+
+  // A fila muda quando o filtro muda; recomeçar evita apontar para outro aluno.
+  const atual = fila[indice];
+  const semTelefone = rows.filter(
+    (row) => row.hasPlan && row.status !== 'em_dia' && !cobrancaDe(row, pixKey, pixOwner, academyName),
+  ).length;
+
+  if (fila.length === 0) {
+    return semTelefone > 0 ? (
+      <p className="text-xs text-muted">
+        {semTelefone} {semTelefone === 1 ? 'aluno sem telefone' : 'alunos sem telefone'} para cobrar
+      </p>
+    ) : null;
+  }
+
+  if (!atual) {
+    return (
+      <div className="flex items-center gap-3">
+        <p className="text-xs text-emerald-300">
+          Fila concluída — {fila.length} {fila.length === 1 ? 'cobrança' : 'cobranças'}.
+        </p>
+        <button type="button" onClick={() => setIndice(0)} className="btn-ghost text-xs">
+          Recomeçar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <a
+        href={atual.link}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => setIndice((n) => n + 1)}
+        className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-emerald-500/90 px-4 text-sm font-semibold text-ink transition-colors hover:bg-emerald-400"
+      >
+        Cobrar em lote ({indice + 1}/{fila.length})
+      </a>
+
+      <span className="text-xs text-muted">
+        próximo: {atual.row.name}
+        {indice > 0 ? ` · ${indice} ${indice === 1 ? 'enviada' : 'enviadas'}` : ''}
+        {semTelefone > 0 ? ` · ${semTelefone} sem telefone` : ''}
+      </span>
+
+      {indice > 0 ? (
+        <button type="button" onClick={() => setIndice(0)} className="btn-ghost text-xs">
+          Reiniciar fila
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** Manda o recibo do último pagamento pelo WhatsApp do aluno. */
+function ReceiptButton({
+  row,
+  academyName,
+}: {
+  readonly row: FinanceRow;
+  readonly academyName: string;
+}) {
+  if (!row.lastPaidAt) return null;
+
+  const link = whatsappLinkTo(
+    row.phone,
+    buildReceipt({
+      name: row.name,
+      amountCents: row.amountCents,
+      paidAt: row.lastPaidAt,
+      // O vencimento atual já avançou com a baixa: o recibo é do anterior.
+      dueDate: row.dueDate,
+      method: row.lastMethod,
+      academyName,
+      unitLabel: row.unitLabel,
+    }),
+  );
+
+  if (!link) return null;
+
+  return (
+    <a
+      href={link}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="btn-ghost text-xs"
+    >
+      Mandar recibo
     </a>
   );
 }

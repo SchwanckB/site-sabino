@@ -175,10 +175,15 @@ export function StudentEditor({
           <label htmlFor="notes" className="block text-sm font-medium">
             Observações
           </label>
+          <p className="mt-1 text-xs leading-relaxed text-muted">
+            Lesão, restrição médica, combinado de pagamento diferente, bolsa. Fica só aqui —
+            o aluno não vê.
+          </p>
           <textarea
             id="notes"
             name="notes"
-            rows={2}
+            rows={4}
+            placeholder="Ex.: joelho direito operado em 2025, evitar queda. Paga sempre dia 20."
             defaultValue={notes}
             className={cn(inputClass, 'mt-2 resize-y')}
           />

@@ -18,6 +18,14 @@ export interface PresenceRow {
   readonly present: boolean;
   readonly presentAt: string | null;
   readonly presentSource: CheckinSource | null;
+  /** Turmas em que o aluno está matriculado, para o resumo por turma. */
+  readonly classIds: readonly string[];
+}
+
+export interface TurmaResumo {
+  readonly id: string;
+  readonly label: string;
+  readonly openNow: boolean;
 }
 
 type Filter = 'aula_agora' | 'todos' | 'faltantes';
@@ -37,9 +45,11 @@ const FILTERS: readonly { id: Filter; label: string }[] = [
 export function PresenceList({
   rows,
   todayLabel,
+  turmas,
 }: {
   readonly rows: readonly PresenceRow[];
   readonly todayLabel: string;
+  readonly turmas: readonly TurmaResumo[];
 }) {
   const [filter, setFilter] = useState<Filter>('aula_agora');
   const [search, setSearch] = useState('');
@@ -83,6 +93,27 @@ export function PresenceList({
 
   const presentCount = rows.filter((row) => row.present).length;
 
+  // Fechamento por turma: "kids teve 8 de 12". Sem isso o professor conta a
+  // lista na mão no fim da aula para saber se valeu a pena abrir o tatame.
+  const resumo = useMemo(
+    () =>
+      turmas
+        .map((turma) => {
+          const matriculados = rows.filter((row) => row.classIds.includes(turma.id));
+          return {
+            ...turma,
+            total: matriculados.length,
+            presentes: matriculados.filter((row) => row.present).length,
+          };
+        })
+        .filter((turma) => turma.total > 0)
+        .sort((a, b) => {
+          if (a.openNow !== b.openNow) return a.openNow ? -1 : 1;
+          return a.label.localeCompare(b.label, 'pt-BR');
+        }),
+    [turmas, rows],
+  );
+
   return (
     <div>
       <div className="surface-card flex flex-wrap items-center justify-between gap-4 p-4">
@@ -94,7 +125,7 @@ export function PresenceList({
           <span className="text-xs">({todayLabel})</span>
         </p>
 
-        <label className="w-full sm:w-auto">
+        <label className="w-full min-w-0 sm:w-auto">
           <span className="sr-only">Buscar aluno</span>
           <input
             type="search"
@@ -105,6 +136,47 @@ export function PresenceList({
           />
         </label>
       </div>
+
+      {/*
+        Fechamento da aula, por turma. A pergunta do fim do treino é "quantos
+        vieram da kids hoje?", e até aqui ela só se respondia contando a lista
+        na mão.
+      */}
+      {resumo.length > 0 ? (
+        <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {resumo.map((turma) => {
+            const proporcao = turma.total === 0 ? 0 : turma.presentes / turma.total;
+            return (
+              <li
+                key={turma.id}
+                className={cn(
+                  'min-w-0 rounded-xl border p-3',
+                  turma.openNow
+                    ? 'border-crimson/40 bg-crimson/[.07]'
+                    : 'border-hairline bg-white/[.03]',
+                )}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="min-w-0 truncate text-xs text-muted">{turma.label}</p>
+                  <p className="shrink-0 text-sm tabular-nums text-foreground">
+                    {turma.presentes}
+                    <span className="text-muted">/{turma.total}</span>
+                  </p>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[.07]">
+                  <div
+                    className={cn(
+                      'h-full rounded-full transition-all',
+                      proporcao >= 0.6 ? 'bg-emerald-400' : 'bg-crimson',
+                    )}
+                    style={{ width: `${Math.round(proporcao * 100)}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
 
       <div role="group" aria-label="Filtrar lista" className="mt-4 flex flex-wrap gap-2">
         {FILTERS.map((item) => {
