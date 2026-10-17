@@ -18,6 +18,9 @@ import {
   type PublicStudent,
   type StudentRecord,
   type UserStatus,
+  type UnitId,
+  DEFAULT_UNIT,
+  toUnitId,
 } from '@/types/domain';
 import { maskCpf } from '@/utils/cpf';
 import { saoPauloDateString } from '@/utils/datetime';
@@ -66,6 +69,7 @@ function rowToStudent(id: string, row: Record<string, unknown>): StudentRecord {
     status,
     category,
     gender,
+    unit: toUnitId(row['unit']),
     belt: asString(row['belt'], 'branca'),
     degree: asInteger(row['degree'], 0),
     guardianName: asNullableString(row['guardianName']),
@@ -95,6 +99,7 @@ function studentToRow(student: StudentRecord): Record<string, string | number> {
     status: student.status,
     category: student.category,
     gender: student.gender,
+    unit: student.unit,
     belt: student.belt,
     degree: student.degree,
     guardianName: student.guardianName ?? '',
@@ -129,6 +134,7 @@ export function toPublicStudent(student: StudentRecord, now: Date): PublicStuden
     status: student.status,
     category: student.category,
     gender: student.gender,
+    unit: student.unit,
     belt: student.belt,
     degree: student.degree,
     guardianName: student.guardianName,
@@ -223,8 +229,10 @@ export function categoryFor(birthDate: string, now: Date): Category {
  * desde que ela ainda não tenha sido aprovada.
  */
 export async function createPendingStudent(
-  input: Omit<StudentRecord, 'status' | 'createdAt' | 'updatedAt' | 'joinedAt' | 'lastGraduationAt' | 'classIds' | 'rejectionReason' | 'notes' | 'degree' | 'category'> & {
+  input: Omit<StudentRecord, 'status' | 'createdAt' | 'updatedAt' | 'joinedAt' | 'lastGraduationAt' | 'classIds' | 'rejectionReason' | 'notes' | 'degree' | 'category' | 'unit'> & {
     readonly degree?: number;
+    /** Ausente em cadastro antigo e em teste: cai na unidade padrão. */
+    readonly unit?: UnitId;
   },
   now: Date,
 ): Promise<StudentRecord> {
@@ -240,6 +248,7 @@ export async function createPendingStudent(
   const student: StudentRecord = {
     ...input,
     degree: input.degree ?? 0,
+    unit: input.unit ?? DEFAULT_UNIT,
     category: categoryFor(input.birthDate, now),
     status: 'pendente',
     joinedAt: null,

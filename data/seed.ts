@@ -14,6 +14,8 @@
  * ===========================================================================
  */
 
+import type { UnitId } from '@/types/domain';
+
 export const EXAMPLE_DATA_NOTICE =
   'Conteúdo de demonstração: valores ainda não confirmados pela academia.';
 
@@ -166,6 +168,8 @@ export interface ClassSlot {
   readonly title: string;
   readonly modality: ModalityId;
   readonly level: string;
+  /** Unidade onde a aula acontece. */
+  readonly unit: UnitId;
 }
 
 export interface Schedule {
@@ -185,28 +189,28 @@ export interface Schedule {
  */
 const realClasses: readonly ClassSlot[] = [
   // Segunda
-  { id: 'seg-1830-kids', weekday: 1, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Kids', modality: 'kids', level: '4 a 8 anos' },
-  { id: 'seg-1930-mma', weekday: 1, startTime: '19:30', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os níveis' },
-  { id: 'seg-2030-jj', weekday: 1, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis' },
+  { id: 'seg-1830-kids', weekday: 1, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Kids', modality: 'kids', level: '4 a 8 anos', unit: 'tres-cachoeiras' },
+  { id: 'seg-1930-mma', weekday: 1, startTime: '19:30', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
+  { id: 'seg-2030-jj', weekday: 1, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
 
   // Terça
-  { id: 'ter-1830-infantil', weekday: 2, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Infantil', modality: 'kids', level: '9 a 16 anos' },
-  { id: 'ter-1930-jj-fem', weekday: 2, startTime: '19:30', endTime: '20:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Turma feminina' },
-  { id: 'ter-2030-jj', weekday: 2, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis' },
+  { id: 'ter-1830-infantil', weekday: 2, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Infantil', modality: 'kids', level: '9 a 16 anos', unit: 'tres-cachoeiras' },
+  { id: 'ter-1930-jj-fem', weekday: 2, startTime: '19:30', endTime: '20:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Turma feminina', unit: 'tres-cachoeiras' },
+  { id: 'ter-2030-jj', weekday: 2, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
 
   // Quarta
-  { id: 'qua-1930-mma', weekday: 3, startTime: '19:30', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os níveis' },
-  { id: 'qua-2030-jj', weekday: 3, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis' },
+  { id: 'qua-1930-mma', weekday: 3, startTime: '19:30', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
+  { id: 'qua-2030-jj', weekday: 3, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
 
   // Quinta
-  { id: 'qui-1830-kids', weekday: 4, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Kids', modality: 'kids', level: '4 a 8 anos' },
-  { id: 'qui-1930-jj-fem', weekday: 4, startTime: '19:30', endTime: '20:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Turma feminina' },
-  { id: 'qui-2030-jj', weekday: 4, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis' },
+  { id: 'qui-1830-kids', weekday: 4, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Kids', modality: 'kids', level: '4 a 8 anos', unit: 'tres-cachoeiras' },
+  { id: 'qui-1930-jj-fem', weekday: 4, startTime: '19:30', endTime: '20:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Turma feminina', unit: 'tres-cachoeiras' },
+  { id: 'qui-2030-jj', weekday: 4, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
 
   // Sexta
-  { id: 'sex-1830-infantil', weekday: 5, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Infantil', modality: 'kids', level: '9 a 16 anos' },
-  { id: 'sex-1930-mma', weekday: 5, startTime: '19:30', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os níveis' },
-  { id: 'sex-2030-jj', weekday: 5, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis' },
+  { id: 'sex-1830-infantil', weekday: 5, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Infantil', modality: 'kids', level: '9 a 16 anos', unit: 'tres-cachoeiras' },
+  { id: 'sex-1930-mma', weekday: 5, startTime: '19:30', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
+  { id: 'sex-2030-jj', weekday: 5, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
 ] as const;
 
 export const seedSchedule: Schedule = {

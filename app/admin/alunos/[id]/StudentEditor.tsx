@@ -6,11 +6,13 @@ import {
   ADULT_BELTS,
   GENDER_LABELS,
   GENDERS,
+  UNITS,
+  UNIT_LABELS,
   KIDS_BELTS,
   STATUS_LABELS,
   USER_STATUSES,
 } from '@/types/domain';
-import type { Gender, UserStatus } from '@/types/domain';
+import type { Gender, UnitId, UserStatus } from '@/types/domain';
 
 import {
   promoteBeltAction,
@@ -36,6 +38,7 @@ export function StudentEditor({
   notes,
   status,
   gender,
+  unit,
   isKids,
   assignedClassIds,
   classOptions,
@@ -46,6 +49,7 @@ export function StudentEditor({
   readonly notes: string;
   readonly status: UserStatus;
   readonly gender: Gender;
+  readonly unit: UnitId;
   readonly isKids: boolean;
   readonly assignedClassIds: readonly string[];
   readonly classOptions: readonly ClassOption[];
@@ -126,22 +130,45 @@ export function StudentEditor({
           </div>
         </div>
 
-        <div className="mt-5">
-          <label htmlFor="gender" className="block text-sm font-medium">
-            Sexo
-          </label>
-          <select
-            id="gender"
-            name="gender"
-            defaultValue={gender}
-            className={cn(inputClass, 'mt-2')}
-          >
-            {GENDERS.map((value) => (
-              <option key={value} value={value}>
-                {GENDER_LABELS[value]}
-              </option>
-            ))}
-          </select>
+        <div className="mt-5 grid gap-5 sm:grid-cols-2">
+          <div>
+            <label htmlFor="gender" className="block text-sm font-medium">
+              Sexo
+            </label>
+            <select
+              id="gender"
+              name="gender"
+              defaultValue={gender}
+              className={cn(inputClass, 'mt-2')}
+            >
+              {GENDERS.map((value) => (
+                <option key={value} value={value}>
+                  {GENDER_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="unit" className="block text-sm font-medium">
+              Academia
+            </label>
+            <select
+              id="unit"
+              name="unit"
+              defaultValue={unit}
+              className={cn(inputClass, 'mt-2')}
+            >
+              {UNITS.map((value) => (
+                <option key={value} value={value}>
+                  {UNIT_LABELS[value]}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs text-muted">
+              Mudar de academia não transfere as turmas: reatribua abaixo.
+            </p>
+          </div>
         </div>
 
         <div className="mt-5">

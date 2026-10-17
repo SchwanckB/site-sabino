@@ -3,6 +3,8 @@ import Link from 'next/link';
 
 import { getTodayCheckins } from '@/lib/repositories/attendance';
 import { listStudentsByStatus } from '@/lib/repositories/students';
+import { getUnitScope } from '@/lib/unitScope';
+import { filterByUnit } from '@/types/domain';
 import { getSchedule } from '@/lib/schedule';
 import { findOpenClasses } from '@/utils/attendanceEngine';
 import { saoPauloParts } from '@/utils/datetime';
@@ -15,10 +17,16 @@ export const dynamic = 'force-dynamic';
 export default async function PresencaPage() {
   const now = new Date();
 
-  const [students, schedule] = await Promise.all([
+  const scope = await getUnitScope();
+
+  const [todos, schedule] = await Promise.all([
     listStudentsByStatus('ativo'),
     getSchedule(),
   ]);
+
+  // A chamada é sempre de uma academia: lista e grade seguem o recorte.
+  const students = filterByUnit(todos, scope);
+  const classes = filterByUnit(schedule.classes, scope);
 
   const checkins = await getTodayCheckins(
     students.map((student) => student.id),
@@ -27,7 +35,7 @@ export default async function PresencaPage() {
 
   const rows: PresenceRow[] = students
     .map((student) => {
-      const open = findOpenClasses(schedule.classes, student.classIds, now);
+      const open = findOpenClasses(classes, student.classIds, now);
       const entry = checkins.get(student.id) ?? null;
 
       return {

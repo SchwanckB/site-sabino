@@ -25,10 +25,13 @@ import {
   updateStudent,
 } from '@/lib/repositories/students';
 import { getSchedule } from '@/lib/schedule';
+import { setUnitScope } from '@/lib/unitScope';
 import {
   GENDERS,
   PAYMENT_METHODS,
   USER_STATUSES,
+  toUnitId,
+  toUnitScope,
   type Gender,
   type PaymentMethod,
   type UserStatus,
@@ -166,9 +169,11 @@ export async function updateStudentAction(form: FormData): Promise<ActionResult>
     ? (genderInput as Gender)
     : student.gender;
 
+  const unit = toUnitId(text(form, 'unit'));
+
   await updateStudent(
     student.id,
-    { classIds, belt, degree, gender, notes: text(form, 'notes') },
+    { classIds, belt, degree, gender, unit, notes: text(form, 'notes') },
     new Date(),
   );
 
@@ -415,6 +420,7 @@ export async function saveClassAction(form: FormData): Promise<ActionResult> {
       title: text(form, 'title'),
       modality: text(form, 'modality'),
       level: text(form, 'level'),
+      unit: text(form, 'unit'),
     },
     new Date(),
   );
@@ -597,4 +603,20 @@ export async function saveSettingsAction(form: FormData): Promise<ActionResult> 
 
   refreshAdmin();
   return { ok: true, message: 'Dados de cobrança salvos.' };
+}
+
+/**
+ * Troca a academia que o painel está mostrando.
+ *
+ * Revalida tudo sob /admin: o recorte muda números, listas e chamada de uma
+ * vez, e deixar cache de outra unidade na tela seria pior do que recarregar.
+ */
+export async function setUnitScopeAction(form: FormData): Promise<void> {
+  await requireAdmin();
+
+  const scope = toUnitScope(text(form, 'scope'));
+  await setUnitScope(scope);
+
+  // O seletor não mostra mensagem: a tela inteira já muda, e isso basta.
+  revalidatePath('/admin', 'layout');
 }

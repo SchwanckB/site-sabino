@@ -690,6 +690,7 @@ describe('grade de horários', () => {
         title: 'MMA',
         modality: 'mma',
         level: 'Todos os níveis',
+        unit: 'tres-cachoeiras',
       },
       now,
     );
@@ -713,6 +714,7 @@ describe('grade de horários', () => {
         title: 'Inválida',
         modality: 'mma',
         level: '',
+        unit: 'tres-cachoeiras',
       },
       new Date(),
     );

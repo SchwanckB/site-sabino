@@ -7,6 +7,7 @@ import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS, PUBLIC_REVALIDATE_SECONDS } from '@/lib/cacheTags';
 import { seedSchedule, type ClassSlot, type ModalityId, type Schedule, type Weekday } from '@/data/seed';
 import { getRedis, redisKeys } from '@/lib/redis';
+import { toUnitId } from '@/types/domain';
 
 /**
  * Leitura da grade de horarios para a landing page.
@@ -51,7 +52,8 @@ function parseClassSlot(value: unknown): ClassSlot | null {
   if (!isModalityId(modality)) return null;
   if (typeof level !== 'string') return null;
 
-  return { id, weekday, startTime, endTime, title, modality, level };
+  // Turma gravada antes da segunda unidade existir é de Três Cachoeiras.
+  return { id, weekday, startTime, endTime, title, modality, level, unit: toUnitId(value['unit']) };
 }
 
 interface StoredSchedule {

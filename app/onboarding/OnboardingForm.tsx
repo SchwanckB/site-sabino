@@ -6,7 +6,14 @@ import { useRouter } from 'next/navigation';
 
 import { ACCEPTED_DOCUMENT_LABEL, DOCUMENT_ACCEPT_ATTR } from '@/lib/documentRules';
 import { cn } from '@/lib/utils';
-import { GENDER_LABELS, GENDERS, GUARDIAN_REQUIRED_AGE } from '@/types/domain';
+import {
+  DEFAULT_UNIT,
+  GENDER_LABELS,
+  GENDERS,
+  GUARDIAN_REQUIRED_AGE,
+  UNITS,
+  UNIT_LABELS,
+} from '@/types/domain';
 import { calculateAge } from '@/utils/graduationEngine';
 
 import { submitOnboarding } from './actions';
@@ -157,6 +164,20 @@ export function OnboardingForm({
           aria-invalid={Boolean(errors['birthDate'])}
           className={inputClass}
         />
+      </Field>
+
+      <Field
+        label="Academia"
+        name="unit"
+        hint="Onde você vai treinar. Dá para mudar depois com o professor."
+      >
+        <select id="unit" name="unit" defaultValue={DEFAULT_UNIT} className={inputClass}>
+          {UNITS.map((value) => (
+            <option key={value} value={value}>
+              {UNIT_LABELS[value]}
+            </option>
+          ))}
+        </select>
       </Field>
 
       <Field

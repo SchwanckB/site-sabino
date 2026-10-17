@@ -14,6 +14,7 @@ const base = (overrides: Partial<OnboardingInput> = {}): OnboardingInput => ({
   guardianPhone: '',
   guardianCpf: '',
   gender: 'feminino',
+  unit: 'tres-cachoeiras',
   consent: true,
   hasDocument: true,
   documentRequired: true,

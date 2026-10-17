@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 
 import { listEvents } from '@/lib/repositories/calendar';
 import { listStudentsByStatus } from '@/lib/repositories/students';
+import { getUnitScope } from '@/lib/unitScope';
+import { filterByUnit } from '@/types/domain';
 import { getSchedule } from '@/lib/schedule';
 import { saoPauloDateString, saoPauloParts } from '@/utils/datetime';
 import { listKidsAgenda, type KidsStudent } from '@/utils/graduationEngine';
@@ -16,13 +18,19 @@ export const dynamic = 'force-dynamic';
 export default async function CalendarioPage() {
   const now = new Date();
 
-  const [schedule, events, active] = await Promise.all([
+  const scope = await getUnitScope();
+
+  const [schedule, eventos, todos] = await Promise.all([
     getSchedule(),
     listEvents(),
     listStudentsByStatus('ativo'),
   ]);
 
-  const classes: RecurringClass[] = schedule.classes.map((slot) => ({
+  // O calendário é da academia escolhida: grade, eventos e graduações.
+  const active = filterByUnit(todos, scope);
+  const events = eventos;
+
+  const classes: RecurringClass[] = filterByUnit(schedule.classes, scope).map((slot) => ({
     id: slot.id,
     weekday: slot.weekday,
     startTime: slot.startTime,

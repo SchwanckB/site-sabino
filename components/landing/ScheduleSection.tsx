@@ -13,6 +13,7 @@ import {
   type Weekday,
 } from '@/data/seed';
 import { whatsappLink, whatsappMessages } from '@/lib/site';
+import { UNITS, UNIT_LABELS, type UnitId } from '@/types/domain';
 import { cn } from '@/lib/utils';
 
 const modalityAccent: Readonly<Record<ModalityId, string>> = {
@@ -28,6 +29,7 @@ const modalityLabel: Readonly<Record<ModalityId, string>> = {
 };
 
 type Filter = ModalityId | 'todas';
+type UnitFilter = UnitId | 'todas';
 
 const filters: readonly { id: Filter; label: string }[] = [
   { id: 'todas', label: 'Todas' },
@@ -40,11 +42,26 @@ export function ScheduleSection({ schedule }: { readonly schedule: Schedule }) {
   const [filter, setFilter] = useState<Filter>('todas');
   const reduceMotion = useReducedMotion();
 
+  // A aba de academia só aparece quando há grade em mais de uma. Enquanto
+  // a segunda escola não tiver horário cadastrado, a seção continua igual.
+  const unidadesComAula = useMemo(
+    () => UNITS.filter((unit) => schedule.classes.some((slot) => slot.unit === unit)),
+    [schedule.classes],
+  );
+  const [unitFilter, setUnitFilter] = useState<UnitFilter>(
+    unidadesComAula[0] ?? 'todas',
+  );
+
   const days = useMemo(() => {
+    const daUnidade =
+      unitFilter === 'todas'
+        ? schedule.classes
+        : schedule.classes.filter((slot) => slot.unit === unitFilter);
+
     const visible =
       filter === 'todas'
-        ? schedule.classes
-        : schedule.classes.filter((slot) => slot.modality === filter);
+        ? daUnidade
+        : daUnidade.filter((slot) => slot.modality === filter);
 
     const byDay = new Map<Weekday, ClassSlot[]>();
     for (const slot of visible) {
@@ -59,7 +76,7 @@ export function ScheduleSection({ schedule }: { readonly schedule: Schedule }) {
         weekday,
         slots: [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime)),
       }));
-  }, [filter, schedule.classes]);
+  }, [filter, unitFilter, schedule.classes]);
 
   return (
     <section
@@ -76,7 +93,35 @@ export function ScheduleSection({ schedule }: { readonly schedule: Schedule }) {
             description="Todas as turmas são de segunda a sexta, entre 18h30 e 21h30. Chegue 10 minutos antes na primeira aula para falar com o professor."
           />
 
-          <Reveal delay={0.1} className="shrink-0">
+          <Reveal delay={0.1} className="shrink-0 space-y-3">
+            {unidadesComAula.length > 1 ? (
+              <div
+                role="group"
+                aria-label="Escolher academia"
+                className="flex flex-wrap gap-2"
+              >
+                {[...unidadesComAula, 'todas' as const].map((unit) => {
+                  const active = unitFilter === unit;
+                  return (
+                    <button
+                      key={unit}
+                      type="button"
+                      onClick={() => setUnitFilter(unit)}
+                      aria-pressed={active}
+                      className={cn(
+                        'inline-flex min-h-[44px] items-center rounded-xl border px-4 text-sm font-semibold transition-all duration-300 ease-organic',
+                        active
+                          ? 'border-white/25 bg-white/[.1] text-foreground'
+                          : 'border-hairline bg-transparent text-muted hover:text-foreground',
+                      )}
+                    >
+                      {unit === 'todas' ? 'As duas' : UNIT_LABELS[unit]}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
             <div
               role="group"
               aria-label="Filtrar grade por modalidade"
@@ -158,6 +203,9 @@ export function ScheduleSection({ schedule }: { readonly schedule: Schedule }) {
                               </p>
                               <p className="truncate text-xs text-muted">
                                 até {slot.endTime} &middot; {slot.level}
+                                {unitFilter === 'todas' ? (
+                                  <> &middot; {UNIT_LABELS[slot.unit]}</>
+                                ) : null}
                               </p>
                             </div>
                             <span className="sr-only">

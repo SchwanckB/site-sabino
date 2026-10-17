@@ -4,7 +4,14 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { cn } from '@/lib/utils';
-import { STATUS_LABELS, USER_STATUSES, type UserStatus } from '@/types/domain';
+import {
+  STATUS_LABELS,
+  UNIT_SHORT,
+  USER_STATUSES,
+  type UnitId,
+  type UnitScope,
+  type UserStatus,
+} from '@/types/domain';
 
 export interface StudentRow {
   readonly id: string;
@@ -17,6 +24,7 @@ export interface StudentRow {
   readonly status: UserStatus;
   readonly classCount: number;
   readonly joinedAt: string | null;
+  readonly unit: UnitId;
 }
 
 const STATUS_STYLE: Readonly<Record<UserStatus, string>> = {
@@ -26,7 +34,15 @@ const STATUS_STYLE: Readonly<Record<UserStatus, string>> = {
   inativo: 'bg-white/10 text-muted',
 };
 
-export function StudentsList({ rows }: { readonly rows: readonly StudentRow[] }) {
+export function StudentsList({
+  rows,
+  scope,
+}: {
+  readonly rows: readonly StudentRow[];
+  readonly scope: UnitScope;
+}) {
+  // Com uma academia escolhida o crachá seria a mesma palavra em toda linha.
+  const mostrarUnidade = scope === 'todas';
   const [status, setStatus] = useState<UserStatus | 'todos'>('ativo');
   const [search, setSearch] = useState('');
 
@@ -101,6 +117,7 @@ export function StudentsList({ rows }: { readonly rows: readonly StudentRow[] })
                     {row.age} anos · <span className="capitalize">{row.belt}</span>
                     {row.degree > 0 ? ` ${row.degree}º` : ''} ·{' '}
                     {row.classCount} {row.classCount === 1 ? 'turma' : 'turmas'}
+                    {mostrarUnidade ? ` · ${UNIT_SHORT[row.unit]}` : ''}
                   </p>
                 </div>
 

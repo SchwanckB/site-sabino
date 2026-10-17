@@ -2,6 +2,7 @@ import 'server-only';
 
 import { seedSchedule, type ClassSlot, type ModalityId, type Weekday } from '@/data/seed';
 import { getRedis, redisKeys } from '@/lib/redis';
+import { toUnitId } from '@/types/domain';
 import { getScheduleFresh, sortClasses } from '@/lib/schedule';
 
 /**
@@ -22,6 +23,7 @@ export interface ClassInput {
   readonly title: string;
   readonly modality: string;
   readonly level: string;
+  readonly unit: string;
 }
 
 export type ClassValidation =
@@ -61,10 +63,14 @@ export function validateClass(input: ClassInput): ClassValidation {
   }
 
   const weekday = input.weekday as Weekday;
+  const unit = toUnitId(input.unit);
+
+  // O id carrega a unidade: as duas academias podem ter turma no mesmo dia,
+  // no mesmo horário e com o mesmo nome — sem isso uma sobrescreveria a outra.
   const id =
     input.id && input.id.length > 0
       ? input.id
-      : `${weekday}-${input.startTime.replace(':', '')}-${slugify(title)}`;
+      : `${unit}-${weekday}-${input.startTime.replace(':', '')}-${slugify(title)}`;
 
   return {
     ok: true,
@@ -76,6 +82,7 @@ export function validateClass(input: ClassInput): ClassValidation {
       title,
       modality: input.modality as ModalityId,
       level: input.level.trim(),
+      unit,
     },
   };
 }

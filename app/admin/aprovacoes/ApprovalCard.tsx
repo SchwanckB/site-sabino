@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
 import { cn } from '@/lib/utils';
-import type { PublicStudent } from '@/types/domain';
+import type { PublicStudent, UnitId } from '@/types/domain';
 import { formatBr } from '@/utils/datetime';
 import { DEFAULT_GRACE_DAYS } from '@/utils/paymentEngine';
 
@@ -14,6 +14,7 @@ export interface ClassOption {
   readonly id: string;
   readonly label: string;
   readonly weekday: string;
+  readonly unit: UnitId;
 }
 
 const inputClass =
@@ -38,6 +39,9 @@ export function ApprovalCard({
   const [rejecting, setRejecting] = useState(false);
 
   const belts = student.category === 'kids' ? KIDS_BELTS : ADULT_BELTS;
+  // Só as turmas da academia do aluno: matricular um aluno de Terra de
+  // Areia numa aula de Três Cachoeiras seria erro silencioso na chamada.
+  const turmasDaUnidade = classOptions.filter((option) => option.unit === student.unit);
   const isMinor = student.age < 18;
 
   return (
@@ -133,7 +137,7 @@ export function ApprovalCard({
             </p>
           ) : (
             <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-              {classOptions.map((option) => (
+              {turmasDaUnidade.map((option) => (
                 <li key={option.id}>
                   <label className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-xl border border-hairline bg-white/[.03] px-3 py-2 text-sm transition-colors hover:border-white/20">
                     <input

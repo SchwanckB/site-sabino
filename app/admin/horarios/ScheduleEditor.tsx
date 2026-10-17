@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
 import { weekdayLabels, type ClassSlot, type Weekday } from '@/data/seed';
+import { UNITS, UNIT_LABELS, UNIT_SHORT, type UnitId, type UnitScope } from '@/types/domain';
 import { cn } from '@/lib/utils';
 
 import { deleteClassAction, resetScheduleAction, saveClassAction } from '../actions';
@@ -23,7 +24,16 @@ const MODALITIES = [
  * CRUD da grade. O que for salvo aqui aparece na landing page e passa a valer
  * para a janela de check-in dos alunos matriculados naquela turma.
  */
-export function ScheduleEditor({ classes }: { readonly classes: readonly ClassSlot[] }) {
+export function ScheduleEditor({
+  classes,
+  scope,
+}: {
+  readonly classes: readonly ClassSlot[];
+  readonly scope: UnitScope;
+}) {
+  // Turma nova nasce na academia que o painel está mostrando. Em "todas",
+  // cai na primeira — o campo fica visível para o professor corrigir.
+  const unidadePadrao: UnitId = scope === 'todas' ? (UNITS[0] ?? 'tres-cachoeiras') : scope;
   const [editing, setEditing] = useState<ClassSlot | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -62,6 +72,24 @@ export function ScheduleEditor({ classes }: { readonly classes: readonly ClassSl
             placeholder="Jiu-Jitsu Kids"
             className={cn(inputClass, 'mt-1')}
           />
+        </div>
+
+        <div>
+          <label htmlFor={`unit-${slot?.id ?? 'novo'}`} className="block text-xs text-muted">
+            Academia
+          </label>
+          <select
+            id={`unit-${slot?.id ?? 'novo'}`}
+            name="unit"
+            defaultValue={slot?.unit ?? unidadePadrao}
+            className={cn(inputClass, 'mt-1')}
+          >
+            {UNITS.map((item) => (
+              <option key={item} value={item}>
+                {UNIT_LABELS[item]}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
@@ -201,6 +229,7 @@ export function ScheduleEditor({ classes }: { readonly classes: readonly ClassSl
                         <p className="truncate text-sm text-foreground">{slot.title}</p>
                         <p className="truncate text-xs text-muted">
                           até {slot.endTime} · {slot.level}
+                          {scope === 'todas' ? ` · ${UNIT_SHORT[slot.unit]}` : ''}
                         </p>
                       </div>
                     </div>

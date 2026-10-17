@@ -56,6 +56,7 @@ export default async function AlunoPage({
     id: slot.id,
     label: `${slot.title} · ${slot.level}`,
     weekday: `${weekdayLabels[slot.weekday as Weekday]}, ${slot.startTime} às ${slot.endTime}`,
+    unit: slot.unit,
   }));
 
   return (
@@ -191,6 +192,7 @@ export default async function AlunoPage({
           notes={student.notes}
           status={student.status}
           gender={student.gender}
+          unit={student.unit}
           isKids={isKids}
           assignedClassIds={student.classIds}
           classOptions={classOptions}

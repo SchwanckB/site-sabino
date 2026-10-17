@@ -8,7 +8,9 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { Icon, type IconName } from '@/components/app/Icon';
+import { UnitSwitcher } from '@/components/app/UnitSwitcher';
 import { cn } from '@/lib/utils';
+import type { UnitScope } from '@/types/domain';
 
 export interface NavItem {
   readonly href: string;
@@ -44,11 +46,17 @@ export function AppShell({
   items,
   title,
   primaryAction,
+  unitScope,
   children,
 }: {
   readonly items: readonly NavItem[];
   readonly title: string;
   readonly primaryAction?: PrimaryAction;
+  /** Só no admin: recorte de academia mostrado no cabeçalho. */
+  readonly unitScope?: {
+    readonly value: UnitScope;
+    readonly action: (form: FormData) => void | Promise<void>;
+  };
   readonly children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -110,6 +118,12 @@ export function AppShell({
           </div>
 
           <div className="flex items-center gap-2">
+            {unitScope ? (
+              <div className="hidden lg:block">
+                <UnitSwitcher scope={unitScope.value} action={unitScope.action} />
+              </div>
+            ) : null}
+
             {/* No desktop não há barra inferior: a ação principal vem aqui. */}
             {primaryAction ? (
               <Link
@@ -153,6 +167,17 @@ export function AppShell({
           dedicada com `overflow-x-auto`, o excesso rola dentro da faixa e nunca
           alarga o documento — e continua valendo quando novas páginas entrarem.
         */}
+        {/*
+          No celular o cabeçalho já está cheio com logo, título e avatar. O
+          seletor ganha uma faixa própria logo abaixo — fica visível o tempo
+          todo, que é o ponto: saber de qual academia são os números na tela.
+        */}
+        {unitScope ? (
+          <div className="border-t border-hairline px-4 py-1.5 lg:hidden">
+            <UnitSwitcher scope={unitScope.value} action={unitScope.action} />
+          </div>
+        ) : null}
+
         <nav aria-label="Navegação" className="hidden border-t border-hairline lg:block">
           {/*
             Sem o limite de 1152px do conteúdo: a faixa usa a tela toda, e a

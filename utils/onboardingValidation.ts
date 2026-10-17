@@ -1,3 +1,5 @@
+import { toUnitId, type UnitId } from '@/types/domain';
+
 /**
  * Validação do pré-cadastro — função pura, sem I/O.
  *
@@ -33,6 +35,8 @@ export interface OnboardingInput {
   readonly guardianCpf: string;
   /** Opcional — vazio vira 'nao_informado'. */
   readonly gender: string;
+  /** Academia escolhida. Vazio ou inválido cai na unidade padrão. */
+  readonly unit: string;
   readonly consent: boolean;
   /** Já existe documento enviado antes, ou um novo veio no formulário. */
   readonly hasDocument: boolean;
@@ -55,6 +59,7 @@ export interface OnboardingValidation {
     readonly guardianPhone: string | null;
     readonly guardianCpf: string | null;
     readonly gender: 'masculino' | 'feminino' | 'nao_informado';
+    readonly unit: UnitId;
   };
 }
 
@@ -155,6 +160,7 @@ export function validateOnboarding(
         input.gender === 'masculino' || input.gender === 'feminino'
           ? input.gender
           : 'nao_informado',
+      unit: toUnitId(input.unit),
     },
   };
 }

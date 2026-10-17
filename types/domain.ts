@@ -60,6 +60,40 @@ export const CONSENT_VERSION = 'lgpd-2026-01';
  * Ficha do aluno. **Contém dado pessoal** (CPF, documento) e nunca pode ser
  * serializada inteira para o cliente — use {@link PublicStudent}.
  */
+/**
+ * Unidade da academia.
+ *
+ * A rede tem duas escolas com alunos, grade e financeiro próprios. Tudo que
+ * é por aluno ou por turma carrega a unidade; o painel filtra por ela. Quem
+ * foi cadastrado antes da segunda unidade existir cai em Três Cachoeiras,
+ * que era a única — por isso o valor padrão, e não um campo vazio.
+ */
+export type UnitId = 'tres-cachoeiras' | 'terra-de-areia';
+
+export const UNITS: readonly UnitId[] = ['tres-cachoeiras', 'terra-de-areia'];
+
+export const UNIT_LABELS: Readonly<Record<UnitId, string>> = {
+  'tres-cachoeiras': 'Três Cachoeiras',
+  'terra-de-areia': 'Terra de Areia',
+};
+
+/** Rótulo curto, para caber em filtro e crachá de lista. */
+export const UNIT_SHORT: Readonly<Record<UnitId, string>> = {
+  'tres-cachoeiras': 'T. Cachoeiras',
+  'terra-de-areia': 'Terra de Areia',
+};
+
+export const DEFAULT_UNIT: UnitId = 'tres-cachoeiras';
+
+export function isUnitId(value: unknown): value is UnitId {
+  return typeof value === 'string' && (UNITS as readonly string[]).includes(value);
+}
+
+/** Unidade vinda do banco ou de formulário, com queda para a padrão. */
+export function toUnitId(value: unknown): UnitId {
+  return isUnitId(value) ? value : DEFAULT_UNIT;
+}
+
 export interface StudentRecord {
   readonly id: string;
   readonly name: string;
@@ -72,6 +106,7 @@ export interface StudentRecord {
   readonly status: UserStatus;
   readonly category: Category;
   readonly gender: Gender;
+  readonly unit: UnitId;
   readonly belt: string;
   readonly degree: number;
   readonly guardianName: string | null;
@@ -108,6 +143,7 @@ export interface PublicStudent {
   readonly status: UserStatus;
   readonly category: Category;
   readonly gender: Gender;
+  readonly unit: UnitId;
   readonly belt: string;
   readonly degree: number;
   readonly guardianName: string | null;
@@ -200,3 +236,38 @@ export type CheckinResult =
         | 'erro';
       readonly message: string;
     };
+
+/**
+ * Recorte de unidade usado no painel.
+ *
+ * `'todas'` existe porque o professor precisa das duas visões: operar uma
+ * academia por vez e, de vez em quando, olhar a rede inteira.
+ */
+export type UnitScope = UnitId | 'todas';
+
+export function isUnitScope(value: unknown): value is UnitScope {
+  return value === 'todas' || isUnitId(value);
+}
+
+export function toUnitScope(value: unknown): UnitScope {
+  return isUnitScope(value) ? value : 'todas';
+}
+
+/** `true` se a unidade entra no recorte. Pura, para filtrar listas. */
+export function matchesUnit(scope: UnitScope, unit: UnitId): boolean {
+  return scope === 'todas' || scope === unit;
+}
+
+export const UNIT_SCOPE_LABELS: Readonly<Record<UnitScope, string>> = {
+  todas: 'Todas as academias',
+  'tres-cachoeiras': 'Três Cachoeiras',
+  'terra-de-areia': 'Terra de Areia',
+};
+
+/** Filtra qualquer lista que carregue unidade. Pura, usada nas telas do admin. */
+export function filterByUnit<T extends { readonly unit: UnitId }>(
+  items: readonly T[],
+  scope: UnitScope,
+): T[] {
+  return scope === 'todas' ? [...items] : items.filter((item) => item.unit === scope);
+}

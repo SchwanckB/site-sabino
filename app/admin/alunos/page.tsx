@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 
 import { listAllStudents } from '@/lib/repositories/students';
+import { getUnitScope } from '@/lib/unitScope';
+import { filterByUnit } from '@/types/domain';
 import { calculateAge } from '@/utils/graduationEngine';
 
 import { StudentsList, type StudentRow } from './StudentsList';
@@ -10,7 +12,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function AlunosPage() {
   const now = new Date();
-  const students = await listAllStudents();
+  const scope = await getUnitScope();
+  const students = filterByUnit(await listAllStudents(), scope);
 
   const rows: StudentRow[] = students
     .map((student) => ({
@@ -24,6 +27,7 @@ export default async function AlunosPage() {
       status: student.status,
       classCount: student.classIds.length,
       joinedAt: student.joinedAt,
+      unit: student.unit,
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
@@ -38,7 +42,7 @@ export default async function AlunosPage() {
       </header>
 
       <div className="mt-8">
-        <StudentsList rows={rows} />
+        <StudentsList rows={rows} scope={scope} />
       </div>
     </div>
   );

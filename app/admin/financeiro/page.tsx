@@ -3,6 +3,8 @@ import type { Metadata } from 'next';
 import { getPaymentPlans } from '@/lib/repositories/payments';
 import { getAcademySettings } from '@/lib/repositories/settings';
 import { listStudentsByStatus } from '@/lib/repositories/students';
+import { getUnitScope } from '@/lib/unitScope';
+import { filterByUnit } from '@/types/domain';
 import { siteConfig } from '@/lib/site';
 import { getPaymentSummary } from '@/utils/paymentEngine';
 
@@ -13,7 +15,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function FinanceiroPage() {
   const now = new Date();
-  const students = await listStudentsByStatus('ativo');
+  const scope = await getUnitScope();
+  const students = filterByUnit(await listStudentsByStatus('ativo'), scope);
   const plans = await getPaymentPlans(students.map((student) => student.id));
   const settings = await getAcademySettings();
 

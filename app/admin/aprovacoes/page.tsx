@@ -3,6 +3,8 @@ import type { Metadata } from 'next';
 import { weekdayLabels, type Weekday } from '@/data/seed';
 import { getSchedule } from '@/lib/schedule';
 import { listStudentsByStatus, toPublicStudent } from '@/lib/repositories/students';
+import { getUnitScope } from '@/lib/unitScope';
+import { filterByUnit } from '@/types/domain';
 
 import { ApprovalCard, type ClassOption } from './ApprovalCard';
 
@@ -11,15 +13,20 @@ export const dynamic = 'force-dynamic';
 
 export default async function AprovacoesPage() {
   const now = new Date();
-  const [pending, schedule] = await Promise.all([
+  const scope = await getUnitScope();
+
+  const [todosPendentes, schedule] = await Promise.all([
     listStudentsByStatus('pendente'),
     getSchedule(),
   ]);
+
+  const pending = filterByUnit(todosPendentes, scope);
 
   const classOptions: ClassOption[] = schedule.classes.map((slot) => ({
     id: slot.id,
     label: `${slot.title} · ${slot.level}`,
     weekday: `${weekdayLabels[slot.weekday as Weekday]}, ${slot.startTime} às ${slot.endTime}`,
+    unit: slot.unit,
   }));
 
   // Mais antigo primeiro: quem espera há mais tempo é atendido antes.

@@ -2,7 +2,11 @@ import type { Metadata } from 'next';
 
 import { AppShell, type NavItem, type PrimaryAction } from '@/components/app/AppShell';
 import { requireAdmin } from '@/lib/auth';
-import { countByStatus } from '@/lib/repositories/students';
+import { listStudentsByStatus } from '@/lib/repositories/students';
+import { getUnitScope } from '@/lib/unitScope';
+import { filterByUnit } from '@/types/domain';
+
+import { setUnitScopeAction } from './actions';
 
 export const metadata: Metadata = {
   title: { default: 'Administração', template: '%s | Admin Sabino' },
@@ -17,12 +21,15 @@ export default async function AdminLayout({
   // Barreira de papel. O middleware só garante que existe sessão.
   await requireAdmin();
 
-  const counts = await countByStatus();
+  const scope = await getUnitScope();
+  // O contador do menu segue o recorte: badge da rede inteira em cima de uma
+  // tela filtrada por academia confunde mais do que ajuda.
+  const pendentes = filterByUnit(await listStudentsByStatus('pendente'), scope).length;
 
   const items: NavItem[] = [
     { href: '/admin', label: 'Visão geral', short: 'Visão', icon: 'grafico', primary: true },
     { href: '/admin/alunos', label: 'Alunos', icon: 'alunos', primary: true },
-    { href: '/admin/aprovacoes', label: 'Aprovações', icon: 'aprovacao', badge: counts.pendente },
+    { href: '/admin/aprovacoes', label: 'Aprovações', icon: 'aprovacao', badge: pendentes },
     { href: '/admin/presenca', label: 'Presença', icon: 'presenca' },
     { href: '/admin/calendario', label: 'Calendário', short: 'Agenda', icon: 'calendario', primary: true },
     { href: '/admin/financeiro', label: 'Financeiro', icon: 'dinheiro' },
@@ -41,7 +48,12 @@ export default async function AdminLayout({
     icon: 'presenca',
   };
   return (
-    <AppShell items={items} title="Administração" primaryAction={primaryAction}>
+    <AppShell
+      items={items}
+      title="Administração"
+      primaryAction={primaryAction}
+      unitScope={{ value: scope, action: setUnitScopeAction }}
+    >
       {children}
     </AppShell>
   );

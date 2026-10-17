@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { getTodayCheckins, listCheckins } from '@/lib/repositories/attendance';
 import { getPaymentPlans } from '@/lib/repositories/payments';
 import {
-  countByStatus,
   listGraduationDueIds,
   listStudentsByStatus,
 } from '@/lib/repositories/students';
 import { getSchedule } from '@/lib/schedule';
+import { getUnitScope } from '@/lib/unitScope';
+import { filterByUnit } from '@/types/domain';
 import { findOpenClasses } from '@/utils/attendanceEngine';
 import { daysBetween, saoPauloDateString, saoPauloParts } from '@/utils/datetime';
 import { getPaymentSummary } from '@/utils/paymentEngine';
@@ -24,12 +25,20 @@ export default async function AdminPage() {
   const now = new Date();
   const hoje = saoPauloDateString(now);
 
-  const [counts, active, schedule, dueIds] = await Promise.all([
-    countByStatus(),
+  const scope = await getUnitScope();
+
+  const [pendentes, todosAtivos, schedule, dueIds] = await Promise.all([
+    listStudentsByStatus('pendente'),
     listStudentsByStatus('ativo'),
     getSchedule(),
     listGraduationDueIds(now),
   ]);
+
+  const active = filterByUnit(todosAtivos, scope);
+  // O aviso de cadastro aguardando leva para uma tela já filtrada: contar a
+  // rede inteira aqui mandaria o professor para uma lista vazia.
+  const aguardando = filterByUnit(pendentes, scope).length;
+  const classes = filterByUnit(schedule.classes, scope);
 
   const ids = active.map((student) => student.id);
   const [plans, checkinsHoje] = await Promise.all([
@@ -83,7 +92,7 @@ export default async function AdminPage() {
   );
 
   const inClassNow = active.filter(
-    (student) => findOpenClasses(schedule.classes, student.classIds, now).length > 0,
+    (student) => findOpenClasses(classes, student.classIds, now).length > 0,
   );
   const presentNow = inClassNow.filter((student) => checkinsHoje.has(student.id)).length;
 
@@ -96,9 +105,9 @@ export default async function AdminPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {counts.pendente > 0 ? (
+          {aguardando > 0 ? (
             <Link href="/admin/aprovacoes" className="btn-primary text-sm">
-              {counts.pendente} {counts.pendente === 1 ? 'cadastro aguardando' : 'cadastros aguardando'}
+              {aguardando} {aguardando === 1 ? 'cadastro aguardando' : 'cadastros aguardando'}
             </Link>
           ) : null}
           {dueIds.length > 0 ? (

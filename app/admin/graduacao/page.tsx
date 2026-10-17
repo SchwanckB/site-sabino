@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 
 import { listCheckins } from '@/lib/repositories/attendance';
 import { listStudentsByStatus } from '@/lib/repositories/students';
+import { getUnitScope } from '@/lib/unitScope';
+import { filterByUnit } from '@/types/domain';
 import {
   getAdultSummary,
   listKidsAgenda,
@@ -26,7 +28,8 @@ function toAdultBelt(belt: string): AdultBelt {
 
 export default async function GraduacaoPage() {
   const now = new Date();
-  const active = await listStudentsByStatus('ativo');
+  const scope = await getUnitScope();
+  const active = filterByUnit(await listStudentsByStatus('ativo'), scope);
 
   const kidsRecords = active.filter(
     (student) => student.category === 'kids' && student.birthDate.length > 0,
