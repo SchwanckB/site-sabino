@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { beltLabel } from '@/types/domain';
 import { getDegreeColor } from '@/utils/graduationEngine';
 
 /**
@@ -40,7 +41,16 @@ export function BeltDisplay({
   readonly isKids: boolean;
   readonly className?: string;
 }) {
-  const fill = BELT_FILL[belt.toLowerCase()] ?? '#E8E8E8';
+  const id = belt.toLowerCase();
+
+  /**
+   * A variação da faixa infantil é uma listra que corre ao longo do corpo:
+   * `cinza-branca` é cinza com uma faixa branca no meio. A cor de base vem da
+   * raiz do id, e as fichas antigas (`cinza`) caem na variação lisa.
+   */
+  const [raiz = 'branca', variacao] = id.split('-');
+  const fill = BELT_FILL[raiz] ?? BELT_FILL[id] ?? '#E8E8E8';
+  const listra = variacao === 'branca' ? '#F2F2F2' : variacao === 'preta' ? '#101014' : null;
   const maxDegrees = isKids ? 12 : 4;
   const shown = Math.min(Math.max(degree, 0), maxDegrees);
 
@@ -58,7 +68,7 @@ export function BeltDisplay({
     <svg
       viewBox="0 0 240 56"
       role="img"
-      aria-label={`Faixa ${belt}${shown > 0 ? ` com ${shown} ${shown === 1 ? 'grau' : 'graus'}` : ''}`}
+      aria-label={`Faixa ${beltLabel(belt)}${shown > 0 ? ` com ${shown} ${shown === 1 ? 'grau' : 'graus'}` : ''}`}
       className={cn('h-auto w-full max-w-[240px]', className)}
     >
       {/* Corpo da faixa */}
@@ -73,6 +83,14 @@ export function BeltDisplay({
         stroke="rgba(255,255,255,.28)"
         strokeWidth="1"
       />
+      {/* Listra da variação (faixas infantis). */}
+      {listra ? (
+        <>
+          <rect x="0" y="23" width="240" height="10" fill={listra} />
+          <rect x="0" y="23" width="240" height="10" fill="none" stroke="rgba(0,0,0,.25)" strokeWidth="0.75" />
+        </>
+      ) : null}
+
       {/* Sombra interna, para a faixa não parecer um retângulo chapado */}
       <rect x="0" y="34" width="240" height="8" rx="2" fill="rgba(0,0,0,.12)" />
 

@@ -70,6 +70,7 @@ function rowToStudent(id: string, row: Record<string, unknown>): StudentRecord {
     category,
     gender,
     unit: toUnitId(row['unit']),
+    graduatesMonthly: row['graduatesMonthly'] !== 'false' && row['graduatesMonthly'] !== false,
     belt: asString(row['belt'], 'branca'),
     degree: asInteger(row['degree'], 0),
     guardianName: asNullableString(row['guardianName']),
@@ -100,6 +101,7 @@ function studentToRow(student: StudentRecord): Record<string, string | number> {
     category: student.category,
     gender: student.gender,
     unit: student.unit,
+    graduatesMonthly: student.graduatesMonthly ? 'true' : 'false',
     belt: student.belt,
     degree: student.degree,
     guardianName: student.guardianName ?? '',
@@ -137,6 +139,7 @@ export function toPublicStudent(student: StudentRecord, now: Date): PublicStuden
     unit: student.unit,
     belt: student.belt,
     degree: student.degree,
+    graduatesMonthly: student.graduatesMonthly,
     guardianName: student.guardianName,
     guardianPhone: student.guardianPhone,
     joinedAt: student.joinedAt,
@@ -229,10 +232,11 @@ export function categoryFor(birthDate: string, now: Date): Category {
  * desde que ela ainda não tenha sido aprovada.
  */
 export async function createPendingStudent(
-  input: Omit<StudentRecord, 'status' | 'createdAt' | 'updatedAt' | 'joinedAt' | 'lastGraduationAt' | 'classIds' | 'rejectionReason' | 'notes' | 'degree' | 'category' | 'unit'> & {
+  input: Omit<StudentRecord, 'status' | 'createdAt' | 'updatedAt' | 'joinedAt' | 'lastGraduationAt' | 'classIds' | 'rejectionReason' | 'notes' | 'degree' | 'category' | 'unit' | 'graduatesMonthly'> & {
     readonly degree?: number;
     /** Ausente em cadastro antigo e em teste: cai na unidade padrão. */
     readonly unit?: UnitId;
+    readonly graduatesMonthly?: boolean;
   },
   now: Date,
 ): Promise<StudentRecord> {
@@ -249,6 +253,7 @@ export async function createPendingStudent(
     ...input,
     degree: input.degree ?? 0,
     unit: input.unit ?? DEFAULT_UNIT,
+    graduatesMonthly: input.graduatesMonthly ?? true,
     category: categoryFor(input.birthDate, now),
     status: 'pendente',
     joinedAt: null,
@@ -306,6 +311,8 @@ export interface ApprovalInput {
   readonly belt: string;
   readonly degree: number;
   readonly notes: string;
+  /** Ausente mantém o que a ficha já tinha (padrão: gradua todo mês). */
+  readonly graduatesMonthly?: boolean;
 }
 
 /**
@@ -326,6 +333,7 @@ export async function approveStudent(
 
   const approved: StudentRecord = {
     ...student,
+    graduatesMonthly: input.graduatesMonthly ?? student.graduatesMonthly,
     status: 'ativo',
     category,
     belt: input.belt,

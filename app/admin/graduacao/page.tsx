@@ -45,6 +45,7 @@ export default async function GraduacaoPage() {
     lastGraduationAt: student.lastGraduationAt,
     degree: student.degree,
     belt: student.belt,
+    graduatesMonthly: student.graduatesMonthly,
   }));
 
   const byId = new Map(kidsRecords.map((student) => [student.id, student]));

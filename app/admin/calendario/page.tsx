@@ -53,6 +53,7 @@ export default async function CalendarioPage() {
     lastGraduationAt: student.lastGraduationAt,
     degree: student.degree,
     belt: student.belt,
+    graduatesMonthly: student.graduatesMonthly,
   }));
   const nomes = new Map(kidsRecords.map((s) => [s.id, s.name]));
 

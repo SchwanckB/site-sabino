@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 
 import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
 import { cn } from '@/lib/utils';
-import { CHECKIN_SOURCE_LABELS, type CheckinSource } from '@/types/domain';
+import { CHECKIN_SOURCE_LABELS, beltLabel, type CheckinSource } from '@/types/domain';
 
 import { markPresenceAction, markPresenceBatchAction, undoPresenceAction } from '../actions';
 
@@ -278,7 +278,7 @@ export function PresenceList({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
                 <p className="truncate text-xs text-muted">
-                  <span className="capitalize">{row.belt}</span>
+                  {beltLabel(row.belt)}
                   {row.degree > 0 ? ` ${row.degree}º` : ''}
                   {row.inClassNow ? ` · ${row.inClassNow}` : ''}
                   {row.present && row.presentSource

@@ -10,7 +10,7 @@ import {
   USER_STATUSES,
   type UnitId,
   type UnitScope,
-  type UserStatus,
+  type UserStatus,  beltLabel,
 } from '@/types/domain';
 
 export interface StudentRow {
@@ -114,7 +114,7 @@ export function StudentsList({
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
                   <p className="truncate text-xs text-muted">
-                    {row.age} anos · <span className="capitalize">{row.belt}</span>
+                    {row.age} anos · {beltLabel(row.belt)}
                     {row.degree > 0 ? ` ${row.degree}º` : ''} ·{' '}
                     {row.classCount} {row.classCount === 1 ? 'turma' : 'turmas'}
                     {mostrarUnidade ? ` · ${UNIT_SHORT[row.unit]}` : ''}

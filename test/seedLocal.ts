@@ -27,12 +27,12 @@ type Dados = readonly [
 
 /** Nome comprido de propósito no meio da lista: é onde o layout quebra. */
 const KIDS: readonly Dados[] = [
-  ['Ana Clara Figueiredo Sabino', 'feminino', 'ANIV_HOJE', 'cinza', 3, 40, 11],
-  ['Bruno Lima', 'masculino', '2015-09-02', 'amarela', 4, 62, 9],
+  ['Ana Clara Figueiredo Sabino', 'feminino', 'ANIV_HOJE', 'cinza-branca', 3, 40, 11],
+  ['Bruno Lima', 'masculino', '2015-09-02', 'amarela-preta', 4, 62, 9],
   ['Clara Souza', 'feminino', '2019-01-23', 'branca', 0, 12, 4],
-  ['Davi Rocha', 'masculino', '2013-06-07', 'verde', 10, 31, 13],
+  ['Davi Rocha', 'masculino', '2013-06-07', 'verde-preta', 10, 31, 13],
   ['Eduarda Dias', 'feminino', '2020-11-19', 'branca', 1, 5, 2],
-  ['Felipe Alves', 'masculino', '2016-03-05', 'laranja', 6, 29, 7],
+  ['Felipe Alves', 'masculino', '2016-03-05', 'laranja-branca', 6, 29, 7],
   ['Gabriela Melo', 'feminino', '2018-08-14', 'cinza', 2, 55, 0],
   ['Heitor Pinto', 'masculino', 'ANIV_FIM', 'amarela', 12, 90, 6],
   ['Isabela Nunes', 'feminino', 'QUASE_16', 'laranja', 11, 28, 10],
@@ -106,6 +106,7 @@ async function main(): Promise<void> {
         consentAt: now.toISOString(),
         degree: grau,
         unit,
+        graduatesMonthly: nome !== 'Gabriela Melo',
       },
       atras(400),
     );

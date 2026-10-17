@@ -4,7 +4,13 @@ import { useState } from 'react';
 
 import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
 import { cn } from '@/lib/utils';
-import type { PublicStudent, UnitId } from '@/types/domain';
+import {
+  ADULT_BELTS,
+  KIDS_BELTS,
+  beltLabel,
+  type PublicStudent,
+  type UnitId,
+} from '@/types/domain';
 import { formatBr } from '@/utils/datetime';
 import { DEFAULT_GRACE_DAYS } from '@/utils/paymentEngine';
 
@@ -20,8 +26,6 @@ export interface ClassOption {
 const inputClass =
   'w-full min-h-[44px] rounded-xl border border-hairline bg-white/[.04] px-3 py-2 text-sm text-foreground focus:border-crimson focus:outline-none';
 
-const KIDS_BELTS = ['branca', 'cinza', 'amarela', 'laranja', 'verde'];
-const ADULT_BELTS = ['branca', 'azul', 'roxa', 'marrom', 'preta'];
 
 /**
  * Ficha de aprovação: mostra os dados do pré-cadastro, deixa ver o documento
@@ -166,11 +170,11 @@ export function ApprovalCard({
               id={`belt-${student.id}`}
               name="belt"
               defaultValue="branca"
-              className={cn(inputClass, 'mt-2 capitalize')}
+              className={cn(inputClass, 'mt-2')}
             >
               {belts.map((belt) => (
                 <option key={belt} value={belt}>
-                  {belt}
+                  {beltLabel(belt)}
                 </option>
               ))}
             </select>
@@ -191,6 +195,24 @@ export function ApprovalCard({
             />
           </div>
         </div>
+
+        {student.category === 'kids' ? (
+          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-hairline bg-white/[.03] p-3.5">
+            <input
+              type="checkbox"
+              name="graduatesMonthly"
+              defaultChecked
+              className="mt-0.5 h-4 w-4 shrink-0 accent-crimson"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">Gradua todo mês</span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+                Desmarque se este aluno não vai entrar na previsão automática de graus. Dá
+                para mudar depois na ficha dele.
+              </span>
+            </span>
+          </label>
+        ) : null}
 
         <fieldset className="mt-6">
           <legend className="text-sm font-medium text-foreground">Mensalidade</legend>

@@ -35,9 +35,57 @@ export const GENDER_LABELS: Readonly<Record<Gender, string>> = {
 /** Trilha de graduação. Derivada da idade, revista no aniversário de 16 anos. */
 export type Category = 'kids' | 'adulto';
 
-/** Faixas infantis usadas pela academia. */
-export const KIDS_BELTS = ['branca', 'cinza', 'amarela', 'laranja', 'verde'] as const;
+/**
+ * Faixas da trilha infantil, na ordem da progressão.
+ *
+ * Cinza, amarela, laranja e verde têm três variações cada — com branco, lisa
+ * e com preto — que é como a graduação infantil funciona de fato. São treze
+ * degraus entre a branca e a saída para a faixa adulta, e não cinco.
+ *
+ * O valor gravado é o id (`cinza-branca`); o rótulo é só apresentação. As
+ * fichas antigas já usam `cinza`, `amarela`, `laranja` e `verde`, que
+ * continuam valendo como a variação lisa — nenhuma migração é necessária.
+ */
+export const KIDS_BELTS = [
+  'branca',
+  'cinza-branca',
+  'cinza',
+  'cinza-preta',
+  'amarela-branca',
+  'amarela',
+  'amarela-preta',
+  'laranja-branca',
+  'laranja',
+  'laranja-preta',
+  'verde-branca',
+  'verde',
+  'verde-preta',
+] as const;
+
 export type KidsBelt = (typeof KIDS_BELTS)[number];
+
+export const KIDS_BELT_LABELS: Readonly<Record<KidsBelt, string>> = {
+  branca: 'Branca',
+  'cinza-branca': 'Cinza e branca',
+  cinza: 'Cinza',
+  'cinza-preta': 'Cinza e preta',
+  'amarela-branca': 'Amarela e branca',
+  amarela: 'Amarela',
+  'amarela-preta': 'Amarela e preta',
+  'laranja-branca': 'Laranja e branca',
+  laranja: 'Laranja',
+  'laranja-preta': 'Laranja e preta',
+  'verde-branca': 'Verde e branca',
+  verde: 'Verde',
+  'verde-preta': 'Verde e preta',
+};
+
+/** Rótulo de qualquer faixa, infantil ou adulta. */
+export function beltLabel(belt: string): string {
+  const kids = KIDS_BELT_LABELS[belt as KidsBelt];
+  if (kids) return kids;
+  return belt.charAt(0).toUpperCase() + belt.slice(1);
+}
 
 export const ADULT_BELTS: readonly AdultBelt[] = [
   'branca',
@@ -56,10 +104,6 @@ export const GUARDIAN_REQUIRED_AGE = 18;
 /** Versão da política de privacidade aceita no cadastro. */
 export const CONSENT_VERSION = 'lgpd-2026-01';
 
-/**
- * Ficha do aluno. **Contém dado pessoal** (CPF, documento) e nunca pode ser
- * serializada inteira para o cliente — use {@link PublicStudent}.
- */
 /**
  * Unidade da academia.
  *
@@ -94,6 +138,10 @@ export function toUnitId(value: unknown): UnitId {
   return isUnitId(value) ? value : DEFAULT_UNIT;
 }
 
+/**
+ * Ficha do aluno. **Contém dado pessoal** (CPF, documento) e nunca pode ser
+ * serializada inteira para o cliente — use {@link PublicStudent}.
+ */
 export interface StudentRecord {
   readonly id: string;
   readonly name: string;
@@ -109,6 +157,15 @@ export interface StudentRecord {
   readonly unit: UnitId;
   readonly belt: string;
   readonly degree: number;
+  /**
+   * Entra na previsão automática de graus da trilha infantil.
+   *
+   * Nem toda criança gradua de mês em mês: há quem treine só uma vez por
+   * semana, quem esteja voltando de lesão, quem o professor decidiu segurar.
+   * Com `false` o aluno continua na turma e na chamada, mas some da agenda
+   * de graduação — o professor gradua na mão quando entender que é hora.
+   */
+  readonly graduatesMonthly: boolean;
   readonly guardianName: string | null;
   readonly guardianPhone: string | null;
   readonly guardianCpf: string | null;
@@ -146,6 +203,7 @@ export interface PublicStudent {
   readonly unit: UnitId;
   readonly belt: string;
   readonly degree: number;
+  readonly graduatesMonthly: boolean;
   readonly guardianName: string | null;
   readonly guardianPhone: string | null;
   readonly joinedAt: string | null;

@@ -197,6 +197,7 @@ export default async function AlunoPage({
           status={student.status}
           gender={student.gender}
           unit={student.unit}
+          graduatesMonthly={student.graduatesMonthly}
           isKids={isKids}
           assignedClassIds={student.classIds}
           classOptions={classOptions}

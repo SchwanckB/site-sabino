@@ -39,6 +39,7 @@ export function StudentEditor({
   status,
   gender,
   unit,
+  graduatesMonthly,
   isKids,
   assignedClassIds,
   classOptions,
@@ -50,6 +51,7 @@ export function StudentEditor({
   readonly status: UserStatus;
   readonly gender: Gender;
   readonly unit: UnitId;
+  readonly graduatesMonthly: boolean;
   readonly isKids: boolean;
   readonly assignedClassIds: readonly string[];
   readonly classOptions: readonly ClassOption[];
@@ -170,6 +172,25 @@ export function StudentEditor({
             </p>
           </div>
         </div>
+
+        {isKids ? (
+          <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-hairline bg-white/[.03] p-3.5">
+            <input
+              type="checkbox"
+              name="graduatesMonthly"
+              defaultChecked={graduatesMonthly}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-crimson"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">Gradua todo mês</span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+                Desmarque para o aluno sair da previsão automática de graus — quem treina uma
+                vez por semana, quem está voltando de lesão. Ele continua na turma e na
+                chamada; você gradua na mão quando for a hora.
+              </span>
+            </span>
+          </label>
+        ) : null}
 
         <div className="mt-5">
           <label htmlFor="notes" className="block text-sm font-medium">

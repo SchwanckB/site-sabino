@@ -67,7 +67,15 @@ export type GraduationStatus =
   /** Finished the 12 degrees - belt change is a manual decision. */
   | 'PRONTO_PARA_AVALIACAO'
   /** Turned 16: leaves the automatic flow. */
-  | 'MIGRAR_PARA_ADULTO';
+  | 'MIGRAR_PARA_ADULTO'
+  /**
+   * Fora da previsão automática por decisão do professor.
+   *
+   * Nem toda criança gradua de mês em mês — quem treina uma vez por semana,
+   * quem está voltando de lesão. Um status próprio, em vez de simplesmente
+   * sumir da lista, para o professor ver que o aluno existe e foi uma escolha.
+   */
+  | 'MANUAL';
 
 export interface KidsStudent {
   readonly id: string;
@@ -80,6 +88,8 @@ export interface KidsStudent {
   readonly lastGraduationAt: DateInput | null;
   /** Current degree, 0 to {@link KIDS_TOTAL_DEGREES}. */
   readonly degree: number;
+  /**  tira o aluno da previsão automática de graus. */
+  readonly graduatesMonthly?: boolean;
   /** Belt label shown in the UI (Kids belts are academy-specific). */
   readonly belt: string;
   readonly avatarUrl?: string | null;
@@ -316,6 +326,9 @@ export function getKidsGraduationStatus(
   let status: GraduationStatus;
   if (age >= KIDS_MAX_AGE) {
     status = 'MIGRAR_PARA_ADULTO';
+  } else if (student.graduatesMonthly === false) {
+    // A idade vem antes: quem fez 16 migra, gradue de mês em mês ou não.
+    status = 'MANUAL';
   } else if (hasCompletedLadder) {
     status = 'PRONTO_PARA_AVALIACAO';
   } else if (intervalSatisfied && checkinsSatisfied) {

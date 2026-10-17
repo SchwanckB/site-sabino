@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 
 import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
 import { cn } from '@/lib/utils';
+import { beltLabel } from '@/types/domain';
 import { normalizeSearch } from '@/utils/searchText';
 
 import { markPresenceInClassAction, undoPresenceAction } from '../actions';
@@ -180,7 +181,7 @@ function RosterItem({
             {row.name}
           </Link>
           <p className="mt-0.5 truncate text-xs text-muted">
-            <span className="capitalize">{row.belt}</span>
+            {beltLabel(row.belt)}
             {row.degree > 0 ? ` ${row.degree}º` : ''}
             {row.present && row.presentAt ? ` · presente ${row.presentAt}` : ''}
           </p>

@@ -99,7 +99,13 @@ export async function approveStudentAction(form: FormData): Promise<ActionResult
   const now = new Date();
 
   try {
-    await approveStudent(student, { classIds, belt, degree, notes }, now);
+    await approveStudent(student, {
+      classIds,
+      belt,
+      degree,
+      notes,
+      graduatesMonthly: form.get('graduatesMonthly') === 'on',
+    }, now);
     await setupPaymentPlan(
       {
         userId: student.id,
@@ -174,7 +180,16 @@ export async function updateStudentAction(form: FormData): Promise<ActionResult>
 
   await updateStudent(
     student.id,
-    { classIds, belt, degree, gender, unit, notes: text(form, 'notes') },
+    {
+      classIds,
+      belt,
+      degree,
+      gender,
+      unit,
+      // Checkbox ausente no envio significa desmarcado.
+      graduatesMonthly: form.get('graduatesMonthly') === 'on',
+      notes: text(form, 'notes'),
+    },
     new Date(),
   );
 

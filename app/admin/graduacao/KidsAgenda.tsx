@@ -4,9 +4,14 @@ import { useMemo, useState } from 'react';
 
 import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
 import { cn, pluralize } from '@/lib/utils';
-import { GENDER_LABELS, type Gender } from '@/types/domain';
+import { GENDER_LABELS, beltLabel, type Gender } from '@/types/domain';
 import { formatBr } from '@/utils/datetime';
-import { KIDS_TOTAL_DEGREES, getDegreeColor, type StripeColor } from '@/utils/graduationEngine';
+import {
+  KIDS_TOTAL_DEGREES,
+  getDegreeColor,
+  type GraduationStatus,
+  type StripeColor,
+} from '@/utils/graduationEngine';
 
 import { registerDegreeAction } from '../actions';
 
@@ -19,7 +24,7 @@ export interface AgendaRow {
   readonly degree: number;
   readonly nextDegree: number | null;
   readonly nextDegreeColor: StripeColor | null;
-  readonly status: 'ELEGIVEL' | 'AGUARDANDO' | 'PRONTO_PARA_AVALIACAO' | 'MIGRAR_PARA_ADULTO';
+  readonly status: GraduationStatus;
   readonly daysUntil: number;
   readonly daysSince: number;
   /** `YYYY-MM-DD` da próxima graduação prevista. */
@@ -112,6 +117,9 @@ export function KidsAgenda({ rows }: { readonly rows: readonly AgendaRow[] }) {
   const parados = visiveis.filter(
     (r) => r.status === 'PRONTO_PARA_AVALIACAO' || r.status === 'MIGRAR_PARA_ADULTO',
   );
+  // Fora da previsão por decisão do professor: aparece à parte para não
+  // sumir sem explicação, e não entra na contagem de "liberados".
+  const manuais = visiveis.filter((r) => r.status === 'MANUAL');
 
   // "Este mês" é o recorte que o professor usa para planejar a próxima aula.
   const em30dias = proximos.filter((r) => r.daysUntil <= 30);
@@ -128,7 +136,7 @@ export function KidsAgenda({ rows }: { readonly rows: readonly AgendaRow[] }) {
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
           <p className="text-xs text-muted">
-            {row.age} {pluralize(row.age, 'ano', 'anos')} · <span className="capitalize">{row.belt}</span>
+            {row.age} {pluralize(row.age, 'ano', 'anos')} · {beltLabel(row.belt)}
             {row.gender !== 'nao_informado' ? ` · ${GENDER_LABELS[row.gender]}` : ''}
           </p>
         </div>
@@ -308,7 +316,7 @@ export function KidsAgenda({ rows }: { readonly rows: readonly AgendaRow[] }) {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
                   <p className="text-xs text-muted">
-                    {row.age} anos · <span className="capitalize">{row.belt}</span> · grau{' '}
+                    {row.age} anos · {beltLabel(row.belt)} · grau{' '}
                     {row.degree}
                   </p>
                 </div>
@@ -320,6 +328,19 @@ export function KidsAgenda({ rows }: { readonly rows: readonly AgendaRow[] }) {
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {manuais.length > 0 ? (
+        <section className="panel panel-pad mt-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="panel-title">Fora da graduação mensal</h3>
+            <span className="text-[11px] text-muted">{manuais.length}</span>
+          </div>
+          <p className="mt-1 text-xs text-muted">
+            Você marcou estes alunos para graduar na mão. Dá para registrar o grau aqui mesmo.
+          </p>
+          <ul className="mt-3 space-y-2">{manuais.map((row) => card(row, false))}</ul>
         </section>
       ) : null}
     </div>

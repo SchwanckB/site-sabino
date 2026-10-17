@@ -11,7 +11,7 @@ import { getPaymentPlan } from '@/lib/repositories/payments';
 import { getStudent } from '@/lib/repositories/students';
 import { getSchedule } from '@/lib/schedule';
 import { cn } from '@/lib/utils';
-import { CHECKIN_SOURCE_LABELS } from '@/types/domain';
+import { CHECKIN_SOURCE_LABELS, beltLabel } from '@/types/domain';
 import {
   findNextClass,
   formatMinutes,
@@ -150,7 +150,7 @@ export default async function PainelPage() {
             <BeltDisplay belt={student.belt} degree={student.degree} isKids={isKids} />
             <div>
               <p className="font-display text-2xl uppercase tracking-tight">
-                Faixa <span className="capitalize">{student.belt}</span>
+                Faixa {beltLabel(student.belt)}
               </p>
               <p className="mt-1 text-sm text-muted">
                 {student.degree} {student.degree === 1 ? 'grau' : 'graus'}

@@ -519,3 +519,65 @@ describe('listKidsAgenda', () => {
     expect(listKidsAgenda([], now)).toEqual([]);
   });
 });
+
+describe('graduação mensal opcional', () => {
+  const base = {
+    id: 'kid-1',
+    name: 'João',
+    birthDate: '2016-05-10',
+    joinedAt: '2025-01-10',
+    lastGraduationAt: '2026-01-10',
+    degree: 3,
+    belt: 'cinza',
+  };
+  // 40 dias depois da última graduação: normalmente já estaria elegível.
+  const agora = new Date('2026-02-19T12:00:00-03:00');
+
+  it('sem a marca, segue a previsão automática como antes', () => {
+    const r = getKidsGraduationStatus({ ...base, checkinsInPeriod: 99 }, agora);
+    expect(r.status).toBe('ELEGIVEL');
+  });
+
+  it('com graduatesMonthly true, idem', () => {
+    const r = getKidsGraduationStatus(
+      { ...base, graduatesMonthly: true, checkinsInPeriod: 99 },
+      agora,
+    );
+    expect(r.status).toBe('ELEGIVEL');
+  });
+
+  it('com graduatesMonthly false, sai da previsão', () => {
+    const r = getKidsGraduationStatus(
+      { ...base, graduatesMonthly: false, checkinsInPeriod: 99 },
+      agora,
+    );
+    expect(r.status).toBe('MANUAL');
+  });
+
+  it('a idade manda: quem fez 16 migra mesmo fora da previsão', () => {
+    const r = getKidsGraduationStatus(
+      { ...base, birthDate: '2009-05-10', graduatesMonthly: false },
+      agora,
+    );
+    expect(r.status).toBe('MIGRAR_PARA_ADULTO');
+  });
+
+  it('o aluno fora da previsão não some da agenda', () => {
+    // Ele continua na lista, com status próprio — some do "pode graduar",
+    // não da tela.
+    const agenda = listKidsAgenda(
+      [{ ...base, graduatesMonthly: false, checkinsInPeriod: 99 }],
+      agora,
+    );
+    expect(agenda).toHaveLength(1);
+    expect(agenda[0]?.status).toBe('MANUAL');
+  });
+
+  it('não entra na lista de elegíveis', () => {
+    const elegiveis = listEligibleKids(
+      [{ ...base, graduatesMonthly: false, checkinsInPeriod: 99 }],
+      agora,
+    );
+    expect(elegiveis).toHaveLength(0);
+  });
+});

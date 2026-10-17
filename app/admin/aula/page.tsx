@@ -119,6 +119,7 @@ export default async function AulaPage({
           lastGraduationAt: student.lastGraduationAt,
           degree: student.degree,
           belt: student.belt,
+          graduatesMonthly: student.graduatesMonthly,
         },
         now,
       ).status === 'ELEGIVEL';
