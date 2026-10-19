@@ -3,7 +3,7 @@ import { beltLabel } from '@/types/domain';
 import { getDegreeColor } from '@/utils/graduationEngine';
 
 /**
- * Faixa desenhada em SVG, com a ponteira preta e as tarjas de grau.
+ * Faixa desenhada em SVG, com a ponteira e as tarjas de grau.
  *
  * Nas turmas infantis a cor da tarja muda conforme o grau (1-4 branca, 5-8
  * vermelha, 9-12 amarela); nas adultas as tarjas são sempre brancas sobre a
@@ -51,6 +51,14 @@ export function BeltDisplay({
   const [raiz = 'branca', variacao] = id.split('-');
   const fill = BELT_FILL[raiz] ?? BELT_FILL[id] ?? '#E8E8E8';
   const listra = variacao === 'branca' ? '#F2F2F2' : variacao === 'preta' ? '#101014' : null;
+
+  /**
+   * Ponteira: preta em todas as faixas, vermelha na preta.
+   *
+   * É assim no Jiu-Jitsu — e, além da regra, ponteira preta sobre faixa
+   * preta não se distinguia: a parte dos graus sumia dentro do corpo.
+   */
+  const ponteira = raiz === 'preta' ? '#B3122A' : '#121214';
   const maxDegrees = isKids ? 12 : 4;
   const shown = Math.min(Math.max(degree, 0), maxDegrees);
 
@@ -94,8 +102,8 @@ export function BeltDisplay({
       {/* Sombra interna, para a faixa não parecer um retângulo chapado */}
       <rect x="0" y="34" width="240" height="8" rx="2" fill="rgba(0,0,0,.12)" />
 
-      {/* Ponteira preta, onde ficam as tarjas */}
-      <rect x="166" y="10" width="62" height="36" rx="3" fill="#121214" />
+      {/* Ponteira, onde ficam as tarjas */}
+      <rect x="166" y="10" width="62" height="36" rx="3" fill={ponteira} />
       <rect
         x="166"
         y="10"

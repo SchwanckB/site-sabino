@@ -37,6 +37,18 @@ export default async function PainelLayout({
     { href: '/painel/checkin', label: 'Check-in', icon: 'qr' },
   ];
 
+  // Professor que também treina precisa de um caminho de volta. Sem isto,
+  // quem é promovido a professor entra na área do aluno e não encontra o
+  // painel — parece que a promoção não funcionou.
+  if (user.role === 'ADMIN') {
+    items.push({
+      href: '/admin',
+      label: 'Painel do professor',
+      short: 'Professor',
+      icon: 'grafico',
+    });
+  }
+
   // O aluno abre o painel na porta da academia: o leitor de QR fica a um
   // toque, no centro da barra, e já sobe com a câmera ligada.
   const primaryAction: PrimaryAction = {

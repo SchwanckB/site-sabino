@@ -195,3 +195,35 @@
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Impressão.
+ *
+ * O único documento que esta aplicação imprime é o cartaz de QR da turma.
+ * Sem isto a folha sai com cabeçalho, menu e barra inferior em volta do
+ * código — e com o fundo escuro da interface, que gasta toda a tinta da
+ * impressora e ainda piora a leitura do QR.
+ */
+@media print {
+  @page {
+    margin: 1cm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Casca do app: cabeçalho fixo, navegação e barra inferior. */
+  header,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+}

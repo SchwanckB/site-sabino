@@ -2,20 +2,17 @@ import { NextResponse } from 'next/server';
 import QRCode from 'qrcode';
 
 import { getSessionUser } from '@/lib/auth';
-import { getCurrentQrToken, rotateQrToken } from '@/lib/repositories/qr';
+import { getCurrentQrToken } from '@/lib/repositories/qr';
 import { siteUrl } from '@/lib/site';
 
 /**
- * Token + imagem do QR da recepção.
+ * Imagem do QR de presença de uma turma.
  *
- * Cada turma tem o seu QR: o token amarra a presença àquela aula, e não à
- * janela de horário — o que resolve a ambiguidade de dois horários colados e
- * impede que o código de uma academia sirva na outra.
- *
- * O QR não carrega apenas o token: ele codifica a **URL da página de check-in
- * já com o token**. Assim a câmera nativa do celular resolve tudo — não é
- * preciso app nem leitor dedicado, e a mãe que leva o filho consegue registrar
- * a presença do próprio aparelho.
+ * Cada turma tem o seu código, e ele é fixo: a ideia é imprimir e colar na
+ * parede. O QR não carrega apenas o token — codifica a **URL da página de
+ * check-in já com o token**, para a câmera nativa do celular resolver tudo.
+ * Sem app, sem leitor dedicado, e a mãe que leva o filho registra a presença
+ * do próprio aparelho.
  */
 
 export const dynamic = 'force-dynamic';
@@ -26,10 +23,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     return new NextResponse('Não encontrado', { status: 404 });
   }
 
-  const params = new URL(request.url).searchParams;
-  const classId = (params.get('classId') ?? '').trim();
-  const force = params.get('rotate') === '1';
-
+  const classId = (new URL(request.url).searchParams.get('classId') ?? '').trim();
   if (classId.length === 0) {
     return NextResponse.json(
       { error: 'Escolha a turma antes de gerar o QR.' },
@@ -37,13 +31,10 @@ export async function GET(request: Request): Promise<NextResponse> {
     );
   }
 
-  const current = force
-    ? await rotateQrToken(classId)
-    : await getCurrentQrToken(classId);
-
+  const current = getCurrentQrToken(classId);
   if (!current) {
     return NextResponse.json(
-      { error: 'Banco de dados não configurado.' },
+      { error: 'Falta configurar QR_TOKEN_SECRET para gerar os códigos.' },
       { status: 503, headers: { 'Cache-Control': 'no-store' } },
     );
   }
@@ -51,14 +42,15 @@ export async function GET(request: Request): Promise<NextResponse> {
   const checkinUrl = `${siteUrl()}/painel/checkin?t=${encodeURIComponent(current.token)}`;
 
   const dataUrl = await QRCode.toDataURL(checkinUrl, {
-    errorCorrectionLevel: 'M',
+    // Correção alta: o cartaz vai para a parede da academia e vai apanhar.
+    errorCorrectionLevel: 'H',
     margin: 1,
-    width: 720,
+    width: 900,
     color: { dark: '#0E0E10', light: '#FFFFFF' },
   });
 
   return NextResponse.json(
-    { dataUrl, expiresIn: current.expiresIn, classId: current.classId },
+    { dataUrl, classId: current.classId },
     { headers: { 'Cache-Control': 'no-store' } },
   );
 }

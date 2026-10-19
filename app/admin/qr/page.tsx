@@ -2,10 +2,9 @@ import type { Metadata } from 'next';
 
 import { PageHeader } from '@/components/app/PageHeader';
 
-import { qrTtlSeconds } from '@/lib/repositories/qr';
 import { getSchedule } from '@/lib/schedule';
 import { getUnitScope } from '@/lib/unitScope';
-import { weekdayShortLabels, type Weekday } from '@/data/seed';
+import { weekdayLabels, weekdayShortLabels, type Weekday } from '@/data/seed';
 import { UNIT_SHORT, filterByUnit } from '@/types/domain';
 import { findOpenClasses } from '@/utils/attendanceEngine';
 
@@ -34,6 +33,10 @@ export default async function QrPage() {
         `${weekdayShortLabels[slot.weekday as Weekday]} ${slot.startTime} · ${slot.title}` +
         (slot.level ? ` (${slot.level})` : '') +
         (scope === 'todas' ? ` · ${UNIT_SHORT[slot.unit]}` : ''),
+      sublabel:
+        `${weekdayLabels[slot.weekday as Weekday]}, ${slot.startTime} às ${slot.endTime}` +
+        (slot.level ? ` · ${slot.level}` : '') +
+        (scope === 'todas' ? ` · ${UNIT_SHORT[slot.unit]}` : ''),
       openNow: abertas.has(slot.id),
     }))
     // Aula acontecendo agora no topo: é o que o professor quer ao abrir a tela.
@@ -46,10 +49,10 @@ export default async function QrPage() {
     <div>
       <PageHeader
         title="QR Code de presença"
-        meta={`Cada turma tem o seu código, e ele troca a cada ${qrTtlSeconds()} segundos.`}
+        meta="Um cartaz por turma, para imprimir e colar na parede."
       />
 
-      <div className="mt-10">
+      <div className="mt-6">
         <QrScreen turmas={turmas} />
       </div>
     </div>

@@ -7,10 +7,15 @@ import { recordCheckin } from '@/lib/repositories/attendance';
 import { validateQrToken } from '@/lib/repositories/qr';
 import { getStudent } from '@/lib/repositories/students';
 import { getSchedule } from '@/lib/schedule';
+import { findOpenClasses } from '@/utils/attendanceEngine';
 import type { CheckinResult } from '@/types/domain';
 
 /**
  * Check-in do aluno pelo QR Code da recepção.
+ *
+ * O código é fixo por turma e fica impresso na parede. O que impede o
+ * check-in de casa são três travas: a janela de horário da aula, a
+ * matrícula naquela turma, e uma presença por dia por aluno.
  *
  * A ordem das checagens importa: o token é validado **antes** de qualquer
  * gravação, e a regra "uma presença por dia" é garantida pelo `SET NX` dentro
@@ -37,25 +42,24 @@ export async function checkinAction(token: string): Promise<CheckinResult> {
     return { ok: false, reason: 'qr_invalido', message: 'Código inválido.' };
   }
 
-  const validation = await validateQrToken(clean, student.id);
-  if (!validation.ok) {
-    return {
-      ok: false,
-      reason: validation.reason,
-      message:
-        validation.reason === 'qr_expirado'
-          ? 'Este código já expirou. Leia o QR que está na tela da recepção agora.'
-          : 'Código inválido. Use o QR da recepção.',
-    };
-  }
-
   const now = new Date();
   const schedule = await getSchedule();
 
-  // A turma vem do próprio QR, não da janela de horário: cada turma tem o
-  // seu código, e isso tira a ambiguidade de dois horários encostados.
-  const current = schedule.classes.find((slot) => slot.id === validation.classId) ?? null;
+  // O código é fixo por turma: resolve direto para a aula de onde o cartaz
+  // foi lido, sem depender do relógio para adivinhar a turma.
+  const validation = validateQrToken(
+    clean,
+    schedule.classes.map((slot) => slot.id),
+  );
+  if (!validation.ok) {
+    return {
+      ok: false,
+      reason: 'qr_invalido',
+      message: 'Código inválido. Use o QR da sua turma, na parede da academia.',
+    };
+  }
 
+  const current = schedule.classes.find((slot) => slot.id === validation.classId) ?? null;
   if (!current) {
     return {
       ok: false,
@@ -69,6 +73,22 @@ export async function checkinAction(token: string): Promise<CheckinResult> {
       ok: false,
       reason: 'sem_aula_agora',
       message: `Você não está matriculado em ${current.title}. Fale com o professor.`,
+    };
+  }
+
+  /*
+   * Janela de horário.
+   *
+   * Com código rotativo, era a rotação que impedia o check-in de casa. Agora
+   * que o cartaz é fixo e imprimível, esta checagem passa a ser a trava
+   * principal: o código só vale enquanto a aula daquela turma está rolando.
+   */
+  const aberta = findOpenClasses(schedule.classes, [current.id], now).length > 0;
+  if (!aberta) {
+    return {
+      ok: false,
+      reason: 'sem_aula_agora',
+      message: `A aula de ${current.title} não está acontecendo agora. O check-in vale no horário do treino.`,
     };
   }
 

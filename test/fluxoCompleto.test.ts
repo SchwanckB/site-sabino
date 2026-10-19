@@ -27,6 +27,7 @@ beforeAll(async () => {
   const { url, token } = await mock.start();
   process.env['UPSTASH_REDIS_REST_URL'] = url;
   process.env['UPSTASH_REDIS_REST_TOKEN'] = token;
+  process.env['QR_TOKEN_SECRET'] = 'segredo-de-teste-com-tamanho-suficiente';
 
   students = await import('@/lib/repositories/students');
   payments = await import('@/lib/repositories/payments');
@@ -536,69 +537,77 @@ describe('presença e ranking', () => {
   });
 });
 
-describe('QR de presença', () => {
+describe('QR de presença (código fixo por turma)', () => {
   const TURMA = 'tres-cachoeiras-1-1930-mma';
+  const OUTRA = 'terra-de-areia-2-1830-kids';
+  const GRADE = [TURMA, OUTRA];
 
-  it('gera um token da turma e valida uma vez só', async () => {
-    const token = await qr.getCurrentQrToken(TURMA);
+  it('gera o código da turma e resolve de volta', () => {
+    const token = qr.getCurrentQrToken(TURMA);
     expect(token).not.toBeNull();
-    expect(token?.token.length).toBeGreaterThan(20);
     expect(token?.classId).toBe(TURMA);
 
-    const primeira = await qr.validateQrToken(token?.token ?? '', 'user_a');
-    expect(primeira.ok).toBe(true);
-    expect(primeira.ok === true && primeira.classId).toBe(TURMA);
-
-    // Reaproveitar o mesmo token para o mesmo aluno não vale.
-    const segunda = await qr.validateQrToken(token?.token ?? '', 'user_a');
-    expect(segunda.ok).toBe(false);
+    const lido = qr.validateQrToken(token?.token ?? '', GRADE);
+    expect(lido.ok).toBe(true);
+    expect(lido.ok === true && lido.classId).toBe(TURMA);
   });
 
-  it('recusa token inventado', async () => {
-    await qr.getCurrentQrToken(TURMA);
-    const result = await qr.validateQrToken('token-falso', 'user_a');
+  it('o código não muda entre chamadas — é o que permite imprimir', () => {
+    const a = qr.getCurrentQrToken(TURMA);
+    const b = qr.getCurrentQrToken(TURMA);
 
-    expect(result.ok).toBe(false);
-    expect(result.ok === false && result.reason).toBe('qr_expirado');
+    expect(a?.token).toBe(b?.token);
   });
 
-  it('token antigo para de valer depois de girar', async () => {
-    const antigo = await qr.getCurrentQrToken(TURMA);
-    await qr.rotateQrToken(TURMA);
-
-    const result = await qr.validateQrToken(antigo?.token ?? '', 'user_b');
-    expect(result.ok).toBe(false);
-  });
-
-  it('o mesmo token serve para alunos diferentes na mesma janela', async () => {
-    const token = await qr.getCurrentQrToken(TURMA);
-
-    expect((await qr.validateQrToken(token?.token ?? '', 'user_a')).ok).toBe(true);
-    expect((await qr.validateQrToken(token?.token ?? '', 'user_b')).ok).toBe(true);
-  });
-
-  it('cada turma tem o seu código, e o token diz qual é', async () => {
-    // O ponto da mudança: a presença cai na aula cujo QR foi lido, não na que
-    // o relógio sugere.
-    const outra = 'terra-de-areia-2-1830-kids';
-    const a = await qr.getCurrentQrToken(TURMA);
-    const b = await qr.getCurrentQrToken(outra);
+  it('cada turma tem um código diferente', () => {
+    const a = qr.getCurrentQrToken(TURMA);
+    const b = qr.getCurrentQrToken(OUTRA);
 
     expect(a?.token).not.toBe(b?.token);
-
-    const lidoA = await qr.validateQrToken(a?.token ?? '', 'user_c');
-    const lidoB = await qr.validateQrToken(b?.token ?? '', 'user_d');
-
-    expect(lidoA.ok === true && lidoA.classId).toBe(TURMA);
-    expect(lidoB.ok === true && lidoB.classId).toBe(outra);
+    const lido = qr.validateQrToken(b?.token ?? '', GRADE);
+    expect(lido.ok === true && lido.classId).toBe(OUTRA);
   });
 
-  it('girar uma turma não derruba o código da outra', async () => {
-    const outra = 'terra-de-areia-2-1830-kids';
-    const b = await qr.getCurrentQrToken(outra);
-    await qr.rotateQrToken(TURMA);
+  it('o mesmo código serve para alunos diferentes', () => {
+    // Uma turma inteira lê o mesmo cartaz; a trava de um por dia é por aluno.
+    const token = qr.getCurrentQrToken(TURMA);
 
-    expect((await qr.validateQrToken(b?.token ?? '', 'user_e')).ok).toBe(true);
+    expect(qr.validateQrToken(token?.token ?? '', GRADE).ok).toBe(true);
+    expect(qr.validateQrToken(token?.token ?? '', GRADE).ok).toBe(true);
+  });
+
+  it('recusa código inventado', () => {
+    const result = qr.validateQrToken('token-falso', GRADE);
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reason).toBe('qr_invalido');
+  });
+
+  it('recusa código de turma que saiu da grade', () => {
+    // A turma foi removida dos horários: o cartaz antigo para de valer.
+    const token = qr.getCurrentQrToken('turma-removida');
+    expect(qr.validateQrToken(token?.token ?? '', GRADE).ok).toBe(false);
+  });
+
+  it('trocar o segredo invalida todos os cartazes de uma vez', () => {
+    // É a alavanca para quando um código vaza.
+    const antes = qr.getCurrentQrToken(TURMA)?.token;
+
+    const anterior = process.env['QR_TOKEN_SECRET'];
+    process.env['QR_TOKEN_SECRET'] = 'outro-segredo-bem-comprido-aqui';
+    const depois = qr.getCurrentQrToken(TURMA)?.token;
+    process.env['QR_TOKEN_SECRET'] = anterior;
+
+    expect(depois).not.toBe(antes);
+  });
+
+  it('sem segredo configurado, não inventa código', () => {
+    const anterior = process.env['QR_TOKEN_SECRET'];
+    process.env['QR_TOKEN_SECRET'] = '';
+
+    expect(qr.getCurrentQrToken(TURMA)).toBeNull();
+
+    process.env['QR_TOKEN_SECRET'] = anterior;
   });
 });
 

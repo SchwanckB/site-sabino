@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 import { AppShell, type NavItem, type PrimaryAction } from '@/components/app/AppShell';
 import { requireAdmin } from '@/lib/auth';
-import { listStudentsByStatus } from '@/lib/repositories/students';
+import { getStudent, listStudentsByStatus } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
 import { filterByUnit } from '@/types/domain';
 
@@ -19,7 +19,7 @@ export default async function AdminLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   // Barreira de papel. O middleware só garante que existe sessão.
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const scope = await getUnitScope();
   // O contador do menu segue o recorte: badge da rede inteira em cima de uma
@@ -41,6 +41,18 @@ export default async function AdminLayout({
     { href: '/admin/qr', label: 'QR da recepção', icon: 'qr' },
     { href: '/admin/contas', label: 'Contas', icon: 'conta' },
   ];
+
+  // O professor que treina usa o painel do aluno para o próprio check-in.
+  // O caminho tem de existir nos dois sentidos.
+  const ficha = await getStudent(admin.id);
+  if (ficha?.status === 'ativo') {
+    items.push({
+      href: '/painel',
+      label: 'Meu painel de aluno',
+      short: 'Aluno',
+      icon: 'inicio',
+    });
+  }
 
   // A ação do dia a dia do professor: abrir a aula que está começando.
   const primaryAction: PrimaryAction = {

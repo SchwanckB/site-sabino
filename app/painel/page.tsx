@@ -79,7 +79,7 @@ export default async function PainelPage() {
   const nextDegreeColor = isKids ? getDegreeColor(student.degree + 1) : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <header>
         <p className="eyebrow">Olá, {student.name.split(' ')[0]}</p>
         <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Meu painel</h1>
@@ -93,7 +93,7 @@ export default async function PainelPage() {
         <div
           role="status"
           className={cn(
-            'mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4',
+            'flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4',
             payment.status === 'vencida'
               ? 'border-crimson/45 bg-crimson/[.09]'
               : 'border-amber-500/40 bg-amber-500/[.07]',
@@ -120,12 +120,12 @@ export default async function PainelPage() {
       {/* Check-in em destaque: é a ação do dia. ------------------------- */}
       <section
         className={cn(
-          'surface-card flex flex-wrap items-center justify-between gap-4 p-5 sm:p-6',
+          'panel panel-pad flex flex-wrap items-center justify-between gap-4',
           checkedInToday && 'border-emerald-500/30 bg-emerald-500/[.05]',
         )}
       >
         <div className="min-w-0">
-          <h2 className="text-lg normal-case tracking-normal">
+          <h2 className="panel-title">
             {checkedInToday ? 'Presença registrada hoje' : 'Registrar presença'}
           </h2>
           <p className="mt-1 text-sm text-muted">
@@ -141,16 +141,21 @@ export default async function PainelPage() {
         ) : null}
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-3 lg:grid-cols-3">
         {/* Graduação ---------------------------------------------------- */}
-        <section className="surface-card p-5 sm:p-6 lg:col-span-2">
-          <h2 className="text-lg normal-case tracking-normal">Sua graduação</h2>
+        <section className="panel panel-pad lg:col-span-2">
+          <h2 className="panel-title">Sua graduação</h2>
 
-          <div className="mt-5 flex flex-wrap items-center gap-6">
-            <BeltDisplay belt={student.belt} degree={student.degree} isKids={isKids} />
-            <div>
-              <p className="font-display text-2xl uppercase tracking-tight">
-                Faixa {beltLabel(student.belt)}
+          <div className="mt-3 flex items-center gap-4 sm:gap-6">
+            <BeltDisplay
+              belt={student.belt}
+              degree={student.degree}
+              isKids={isKids}
+              className="w-[38%] max-w-[160px] shrink-0 sm:w-auto sm:max-w-[220px]"
+            />
+            <div className="min-w-0">
+              <p className="font-display text-xl uppercase leading-tight tracking-tight sm:text-2xl">
+                {beltLabel(student.belt)}
               </p>
               <p className="mt-1 text-sm text-muted">
                 {student.degree} {student.degree === 1 ? 'grau' : 'graus'}
@@ -164,7 +169,7 @@ export default async function PainelPage() {
             </div>
           </div>
 
-          <dl className="mt-6 grid gap-4 border-t border-hairline pt-5 text-sm sm:grid-cols-3">
+          <dl className="mt-4 grid gap-3 border-t border-hairline pt-4 text-sm sm:grid-cols-3">
             <div>
               <dt className="text-xs text-muted">Matriculado em</dt>
               <dd className="mt-1 text-foreground">
@@ -197,7 +202,7 @@ export default async function PainelPage() {
             paymentStyle ? paymentStyle.className : 'border-hairline bg-white/[.04]',
           )}
         >
-          <h2 className="text-lg normal-case tracking-normal text-foreground">Mensalidade</h2>
+          <h2 className="panel-title">Mensalidade</h2>
 
           {payment && plan ? (
             <>
@@ -240,10 +245,10 @@ export default async function PainelPage() {
         </section>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-3 lg:grid-cols-3">
         {/* Próxima aula ------------------------------------------------- */}
-        <section className="surface-card p-5 sm:p-6">
-          <h2 className="text-lg normal-case tracking-normal">Próxima aula</h2>
+        <section className="panel panel-pad">
+          <h2 className="panel-title">Próxima aula</h2>
 
           {nextClass ? (
             <>
@@ -278,9 +283,9 @@ export default async function PainelPage() {
         <section
           id="frequencia"
           style={{ scrollMarginTop: 80 }}
-          className="surface-card p-5 sm:p-6"
+          className="panel panel-pad"
         >
-          <h2 className="text-lg normal-case tracking-normal">Sua frequência</h2>
+          <h2 className="panel-title">Sua frequência</h2>
 
           <dl className="mt-5 space-y-4">
             <div>
@@ -308,8 +313,8 @@ export default async function PainelPage() {
         </section>
 
         {/* Minhas aulas ------------------------------------------------- */}
-        <section className="surface-card p-5 sm:p-6">
-          <h2 className="text-lg normal-case tracking-normal">Minhas aulas</h2>
+        <section className="panel panel-pad">
+          <h2 className="panel-title">Minhas aulas</h2>
 
           {myDays.length === 0 ? (
             <p className="mt-4 text-sm text-muted">Nenhuma turma atribuída.</p>
@@ -338,8 +343,8 @@ export default async function PainelPage() {
       </div>
 
       {/* Últimos treinos ------------------------------------------------ */}
-      <section className="surface-card p-5 sm:p-6">
-        <h2 className="text-lg normal-case tracking-normal">Últimos treinos</h2>
+      <section className="panel panel-pad">
+        <h2 className="panel-title">Últimos treinos</h2>
 
         {checkins.length === 0 ? (
           <p className="mt-4 text-sm text-muted">

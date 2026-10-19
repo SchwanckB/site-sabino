@@ -10,14 +10,16 @@ export const siteConfig = {
   name: 'Sabino Academia',
   shortName: 'Sabino',
   legalName: 'Sabino Academia de Jiu-Jitsu e MMA',
-  tagline: 'Jiu-Jitsu e MMA em Três Cachoeiras/RS',
+  tagline: 'Jiu-Jitsu e MMA em Três Cachoeiras e Terra de Areia/RS',
   description:
-    'Academia de Jiu-Jitsu e MMA em Três Cachoeiras/RS. Jiu-Jitsu adulto, MMA, turma feminina e Jiu-Jitsu infantil a partir dos 4 anos, com acompanhamento de graduação do primeiro dia em diante.',
+    'Academia de Jiu-Jitsu e MMA em Três Cachoeiras e Terra de Areia/RS. Jiu-Jitsu adulto, MMA, turma feminina e Jiu-Jitsu infantil a partir dos 4 anos, com acompanhamento de graduação do primeiro dia em diante.',
 
   /** Número oficial que aparece na logo. Formato internacional, só dígitos. */
   whatsappNumber: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '5551981691373',
   phoneDisplay: '(51) 98169-1373',
 
+  /** Cidades com unidade. A primeira é a sede, usada no JSON-LD. */
+  cities: ['Três Cachoeiras', 'Terra de Areia'] as const,
   city: 'Três Cachoeiras',
   state: 'RS',
   stateName: 'Rio Grande do Sul',

@@ -41,7 +41,7 @@ export function Hero() {
         <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] lg:gap-16">
           <div className="max-w-2xl">
             <motion.p {...rise(0.05)} className="eyebrow">
-              {siteConfig.city}/{siteConfig.state} &middot; Centro
+              {siteConfig.cities.join(' · ')}/{siteConfig.state}
             </motion.p>
 
             <motion.h1
@@ -50,7 +50,9 @@ export function Hero() {
             >
               Jiu-Jitsu e MMA
               <span className="mt-1 block text-crimson">no tatame certo</span>
-              <span className="sr-only"> em {siteConfig.city}, {siteConfig.state}</span>
+              <span className="sr-only">
+                {' '}em {siteConfig.cities.join(' e ')}, {siteConfig.state}
+              </span>
             </motion.h1>
 
             <motion.p
@@ -58,8 +60,8 @@ export function Hero() {
               className="mt-6 max-w-xl text-base leading-relaxed text-muted sm:text-lg"
             >
               Turmas para quem nunca lutou e para quem já compete. Jiu-Jitsu, MMA, turma
-              feminina e aulas infantis a partir dos 4 anos — de segunda a sexta, no centro
-              de {siteConfig.city}.
+              feminina e aulas infantis a partir dos 4 anos — de segunda a sexta, em{' '}
+              {siteConfig.cities.join(' e ')}.
             </motion.p>
 
             <motion.div {...rise(0.28)} className="mt-9 flex flex-col gap-3 sm:flex-row">
