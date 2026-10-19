@@ -9,45 +9,42 @@ interface QrState {
   readonly dataUrl: string;
 }
 
-export interface TurmaOption {
+export interface UnidadeOption {
   readonly id: string;
   readonly label: string;
-  /** Linha do cartaz: dia, horário e nível. */
+  /** Linha de apoio do cartaz: cidade. */
   readonly sublabel: string;
-  /** `true` quando a aula está acontecendo agora. */
-  readonly openNow: boolean;
+  /** Quantas turmas a unidade tem na grade — só para orientar o professor. */
+  readonly classCount: number;
 }
 
 /**
- * Cartaz de presença da turma.
+ * Cartaz de presença da academia.
  *
- * O código é fixo: a academia imprime uma folha por turma e cola na parede.
- * Antes o QR girava a cada dois minutos, o que obrigava a manter uma tela
- * ligada na recepção durante todo o treino — e quando ninguém ligava, o
- * check-in simplesmente não acontecia.
+ * Uma folha por unidade, colada na parede. Era uma por turma, e isso
+ * significava imprimir e repor uma folha para cada horário da grade — com
+ * nove turmas numa unidade, nove cartazes. Agora o aluno escaneia um só e
+ * escolhe a aula no painel dele.
  *
- * O que impede o aluno de bater presença de casa deixou de ser a rotação e
- * passou a ser a janela de horário da aula, somada à matrícula na turma e à
- * trava de uma presença por dia.
+ * O código não gira. O que impede o check-in de casa é a janela de horário
+ * da aula, somada à matrícula na turma e à trava de uma presença por dia.
  */
-export function QrScreen({ turmas }: { readonly turmas: readonly TurmaOption[] }) {
-  const [classId, setClassId] = useState<string>(
-    turmas.find((t) => t.openNow)?.id ?? turmas[0]?.id ?? '',
-  );
+export function QrScreen({ unidades }: { readonly unidades: readonly UnidadeOption[] }) {
+  const [unit, setUnit] = useState<string>(unidades[0]?.id ?? '');
   const [qr, setQr] = useState<QrState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const turma = turmas.find((item) => item.id === classId) ?? null;
+  const academia = unidades.find((item) => item.id === unit) ?? null;
 
   const load = useCallback(async () => {
-    if (classId.length === 0) {
-      setError('Nenhuma turma cadastrada nesta academia.');
+    if (unit.length === 0) {
+      setError('Nenhuma academia cadastrada.');
       return;
     }
 
     setQr(null);
     try {
-      const response = await fetch(`/api/admin/qr?classId=${encodeURIComponent(classId)}`, {
+      const response = await fetch(`/api/admin/qr?unit=${encodeURIComponent(unit)}`, {
         cache: 'no-store',
       });
 
@@ -66,7 +63,7 @@ export function QrScreen({ turmas }: { readonly turmas: readonly TurmaOption[] }
     } catch {
       setError('Sem conexão com o servidor.');
     }
-  }, [classId]);
+  }, [unit]);
 
   useEffect(() => {
     void load();
@@ -76,18 +73,17 @@ export function QrScreen({ turmas }: { readonly turmas: readonly TurmaOption[] }
     <div>
       {/* Seleção e ação: some na impressão. */}
       <div className="print:hidden">
-        {turmas.length > 0 ? (
+        {unidades.length > 0 ? (
           <div className="flex flex-wrap items-end gap-3">
             <label className="min-w-0 flex-1 sm:max-w-sm">
-              <span className="block text-xs text-muted">Turma deste cartaz</span>
+              <span className="block text-xs text-muted">Academia deste cartaz</span>
               <select
-                value={classId}
-                onChange={(event) => setClassId(event.target.value)}
+                value={unit}
+                onChange={(event) => setUnit(event.target.value)}
                 className="mt-1 min-h-[44px] w-full rounded-xl border border-hairline bg-white/[.04] px-3 text-sm text-foreground focus:border-crimson focus:outline-none"
               >
-                {turmas.map((item) => (
+                {unidades.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.openNow ? '• ' : ''}
                     {item.label}
                   </option>
                 ))}
@@ -106,9 +102,9 @@ export function QrScreen({ turmas }: { readonly turmas: readonly TurmaOption[] }
         ) : null}
 
         <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">
-          Imprima uma folha por turma e cole na parede. O código não muda, então o cartaz vale
-          para sempre — a presença só é aceita no horário daquela aula e para quem está
-          matriculado nela.
+          Uma folha por academia, colada na parede. O código não muda, então o cartaz vale para
+          sempre. Depois de escanear, o aluno escolhe no painel dele qual aula está treinando —
+          entre as turmas dele que estão acontecendo naquele horário.
         </p>
       </div>
 
@@ -133,12 +129,12 @@ export function QrScreen({ turmas }: { readonly turmas: readonly TurmaOption[] }
             <p className="font-display text-2xl uppercase tracking-tight sm:text-3xl">
               Sabino Academia
             </p>
-            {turma ? (
+            {academia ? (
               <>
                 <p className="mt-1 font-display text-xl uppercase tracking-tight text-[#B3122A] sm:text-2xl">
-                  {turma.label}
+                  {academia.label}
                 </p>
-                <p className="mt-0.5 text-sm text-black/60">{turma.sublabel}</p>
+                <p className="mt-0.5 text-sm text-black/60">{academia.sublabel}</p>
               </>
             ) : null}
 
@@ -146,7 +142,7 @@ export function QrScreen({ turmas }: { readonly turmas: readonly TurmaOption[] }
               {qr ? (
                 <Image
                   src={qr.dataUrl}
-                  alt="QR Code de presença da turma"
+                  alt="QR Code de presença da academia"
                   width={900}
                   height={900}
                   unoptimized
@@ -162,8 +158,8 @@ export function QrScreen({ turmas }: { readonly turmas: readonly TurmaOption[] }
               Aponte a câmera do celular
             </p>
             <p className="mt-2 max-w-sm text-sm leading-relaxed text-black/60">
-              A presença é registrada na hora, no horário desta aula. Pais podem usar o próprio
-              aparelho para o check-in da criança.
+              Depois de escanear, escolha a sua aula. A presença vale no horário do treino, e
+              os pais podem usar o próprio aparelho para o check-in da criança.
             </p>
           </div>
         </section>

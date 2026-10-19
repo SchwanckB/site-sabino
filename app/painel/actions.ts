@@ -6,23 +6,83 @@ import { requireUser } from '@/lib/auth';
 import { recordCheckin } from '@/lib/repositories/attendance';
 import { validateQrToken } from '@/lib/repositories/qr';
 import { getStudent } from '@/lib/repositories/students';
-import { getSchedule } from '@/lib/schedule';
-import { findOpenClasses } from '@/utils/attendanceEngine';
+import { getScheduleFresh } from '@/lib/schedule';
 import type { CheckinResult } from '@/types/domain';
+import { findOpenClasses } from '@/utils/attendanceEngine';
 
 /**
- * Check-in do aluno pelo QR Code da recepção.
+ * Check-in do aluno.
  *
- * O código é fixo por turma e fica impresso na parede. O que impede o
- * check-in de casa são três travas: a janela de horário da aula, a
- * matrícula naquela turma, e uma presença por dia por aluno.
+ * O QR da parede identifica a **academia**, não a turma — é um cartaz só por
+ * unidade. Quem escolhe a aula é o aluno, entre as turmas dele que estão
+ * acontecendo naquele momento. Quando só há uma, a tela registra sozinha e
+ * ele não escolhe nada.
  *
- * A ordem das checagens importa: o token é validado **antes** de qualquer
+ * A grade é lida sem cache. `getSchedule()` guarda por uma hora para a
+ * landing, e aqui ela não é conteúdo: é a regra que decide se a presença
+ * entra. Uma grade de uma hora atrás recusaria o aluno da turma que o
+ * professor acabou de criar — ou aceitaria na que ele acabou de apagar.
+ *
+ * A ordem das checagens importa: o código é resolvido **antes** de qualquer
  * gravação, e a regra "uma presença por dia" é garantida pelo `SET NX` dentro
- * de `recordCheckin`, não por uma leitura prévia — duas tentativas simultâneas
- * não conseguem passar as duas.
+ * de `recordCheckin`, não por uma leitura prévia — duas tentativas
+ * simultâneas não conseguem passar as duas.
  */
-export async function checkinAction(token: string): Promise<CheckinResult> {
+
+export interface OpenClassOption {
+  readonly classId: string;
+  readonly title: string;
+  readonly level: string;
+  readonly time: string;
+}
+
+export type CheckinOptions =
+  | { readonly ok: false; readonly message: string }
+  | { readonly ok: true; readonly classes: readonly OpenClassOption[] };
+
+/**
+ * Turmas do aluno abertas agora, na academia do cartaz lido.
+ *
+ * Fica separado do registro porque a tela precisa perguntar antes de gravar
+ * quando há mais de uma aula no mesmo horário.
+ */
+export async function listCheckinOptions(token: string): Promise<CheckinOptions> {
+  const user = await requireUser();
+
+  const student = await getStudent(user.id);
+  if (!student) return { ok: false, message: 'Cadastro não encontrado.' };
+  if (student.status !== 'ativo') {
+    return { ok: false, message: 'Sua matrícula não está ativa. Fale com a recepção.' };
+  }
+
+  const validation = validateQrToken(token);
+  if (!validation.ok) {
+    return { ok: false, message: 'Código inválido. Use o QR da academia.' };
+  }
+
+  if (validation.unit !== student.unit) {
+    return {
+      ok: false,
+      message: 'Este QR é de outra unidade. Use o cartaz da academia onde você treina.',
+    };
+  }
+
+  const schedule = await getScheduleFresh();
+  const abertas = findOpenClasses(schedule.classes, student.classIds, new Date());
+
+  return {
+    ok: true,
+    classes: abertas.map((slot) => ({
+      classId: slot.classId,
+      title: slot.title,
+      level: slot.level ?? '',
+      time: slot.startTime,
+    })),
+  };
+}
+
+/** Registra a presença na turma escolhida pelo aluno. */
+export async function checkinAction(token: string, classId: string): Promise<CheckinResult> {
   const user = await requireUser();
 
   const student = await getStudent(user.id);
@@ -37,66 +97,52 @@ export async function checkinAction(token: string): Promise<CheckinResult> {
     };
   }
 
-  const clean = token.trim();
-  if (clean.length === 0) {
-    return { ok: false, reason: 'qr_invalido', message: 'Código inválido.' };
-  }
-
-  const now = new Date();
-  const schedule = await getSchedule();
-
-  // O código é fixo por turma: resolve direto para a aula de onde o cartaz
-  // foi lido, sem depender do relógio para adivinhar a turma.
-  const validation = validateQrToken(
-    clean,
-    schedule.classes.map((slot) => slot.id),
-  );
+  const validation = validateQrToken(token);
   if (!validation.ok) {
     return {
       ok: false,
       reason: 'qr_invalido',
-      message: 'Código inválido. Use o QR da sua turma, na parede da academia.',
+      message: 'Código inválido. Use o QR da academia.',
     };
   }
 
-  const current = schedule.classes.find((slot) => slot.id === validation.classId) ?? null;
-  if (!current) {
+  if (validation.unit !== student.unit) {
     return {
       ok: false,
-      reason: 'erro',
-      message: 'Este QR é de uma turma que não existe mais. Chame o professor.',
+      reason: 'qr_invalido',
+      message: 'Este QR é de outra unidade. Use o cartaz da academia onde você treina.',
     };
   }
 
-  if (!student.classIds.includes(current.id)) {
-    return {
-      ok: false,
-      reason: 'sem_aula_agora',
-      message: `Você não está matriculado em ${current.title}. Fale com o professor.`,
-    };
-  }
+  const now = new Date();
+  const schedule = await getScheduleFresh();
 
   /*
-   * Janela de horário.
+   * A turma escolhida é reconferida contra as que estão abertas agora.
    *
-   * Com código rotativo, era a rotação que impedia o check-in de casa. Agora
-   * que o cartaz é fixo e imprimível, esta checagem passa a ser a trava
-   * principal: o código só vale enquanto a aula daquela turma está rolando.
+   * O cliente manda o id, e cliente não é fonte de verdade: sem esta linha,
+   * bastaria trocar o valor no formulário para marcar presença numa aula de
+   * outro dia. É aqui que a janela de horário e a matrícula são impostas.
    */
-  const aberta = findOpenClasses(schedule.classes, [current.id], now).length > 0;
-  if (!aberta) {
+  const abertas = findOpenClasses(schedule.classes, student.classIds, now);
+  const escolhida = abertas.find((slot) => slot.classId === classId) ?? null;
+
+  if (!escolhida) {
     return {
       ok: false,
       reason: 'sem_aula_agora',
-      message: `A aula de ${current.title} não está acontecendo agora. O check-in vale no horário do treino.`,
+      message:
+        abertas.length === 0
+          ? 'Nenhuma das suas turmas está acontecendo agora. O check-in vale no horário do treino.'
+          : 'Escolha uma das turmas que estão acontecendo agora.',
     };
   }
 
   const result = await recordCheckin(
     {
       student,
-      classId: current.id,
-      classTitle: current.title,
+      classId: escolhida.classId,
+      classTitle: escolhida.title,
       source: 'qr',
       registeredBy: student.id,
     },
@@ -119,6 +165,7 @@ export async function checkinAction(token: string): Promise<CheckinResult> {
 
   revalidatePath('/painel');
   revalidatePath('/admin/presenca');
+  revalidatePath('/admin/aula');
 
-  return { ok: true, classTitle: current.title, at: result.entry.at };
+  return { ok: true, classTitle: escolhida.title, at: result.entry.at };
 }

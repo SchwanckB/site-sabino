@@ -2,97 +2,79 @@ import 'server-only';
 
 import { createHmac } from 'node:crypto';
 
-import { getRedis, redisKeys } from '@/lib/redis';
-import { asString } from '@/lib/repositories/parse';
+import { UNITS, isUnitId, type UnitId } from '@/types/domain';
 
 /**
- * Código de presença **fixo** por turma.
+ * Código de presença da academia — **um por unidade**, fixo e imprimível.
  *
- * O código não gira mais. A academia precisa imprimir o QR e colar na parede
- * da turma, e um código rotativo obriga a manter uma tela ligada na recepção
- * durante todo o treino — o que nem sempre acontece.
+ * Era um código por turma, e isso obrigava a imprimir e manter uma folha para
+ * cada horário da grade. Agora é um cartaz só por academia: o aluno escaneia,
+ * e quem escolhe a aula é ele, no próprio painel, entre as turmas dele que
+ * estão acontecendo naquele momento.
  *
- * O preço dessa escolha é conhecido e aceito: uma foto do cartaz passa a
- * servir para bater presença de casa. O que continua segurando o check-in são
- * as outras três travas:
+ * O código é por unidade, e não um só para a rede, porque senão o cartaz de
+ * Três Cachoeiras serviria em Terra de Areia.
  *
- *   1. **uma presença por dia por aluno**, garantida por `SET NX` atômico;
- *   2. **janela de horário da turma** — fora dela o check-in é recusado;
- *   3. **matrícula na turma** — o QR da kids não serve para quem não é da kids.
+ * **O código não é segredo.** Ele fica colado na parede; qualquer aluno pode
+ * fotografá-lo. Quem impede o check-in de casa são outras três travas:
  *
- * Quem quisesse burlar teria de marcar presença exatamente no horário da aula
- * em que está matriculado, uma vez por dia. É uma fraude possível, mas o
- * professor vê o tatame; a chamada manual continua existindo para corrigir.
+ *   1. **janela de horário** — só vale enquanto a aula está acontecendo;
+ *   2. **matrícula na turma** — o aluno só marca presença em turma dele;
+ *   3. **uma presença por dia**, garantida por `SET NX` atômico.
  *
- * O código é derivado por HMAC do id da turma com `QR_TOKEN_SECRET`, e não
- * sorteado: assim ele é estável entre deploys e entre regiões, sem precisar
- * ser guardado em lugar nenhum. Trocar o segredo invalida todos os cartazes
- * de uma vez — é essa a alavanca se um código vazar.
+ * Por isso `QR_TOKEN_SECRET` é opcional e tem queda para um valor fixo: ele
+ * serve só para a URL não ser adivinhável de bate-pronto, não como fronteira
+ * de segurança. Antes era obrigatório, e um ambiente sem a variável fazia a
+ * tela do QR falhar inteira — ponto de falha sem contrapartida. Definir um
+ * segredo próprio continua valendo: troca todos os códigos de uma vez, caso a
+ * academia queira invalidar os cartazes antigos.
  */
 
-export interface QrToken {
-  readonly token: string;
-  readonly classId: string;
-}
+const FALLBACK = 'sabino-checkin-v1';
 
 function secret(): string {
   const value = process.env.QR_TOKEN_SECRET ?? '';
-  return value.length >= 16 ? value : '';
+  return value.length >= 16 ? value : FALLBACK;
 }
 
-/** Código fixo da turma. `null` quando falta o segredo ou a turma. */
-export function qrTokenFor(classId: string): string | null {
-  const key = secret();
-  if (key.length === 0 || classId.length === 0) return null;
-
-  return createHmac('sha256', key).update(`checkin:${classId}`).digest('base64url').slice(0, 32);
+export interface QrToken {
+  readonly token: string;
+  readonly unit: UnitId;
 }
 
-/** Código atual da turma, para desenhar o QR. */
-export function getCurrentQrToken(classId: string): QrToken | null {
-  const token = qrTokenFor(classId);
-  return token === null ? null : { token, classId };
+/** Código fixo da unidade. Nunca falha: o segredo tem queda. */
+export function qrTokenFor(unit: UnitId): string {
+  return createHmac('sha256', secret())
+    .update(`checkin:${unit}`)
+    .digest('base64url')
+    .slice(0, 24);
+}
+
+export function getCurrentQrToken(unit: UnitId): QrToken {
+  return { token: qrTokenFor(unit), unit };
 }
 
 export type QrValidation =
-  | { readonly ok: true; readonly classId: string }
+  | { readonly ok: true; readonly unit: UnitId }
   | { readonly ok: false; readonly reason: 'qr_invalido' };
 
 /**
- * Resolve o código lido pela câmera de volta para a turma.
+ * Resolve o código lido pela câmera de volta para a academia.
  *
- * Percorre a grade comparando o HMAC de cada turma. São dezenas de turmas, não
- * milhares — e evita manter um índice no banco que poderia sair de sincronia
- * com a grade.
+ * Também aceita o id da unidade puro: um QR antigo ou um link colado à mão
+ * continuam levando o aluno para a tela certa, em vez de um erro seco.
  */
-export function validateQrToken(
-  token: string,
-  classIds: readonly string[],
-): QrValidation {
+export function validateQrToken(token: string): QrValidation {
   const clean = token.trim();
   if (clean.length === 0 || clean.length > 128) {
     return { ok: false, reason: 'qr_invalido' };
   }
 
-  for (const classId of classIds) {
-    if (qrTokenFor(classId) === clean) {
-      return { ok: true, classId };
-    }
+  if (isUnitId(clean)) return { ok: true, unit: clean };
+
+  for (const unit of UNITS) {
+    if (qrTokenFor(unit) === clean) return { ok: true, unit };
   }
 
   return { ok: false, reason: 'qr_invalido' };
-}
-
-/**
- * Apaga os códigos rotativos que ficaram no banco do modelo anterior.
- *
- * Só serve para limpeza; nada no fluxo atual lê essas chaves.
- */
-export async function clearLegacyTokens(classId: string): Promise<void> {
-  const redis = getRedis();
-  if (!redis) return;
-
-  const previous = asString(await redis.get<unknown>(redisKeys.qrCurrent(classId)));
-  await redis.del(redisKeys.qrCurrent(classId));
-  if (previous.length > 0) await redis.del(redisKeys.qrToken(previous));
 }

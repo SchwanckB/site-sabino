@@ -7,15 +7,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { CheckinResult } from '@/types/domain';
 
-import { checkinAction } from '../actions';
+import { checkinAction, listCheckinOptions, type OpenClassOption } from '../actions';
 
-type Phase = 'idle' | 'enviando' | 'ok' | 'erro' | 'escaneando';
+type Phase = 'idle' | 'carregando' | 'escolhendo' | 'enviando' | 'ok' | 'erro' | 'escaneando';
 
 /**
  * Check-in do aluno.
  *
- * Caminho principal: a câmera nativa lê o QR da recepção, abre esta página já
- * com `?t=` e a presença é registrada sozinha — sem app, sem digitar nada.
+ * Caminho principal: a câmera nativa lê o QR da parede, abre esta página já
+ * com `?t=` e a tela pergunta **qual aula** — entre as turmas do aluno que
+ * estão acontecendo naquele momento. Havendo uma só, registra sozinha: é o
+ * caso da grande maioria das noites, e perguntar ali seria toque à toa.
+ *
  * O leitor embutido é o plano B, para quem abriu o painel antes de escanear.
  */
 export function CheckinClient() {
@@ -26,25 +29,65 @@ export function CheckinClient() {
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<CheckinResult | null>(null);
+  const [opcoes, setOpcoes] = useState<readonly OpenClassOption[]>([]);
+  const [token, setToken] = useState('');
   const scannerRef = useRef<{ stop: () => Promise<void> } | null>(null);
-  const submitted = useRef(false);
+  const resolvido = useRef(false);
 
-  const submit = useCallback(async (token: string) => {
-    if (token.trim().length === 0) return;
-
+  const registrar = useCallback(async (codigo: string, classId: string) => {
     setPhase('enviando');
-    const response = await checkinAction(token);
+    const response = await checkinAction(codigo, classId);
     setResult(response);
     setPhase(response.ok ? 'ok' : 'erro');
   }, []);
 
-  // Token veio na URL: registra sem pedir nada ao aluno.
+  /** Resolve o código: carrega as turmas abertas e decide se precisa perguntar. */
+  const resolver = useCallback(
+    async (codigo: string) => {
+      const limpo = codigo.trim();
+      if (limpo.length === 0) return;
+
+      setToken(limpo);
+      setPhase('carregando');
+
+      const options = await listCheckinOptions(limpo);
+      if (!options.ok) {
+        setResult({ ok: false, reason: 'qr_invalido', message: options.message });
+        setPhase('erro');
+        return;
+      }
+
+      if (options.classes.length === 0) {
+        setResult({
+          ok: false,
+          reason: 'sem_aula_agora',
+          message:
+            'Nenhuma das suas turmas está acontecendo agora. O check-in vale no horário do treino.',
+        });
+        setPhase('erro');
+        return;
+      }
+
+      // Uma aula só: não há o que escolher.
+      const unica = options.classes[0];
+      if (options.classes.length === 1 && unica) {
+        await registrar(limpo, unica.classId);
+        return;
+      }
+
+      setOpcoes(options.classes);
+      setPhase('escolhendo');
+    },
+    [registrar],
+  );
+
+  // Código veio na URL: resolve sem pedir nada ao aluno.
   useEffect(() => {
-    if (tokenFromUrl.length > 0 && !submitted.current) {
-      submitted.current = true;
-      void submit(tokenFromUrl);
+    if (tokenFromUrl.length > 0 && !resolvido.current) {
+      resolvido.current = true;
+      void resolver(tokenFromUrl);
     }
-  }, [tokenFromUrl, submit]);
+  }, [tokenFromUrl, resolver]);
 
   // Encerra a câmera ao sair da tela.
   useEffect(() => {
@@ -76,9 +119,7 @@ export function CheckinClient() {
         { fps: 10, qrbox: { width: 240, height: 240 } },
         (decoded: string) => {
           void scannerRef.current?.stop();
-          // O QR traz a URL completa; extrai o token dela.
-          const token = extractToken(decoded);
-          void submit(token);
+          void resolver(extractToken(decoded));
         },
         () => undefined,
       );
@@ -88,13 +129,12 @@ export function CheckinClient() {
         ok: false,
         reason: 'erro',
         message:
-          'Não foi possível abrir a câmera. Libere a permissão no navegador ou use a câmera do celular direto no QR da recepção.',
+          'Não foi possível abrir a câmera. Libere a permissão no navegador ou use a câmera do celular direto no QR da academia.',
       });
     }
-  }, [submit]);
+  }, [resolver]);
 
-  // Chegou pelo botão de QR da barra: liga a câmera na hora. O aluno está em
-  // pé na recepção — um toque a menos conta.
+  // Chegou pelo botão de QR da barra: liga a câmera na hora.
   const autoStarted = useRef(false);
   useEffect(() => {
     if (!abrirDireto || tokenFromUrl.length > 0 || autoStarted.current) return;
@@ -124,6 +164,40 @@ export function CheckinClient() {
           <Link href="/painel" className="btn-primary mt-6 w-full">
             Voltar ao painel
           </Link>
+        </div>
+      ) : null}
+
+      {/* Escolha da aula: só aparece quando há mais de uma no horário. */}
+      {phase === 'escolhendo' ? (
+        <div className="surface-card p-6">
+          <h2 className="text-xl leading-none">Qual aula?</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            Você tem mais de uma turma neste horário. Toque na que vai treinar.
+          </p>
+
+          <ul className="mt-5 space-y-2">
+            {opcoes.map((option) => (
+              <li key={option.classId}>
+                <button
+                  type="button"
+                  onClick={() => void registrar(token, option.classId)}
+                  className="flex min-h-[60px] w-full items-center justify-between gap-3 rounded-xl border border-hairline bg-white/[.04] px-4 text-left transition-colors hover:border-crimson/50 hover:bg-crimson/[.07]"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-foreground">
+                      {option.title}
+                    </span>
+                    {option.level ? (
+                      <span className="block truncate text-xs text-muted">{option.level}</span>
+                    ) : null}
+                  </span>
+                  <span className="shrink-0 font-display text-sm tabular-nums text-muted">
+                    {option.time}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
 
@@ -157,14 +231,14 @@ export function CheckinClient() {
         </div>
       ) : null}
 
-      {phase === 'enviando' ? (
+      {phase === 'enviando' || phase === 'carregando' ? (
         <div className="surface-card p-8 text-center">
           <div
             aria-hidden="true"
             className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-hairline border-t-crimson"
           />
           <p aria-live="polite" className="mt-5 text-sm text-muted">
-            Registrando sua presença…
+            {phase === 'carregando' ? 'Lendo o código…' : 'Registrando sua presença…'}
           </p>
         </div>
       ) : null}
@@ -179,7 +253,7 @@ export function CheckinClient() {
 
       {phase === 'escaneando' ? (
         <p aria-live="polite" className="mt-4 text-center text-sm text-muted">
-          Aponte para o QR Code na recepção.
+          Aponte para o QR Code da academia.
         </p>
       ) : null}
 
@@ -187,7 +261,7 @@ export function CheckinClient() {
         <div className="surface-card p-8 text-center">
           <h2 className="text-2xl leading-none">Registrar presença</h2>
           <p className="mt-3 text-sm leading-relaxed text-muted">
-            Aponte a câmera do seu celular para o QR Code da recepção — ele abre esta página e
+            Aponte a câmera do seu celular para o QR Code da academia — ele abre esta página e
             registra sozinho. Se preferir, use o leitor aqui dentro.
           </p>
           <button type="button" onClick={() => void startScanner()} className="btn-primary mt-6 w-full">
@@ -199,7 +273,7 @@ export function CheckinClient() {
   );
 }
 
-/** Aceita tanto a URL completa do QR quanto o token puro. */
+/** Aceita tanto a URL completa do QR quanto o código puro. */
 function extractToken(decoded: string): string {
   try {
     const url = new URL(decoded);

@@ -180,7 +180,9 @@ export interface Schedule {
 }
 
 /**
- * Grade confirmada pela academia:
+ * Grade confirmada pela academia.
+ *
+ * Três Cachoeiras:
  *   Kids (4 a 8 anos)      — segunda e quinta,   18h30 às 19h30
  *   Infantil (9 a 16 anos) — terça e sexta,      18h30 às 19h30
  *   MMA                    — segunda, quarta e sexta, 19h30 às 20h30
@@ -211,6 +213,24 @@ const realClasses: readonly ClassSlot[] = [
   { id: 'sex-1830-infantil', weekday: 5, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Infantil', modality: 'kids', level: '9 a 16 anos', unit: 'tres-cachoeiras' },
   { id: 'sex-1930-mma', weekday: 5, startTime: '19:30', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
   { id: 'sex-2030-jj', weekday: 5, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
+
+  /*
+   * Terra de Areia. Duração de 1 hora em todas, como na outra unidade.
+   *   Kids      — terça e quinta, 18h30
+   *   Feminino  — segunda e quinta, 19h30
+   *   Misto     — segunda 20h30, terça 20h, quarta 20h, quinta 20h30, sexta 20h
+   */
+  { id: 'terra-de-areia-2-1830-kids', weekday: 2, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Kids', modality: 'kids', level: 'Infantil', unit: 'terra-de-areia' },
+  { id: 'terra-de-areia-4-1830-kids', weekday: 4, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Kids', modality: 'kids', level: 'Infantil', unit: 'terra-de-areia' },
+
+  { id: 'terra-de-areia-1-1930-jj-fem', weekday: 1, startTime: '19:30', endTime: '20:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Turma feminina', unit: 'terra-de-areia' },
+  { id: 'terra-de-areia-4-1930-jj-fem', weekday: 4, startTime: '19:30', endTime: '20:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Turma feminina', unit: 'terra-de-areia' },
+
+  { id: 'terra-de-areia-1-2030-jj', weekday: 1, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Misto', unit: 'terra-de-areia' },
+  { id: 'terra-de-areia-2-2000-jj', weekday: 2, startTime: '20:00', endTime: '21:00', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Misto', unit: 'terra-de-areia' },
+  { id: 'terra-de-areia-3-2000-jj', weekday: 3, startTime: '20:00', endTime: '21:00', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Misto', unit: 'terra-de-areia' },
+  { id: 'terra-de-areia-4-2030-jj', weekday: 4, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Misto', unit: 'terra-de-areia' },
+  { id: 'terra-de-areia-5-2000-jj', weekday: 5, startTime: '20:00', endTime: '21:00', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Misto', unit: 'terra-de-areia' },
 ] as const;
 
 export const seedSchedule: Schedule = {
