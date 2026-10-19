@@ -52,7 +52,7 @@ export function About() {
               <p>
                 Com as crianças, a separação é levada a sério: a turma Kids, de 4 a 8 anos,
                 trabalha coordenação e disciplina pela brincadeira dirigida; a Infantil, de 9
-                a 16, já cobra técnica e responsabilidade. Nenhuma criança treina em uma
+                a 15, já cobra técnica e responsabilidade. Nenhuma criança treina em uma
                 turma que não é da idade dela.
               </p>
             </Reveal>

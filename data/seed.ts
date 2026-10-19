@@ -62,8 +62,8 @@ export const modalities: readonly Modality[] = [
     name: 'Kids e Infantil',
     tagline: 'A partir dos 4 anos, com turma separada por idade',
     description:
-      'Duas turmas distintas, porque criança de 5 anos e adolescente de 14 não treinam igual. A Kids (4 a 8 anos) trabalha coordenação, disciplina e convivência através da brincadeira dirigida. A Infantil (9 a 16 anos) aprofunda a técnica, a defesa pessoal e a progressão por graus e tarjas.',
-    highlights: ['Kids 4 a 8: segunda e quinta', 'Infantil 9 a 16: terça e sexta', '12 graus com tarjas'],
+      'Duas turmas distintas, porque criança de 5 anos e adolescente de 14 não treinam igual. A Kids (4 a 8 anos) trabalha coordenação, disciplina e convivência através da brincadeira dirigida. A Infantil (9 a 15 anos) aprofunda a técnica, a defesa pessoal e a progressão por graus e tarjas.',
+    highlights: ['Kids 4 a 8: segunda e quinta', 'Infantil 9 a 15: terça e sexta', '12 graus com tarjas'],
     imageSlot: '/images/modalidade-kids.jpg',
     imageAlt: 'Crianças em aula de Jiu-Jitsu infantil na Sabino Academia',
   },
@@ -184,7 +184,7 @@ export interface Schedule {
  *
  * Três Cachoeiras:
  *   Kids (4 a 8 anos)      — segunda e quinta,   18h30 às 19h30
- *   Infantil (9 a 16 anos) — terça e sexta,      18h30 às 19h30
+ *   Infantil (9 a 15 anos) — terça e sexta,      18h30 às 19h30
  *   MMA                    — segunda, quarta e sexta, 19h30 às 20h30
  *   Jiu-Jitsu feminino     — terça e quinta,     19h30 às 20h30
  *   Jiu-Jitsu              — segunda a sexta,    20h30 às 21h30
@@ -196,7 +196,7 @@ const realClasses: readonly ClassSlot[] = [
   { id: 'seg-2030-jj', weekday: 1, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
 
   // Terça
-  { id: 'ter-1830-infantil', weekday: 2, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Infantil', modality: 'kids', level: '9 a 16 anos', unit: 'tres-cachoeiras' },
+  { id: 'ter-1830-infantil', weekday: 2, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Infantil', modality: 'kids', level: '9 a 15 anos', unit: 'tres-cachoeiras' },
   { id: 'ter-1930-jj-fem', weekday: 2, startTime: '19:30', endTime: '20:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Turma feminina', unit: 'tres-cachoeiras' },
   { id: 'ter-2030-jj', weekday: 2, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
 
@@ -210,7 +210,7 @@ const realClasses: readonly ClassSlot[] = [
   { id: 'qui-2030-jj', weekday: 4, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
 
   // Sexta
-  { id: 'sex-1830-infantil', weekday: 5, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Infantil', modality: 'kids', level: '9 a 16 anos', unit: 'tres-cachoeiras' },
+  { id: 'sex-1830-infantil', weekday: 5, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Infantil', modality: 'kids', level: '9 a 15 anos', unit: 'tres-cachoeiras' },
   { id: 'sex-1930-mma', weekday: 5, startTime: '19:30', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
   { id: 'sex-2030-jj', weekday: 5, startTime: '20:30', endTime: '21:30', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
 
@@ -272,7 +272,7 @@ export const benefits: readonly Benefit[] = [
     id: 'infantil',
     title: 'Criança treina com criança da idade dela',
     description:
-      'Kids de 4 a 8 anos e Infantil de 9 a 16 em turmas separadas, cada uma com linguagem e exigência próprias.',
+      'Kids de 4 a 8 anos e Infantil de 9 a 15 em turmas separadas, cada uma com linguagem e exigência próprias.',
   },
   {
     id: 'graduacao',
@@ -362,7 +362,7 @@ export const faq: readonly FaqItem[] = [
     id: 'idade-kids',
     question: 'A partir de que idade a criança pode treinar?',
     answer:
-      'A partir dos 4 anos. A turma Kids (4 a 8 anos) treina segunda e quinta, às 18h30, com foco no desenvolvimento motor, na disciplina e na convivência. A turma Infantil (9 a 16 anos) treina terça e sexta, no mesmo horário, com mais técnica e defesa pessoal.',
+      'A partir dos 4 anos. A turma Kids (4 a 8 anos) treina segunda e quinta, às 18h30, com foco no desenvolvimento motor, na disciplina e na convivência. A turma Infantil (9 a 15 anos) treina terça e sexta, no mesmo horário, com mais técnica e defesa pessoal.',
     isExample: false,
   },
   {
