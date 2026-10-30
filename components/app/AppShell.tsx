@@ -1,6 +1,6 @@
 'use client';
 
-import { SignOutButton, UserButton } from '@clerk/nextjs';
+import { UserButton } from '@clerk/nextjs';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { Icon, type IconName } from '@/components/app/Icon';
+import { LogoutButton } from '@/components/app/LogoutButton';
 import { UnitSwitcher } from '@/components/app/UnitSwitcher';
 import { cn } from '@/lib/utils';
 import type { UnitScope } from '@/types/domain';
@@ -139,14 +140,7 @@ export function AppShell({
               Sair precisa ser óbvio. Com só o avatar do Clerk, quem queria
               trocar de conta acabava reentrando na mesma sessão sem perceber.
             */}
-            <SignOutButton redirectUrl="/">
-              <button
-                type="button"
-                className="hidden min-h-[44px] items-center rounded-xl border border-hairline bg-white/[.04] px-3 text-sm font-medium text-muted transition-colors hover:text-foreground lg:inline-flex"
-              >
-                Sair
-              </button>
-            </SignOutButton>
+            <LogoutButton className="hidden min-h-[44px] items-center rounded-xl border border-hairline bg-white/[.04] px-3 text-sm font-medium text-muted transition-colors hover:text-foreground lg:inline-flex" />
 
             <UserButton
               appearance={{
@@ -357,14 +351,10 @@ export function AppShell({
               </ul>
 
               <div className="px-4">
-                <SignOutButton redirectUrl="/">
-                  <button
-                    type="button"
-                    className="flex min-h-[52px] w-full items-center justify-center rounded-2xl border border-crimson/40 bg-crimson/[.08] text-sm font-semibold text-crimson"
-                  >
-                    Sair da conta
-                  </button>
-                </SignOutButton>
+                <LogoutButton
+                  label="Sair da conta"
+                  className="flex min-h-[52px] w-full items-center justify-center rounded-2xl border border-crimson/40 bg-crimson/[.08] text-sm font-semibold text-crimson"
+                />
               </div>
             </motion.div>
           </>
