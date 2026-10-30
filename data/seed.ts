@@ -83,6 +83,8 @@ export interface Plan {
   readonly highlighted: boolean;
   /** `true` enquanto os valores forem placeholders do seed. */
   readonly isExample: boolean;
+  /** Tipo do plano: "plano" para planos regulares, "pacote" para pacotes promocionais. */
+  readonly type?: 'plano' | 'pacote';
 }
 
 export const plans: readonly Plan[] = [

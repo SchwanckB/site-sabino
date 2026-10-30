@@ -37,6 +37,21 @@ export function PlansEditor({ plans }: { readonly plans: readonly Plan[] }) {
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div>
+          <label htmlFor={`tipo-${plan?.id ?? 'novo'}`} className="block text-xs text-muted">
+            Tipo
+          </label>
+          <select
+            id={`tipo-${plan?.id ?? 'novo'}`}
+            name="type"
+            defaultValue={plan?.type ?? 'plano'}
+            className={cn(inputClass, 'mt-1')}
+          >
+            <option value="plano">Plano</option>
+            <option value="pacote">Pacote Promocional</option>
+          </select>
+        </div>
+
+        <div>
           <label htmlFor={`nome-${plan?.id ?? 'novo'}`} className="block text-xs text-muted">
             Nome
           </label>
@@ -172,11 +187,18 @@ export function PlansEditor({ plans }: { readonly plans: readonly Plan[] }) {
           >
             <div className="flex items-start justify-between gap-3">
               <h3 className="text-lg normal-case tracking-normal">{plan.name}</h3>
-              {plan.highlighted ? (
-                <span className="shrink-0 rounded-full bg-crimson px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
-                  Destaque
-                </span>
-              ) : null}
+              <div className="flex gap-2">
+                {plan.type === 'pacote' ? (
+                  <span className="shrink-0 rounded-full bg-green-600/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-green-300">
+                    Pacote
+                  </span>
+                ) : null}
+                {plan.highlighted ? (
+                  <span className="shrink-0 rounded-full bg-crimson px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                    Destaque
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             <p className="mt-2 font-display text-2xl leading-none">

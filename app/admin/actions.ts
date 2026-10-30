@@ -517,6 +517,9 @@ export async function setAccountRoleAction(form: FormData): Promise<ActionResult
 export async function savePlanAction(form: FormData): Promise<ActionResult> {
   await requireAdmin();
 
+  const typeValue = text(form, 'type');
+  const type = typeValue === 'pacote' ? 'pacote' : 'plano';
+
   const result = await upsertPlan(
     {
       id: text(form, 'id') || undefined,
@@ -526,6 +529,7 @@ export async function savePlanAction(form: FormData): Promise<ActionResult> {
       summary: text(form, 'summary'),
       features: text(form, 'features'),
       highlighted: form.get('highlighted') === 'on',
+      type,
     },
     new Date(),
   );

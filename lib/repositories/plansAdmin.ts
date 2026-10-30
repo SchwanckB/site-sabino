@@ -23,7 +23,7 @@ export interface PlanSet {
   readonly updatedAt: string | null;
 }
 
-const MAX_PLANS = 6;
+const MAX_PLANS = 15;
 const MAX_FEATURES = 10;
 
 function parsePlan(value: unknown): Plan | null {
@@ -32,6 +32,9 @@ function parsePlan(value: unknown): Plan | null {
   const id = asString(value['id']);
   const name = asString(value['name']);
   if (id.length === 0 || name.length === 0) return null;
+
+  const type = asString(value['type']);
+  const parsedType = type === 'pacote' ? 'pacote' : 'plano';
 
   return {
     id,
@@ -43,6 +46,7 @@ function parsePlan(value: unknown): Plan | null {
     highlighted: asBoolean(value['highlighted'], false),
     // Vindo do Redis, foi o admin quem escreveu: não é mais exemplo.
     isExample: asBoolean(value['isExample'], false),
+    type: parsedType,
   };
 }
 
@@ -107,6 +111,7 @@ export interface PlanInput {
   /** Uma vantagem por linha, como o admin digita. */
   readonly features: string;
   readonly highlighted: boolean;
+  readonly type?: 'plano' | 'pacote';
 }
 
 export type PlanValidation =
@@ -153,6 +158,7 @@ export function validatePlan(input: PlanInput): PlanValidation {
       features,
       highlighted: input.highlighted,
       isExample: false,
+      type: input.type || 'plano',
     },
   };
 }
