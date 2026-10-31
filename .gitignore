@@ -3,8 +3,14 @@ node_modules/
 out/
 build/
 coverage/
+
+# Segredos. O padrão é amplo de propósito: `.env*.local` não pegava
+# `.env.local.bak`, e um backup de arquivo de ambiente carrega exatamente as
+# mesmas credenciais que o original.
 .env
-.env*.local
+.env.*
+!.env.example
+
 .vercel
 *.tsbuildinfo
 next-env.d.ts
