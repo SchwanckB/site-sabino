@@ -9,10 +9,9 @@
  * `style-src` também precisa: Tailwind e, principalmente, o Framer Motion
  * escrevem em atributos `style` inline, que nonce não cobre.
  *
- * Os domínios do Clerk entram por curinga para cobrir os dois ambientes:
- * `*.clerk.accounts.dev` nas instâncias de desenvolvimento e `*.clerk.com` em
- * produção com domínio próprio. Sem isso o navegador bloqueia o `clerk.browser.js`
- * e o login simplesmente não carrega.
+ * Os domínios do Clerk entram por curinga, mais o host próprio derivado da
+ * chave publicável — ver `clerkFrontendApiHost()` abaixo. Sem o conjunto
+ * completo o navegador bloqueia o `clerk.browser.js` e o login não carrega.
  */
 /**
  * O sufixo `:*` é obrigatório, não enfeite.
@@ -22,6 +21,39 @@
  * 18443, 2082 e 992 durante a confirmação do código de cadastro — bloqueadas,
  * a verificação estourava e a tela virava "client-side exception".
  */
+/**
+ * Domínio próprio da instância de produção, lido da chave publicável.
+ *
+ * Os curingas abaixo **não** cobrem produção com domínio próprio, e o
+ * comentário anterior afirmava que sim. Uma instância de produção serve o
+ * `clerk.browser.js` de `clerk.<seu-dominio>`, que não casa com `*.clerk.com`:
+ * o navegador bloqueava o script pela CSP, o Clerk falhava com
+ * `failed_to_load_clerk_js` e **nenhum formulário de login ou cadastro
+ * montava** — a página subia com o texto próprio e um buraco no lugar dos
+ * campos.
+ *
+ * A chave publicável carrega o host da Frontend API em base64 (o sufixo é
+ * `$`), então derivar daqui cobre os dois ambientes sozinho e continua certo
+ * se a academia trocar de domínio. Mesma decodificação de
+ * `clerkInstanceHost()` em `lib/health.ts`.
+ */
+function clerkFrontendApiHost() {
+  const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '';
+  const encoded = key.replace(/^pk_(test|live)_/, '');
+  if (encoded.length === 0) return null;
+
+  try {
+    const host = Buffer.from(encoded, 'base64').toString('utf8').replace(/\$+$/, '');
+    // Só aceita algo com cara de domínio: lixo na variável não pode virar
+    // entrada de CSP.
+    return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(host) ? host : null;
+  } catch {
+    return null;
+  }
+}
+
+const ownHost = clerkFrontendApiHost();
+
 const CLERK_HOSTS = [
   'https://*.clerk.accounts.dev',
   'https://*.clerk.accounts.dev:*',
@@ -29,6 +61,8 @@ const CLERK_HOSTS = [
   'https://*.clerk.com:*',
   'https://*.clerk.services',
   'https://*.clerk.services:*',
+  // Domínio próprio da produção. Os curingas acima não o alcançam.
+  ...(ownHost ? [`https://${ownHost}`, `https://${ownHost}:*`] : []),
 ];
 
 /**
