@@ -294,10 +294,26 @@ export async function updateStudent(
 
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue;
+
     if (key === 'classIds' && Array.isArray(value)) {
       row['classIds'] = JSON.stringify(value);
     } else if (value === null) {
       row[key] = '';
+    } else if (typeof value === 'boolean') {
+      /*
+       * Booleano não tinha ramo e era descartado em silêncio.
+       *
+       * O hash do Redis só guarda escalares, e `studentToRow` grava booleano
+       * como 'true'/'false' — mas este laço só tratava string, número, nulo e
+       * `classIds`. `graduatesMonthly: false` não casava com nenhum caso e
+       * nunca era escrito: o professor desmarcava "gradua todo mês", salvava,
+       * via "Dados atualizados" e o aluno voltava marcado no recarregamento,
+       * porque o valor antigo continuava no banco.
+       *
+       * A mesma serialização de `studentToRow`, para que `rowToStudent` leia
+       * de volta sem ambiguidade.
+       */
+      row[key] = value ? 'true' : 'false';
     } else if (typeof value === 'string' || typeof value === 'number') {
       row[key] = value;
     }
