@@ -184,30 +184,59 @@ async function persist(plans: readonly Plan[], now: Date): Promise<void> {
   );
 }
 
+/**
+ * Primeiro id livre a partir do slug do nome.
+ *
+ * O id vinha de `slugify(name)` direto, e dois planos com o mesmo nome caíam no
+ * mesmo id. Como `upsertPlan` trata id existente como edição, cadastrar
+ * "Trimestral" para o MMA e depois "Trimestral" para o Jiu-Jitsu **apagava o
+ * primeiro sem avisar** — a academia só percebia quando o plano sumia da
+ * vitrine.
+ */
+function idLivre(base: string, ocupados: ReadonlySet<string>): string {
+  if (!ocupados.has(base)) return base;
+
+  for (let sufixo = 2; sufixo < 100; sufixo += 1) {
+    const tentativa = `${base}-${sufixo}`;
+    if (!ocupados.has(tentativa)) return tentativa;
+  }
+
+  return `${base}-${Date.now()}`;
+}
+
 export async function upsertPlan(input: PlanInput, now: Date): Promise<PlanValidation> {
   const validation = validatePlan(input);
   if (!validation.ok) return validation;
 
   const current = (await getPlansFresh()).plans;
-  const index = current.findIndex((item) => item.id === validation.plan.id);
 
-  if (index < 0 && current.length >= MAX_PLANS) {
+  /*
+   * Editar e criar são operações diferentes, e antes não eram.
+   *
+   * O formulário manda `id` apenas quando está editando um plano existente. Sem
+   * `id`, é plano novo: nunca pode substituir outro, mesmo que o nome gere um
+   * slug já usado.
+   */
+  const editando = typeof input.id === 'string' && input.id.length > 0;
+  const index = editando ? current.findIndex((item) => item.id === input.id) : -1;
+
+  if (!editando && current.length >= MAX_PLANS) {
     return { ok: false, error: `Máximo de ${MAX_PLANS} planos na página.` };
   }
 
+  const plano = editando
+    ? validation.plan
+    : { ...validation.plan, id: idLivre(validation.plan.id, new Set(current.map((i) => i.id))) };
+
   // Um novo destaque tira o destaque dos demais.
   const next = (
-    index >= 0
-      ? current.map((item) => (item.id === validation.plan.id ? validation.plan : item))
-      : [...current, validation.plan]
+    index >= 0 ? current.map((item) => (item.id === plano.id ? plano : item)) : [...current, plano]
   ).map((item) =>
-    validation.plan.highlighted && item.id !== validation.plan.id
-      ? { ...item, highlighted: false }
-      : item,
+    plano.highlighted && item.id !== plano.id ? { ...item, highlighted: false } : item,
   );
 
   await persist(next, now);
-  return validation;
+  return { ok: true, plan: plano };
 }
 
 export async function removePlan(planId: string, now: Date): Promise<void> {

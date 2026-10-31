@@ -516,12 +516,25 @@ describe('planos da landing pelas ações', () => {
 
     const { getPlans } = await import('@/lib/repositories/plansAdmin');
     const { plans } = await getPlans();
-    const salvo = plans.find((p) => p.name === 'Mensal');
 
-    expect(salvo?.priceLabel).toBe('R$ 180');
+    /*
+     * Sem `id` no formulário é plano **novo**, e plano novo não substitui
+     * nenhum outro — nem um do seed com o mesmo nome.
+     *
+     * Antes este teste procurava por nome e encontrava o do seed sobrescrito:
+     * cadastrar "Trimestral" para o MMA e depois "Trimestral" para o Jiu-Jitsu
+     * apagava o primeiro. O editor manda `id` apenas ao editar, então é por ele
+     * que a edição se distingue da criação.
+     */
+    const salvo = plans.find((p) => p.priceLabel === 'R$ 180');
+
+    expect(salvo?.name).toBe('Mensal');
     expect(salvo?.features).toEqual(['Uma modalidade', 'Horários livres']);
     // Veio do admin: deixa de ser valor de exemplo e o aviso some do site.
     expect(salvo?.isExample).toBe(false);
+
+    // O "Mensal" de exemplo continua lá, intacto.
+    expect(plans.filter((p) => p.name === 'Mensal').length).toBeGreaterThan(1);
   });
 
   it('mantém apenas um plano em destaque', async () => {
