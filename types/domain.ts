@@ -301,6 +301,15 @@ export interface CheckinEntry {
 export interface PaymentPlanRecord {
   readonly userId: string;
   readonly planId: PlanId;
+  /**
+   * Nome do plano contratado, escolhido entre os da vitrine na aprovação.
+   *
+   * É rótulo, não regra: a cobrança continua saindo de `planId` (período) e
+   * `amountCents` (valor). Vazio nas mensalidades gravadas antes do campo
+   * existir, e vazio também quando a academia define um valor avulso sem plano
+   * correspondente.
+   */
+  readonly planName: string;
   readonly amountCents: number;
   readonly dueDay: number;
   readonly graceDays: number;

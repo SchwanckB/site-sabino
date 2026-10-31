@@ -42,6 +42,18 @@ export const PLAN_LABELS: Readonly<Record<PlanId, string>> = {
 export interface PaymentPlan {
   readonly userId: string;
   readonly planId: PlanId;
+  /**
+   * Nome do plano contratado, como aparece na vitrine — "Trimestral MMA",
+   * "Mensal Jiu-Jitsu".
+   *
+   * É rótulo, não regra: quem decide a cobrança continua sendo `planId`
+   * (período) e `amountCents` (valor). Serve para o aluno reconhecer o que
+   * contratou e para o professor conferir sem abrir a ficha.
+   *
+   * Vazio nas mensalidades criadas antes deste campo existir — a interface
+   * mostra só o período nesse caso, sem migração de dado.
+   */
+  readonly planName: string;
   /** Valor da parcela em centavos — inteiro, nunca float. */
   readonly amountCents: number;
   /** Dia do vencimento (1 a 31). Meses curtos usam o último dia. */
@@ -67,6 +79,8 @@ export interface PaymentSummary {
   readonly totalOpenCents: number;
   readonly amountCents: number;
   readonly planId: PlanId;
+  /** Nome do plano contratado. Vazio quando a mensalidade é anterior ao campo. */
+  readonly planName: string;
   readonly lastPaidAt: string | null;
 }
 
@@ -130,6 +144,7 @@ export function getPaymentSummary(plan: PaymentPlan, now: Date): PaymentSummary 
     totalOpenCents: openInstallments * plan.amountCents,
     amountCents: plan.amountCents,
     planId: plan.planId,
+    planName: plan.planName,
     lastPaidAt: plan.lastPaidAt,
   };
 }

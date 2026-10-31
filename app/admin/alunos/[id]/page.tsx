@@ -179,6 +179,7 @@ export default async function AlunoPage({
                 {formatCents(summary.amountCents)}
               </p>
               <p className="mt-1 text-xs text-muted">
+                {summary.planName ? `${summary.planName} · ` : ''}
                 {PLAN_LABELS[summary.planId]} · vence {formatBr(summary.dueDate)}
               </p>
             </>

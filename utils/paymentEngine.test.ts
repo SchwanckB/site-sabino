@@ -21,6 +21,7 @@ const spNoon = (isoDate: string): Date => new Date(`${isoDate}T12:00:00-03:00`);
 const plan = (overrides: Partial<PaymentPlan> = {}): PaymentPlan => ({
   userId: 'aluno-joao',
   planId: 'mensal',
+  planName: '',
   amountCents: 15000,
   dueDay: 11,
   graceDays: 4,

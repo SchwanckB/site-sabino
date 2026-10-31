@@ -134,6 +134,10 @@ function readPlanInput(
     input: {
       userId,
       planId: planId as PlanId,
+      // Rótulo escolhido entre os planos da vitrine. Não valida contra a lista:
+      // um plano removido do site não pode invalidar a mensalidade de quem já
+      // o contratou.
+      planName: text(form, 'planName'),
       amountCents,
       dueDay,
       graceDays,

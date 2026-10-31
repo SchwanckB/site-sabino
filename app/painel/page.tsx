@@ -214,7 +214,24 @@ export default async function PainelPage() {
               <dl className="mt-5 space-y-2 border-t border-white/10 pt-4 text-sm text-foreground">
                 <div className="flex justify-between gap-3">
                   <dt className="text-muted">Plano</dt>
-                  <dd>{PLAN_LABELS[payment.planId]}</dd>
+                  {/*
+                    O nome contratado vem primeiro, porque é o que o aluno
+                    reconhece ("Trimestral MMA"). O período fica ao lado para
+                    não perder a informação de cobrança. Mensalidades antigas
+                    não têm nome e mostram só o período, como antes.
+                  */}
+                  <dd className="text-right">
+                    {payment.planName ? (
+                      <>
+                        {payment.planName}
+                        <span className="block text-xs text-muted">
+                          {PLAN_LABELS[payment.planId]}
+                        </span>
+                      </>
+                    ) : (
+                      PLAN_LABELS[payment.planId]
+                    )}
+                  </dd>
                 </div>
                 <div className="flex justify-between gap-3">
                   <dt className="text-muted">Vencimento</dt>

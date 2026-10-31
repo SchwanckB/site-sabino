@@ -41,6 +41,9 @@ function rowToPlan(userId: string, row: Record<string, unknown>): PaymentPlanRec
   return {
     userId,
     planId: (PLAN_IDS as readonly string[]).includes(planId) ? (planId as PlanId) : 'mensal',
+    // Vazio nas mensalidades criadas antes deste campo existir: a interface
+    // mostra só o período nesse caso, sem precisar migrar nada.
+    planName: asString(row['planName']),
     amountCents: asInteger(row['amountCents'], 0),
     dueDay: normalizeDueDay(asInteger(row['dueDay'], 1)),
     graceDays: Math.max(0, asInteger(row['graceDays'], DEFAULT_GRACE_DAYS)),
@@ -89,6 +92,11 @@ export async function getPaymentPlans(
 export interface SetupPlanInput {
   readonly userId: string;
   readonly planId: PlanId;
+  /**
+   * Nome do plano contratado, escolhido entre os da vitrine. Opcional: a
+   * academia pode definir uma mensalidade avulsa, sem plano correspondente.
+   */
+  readonly planName?: string;
   readonly amountCents: number;
   readonly dueDay: number;
   readonly graceDays: number;
@@ -118,6 +126,9 @@ export async function setupPaymentPlan(
   const plan: PaymentPlanRecord = {
     userId: input.userId,
     planId: input.planId,
+    // Nome do plano some se o formulário não mandar nada; preserva o que já
+    // estava gravado para não perder o rótulo numa edição de valor.
+    planName: (input.planName ?? existing?.planName ?? '').trim().slice(0, 60),
     amountCents: Math.max(0, Math.trunc(input.amountCents)),
     dueDay,
     graceDays: Math.max(0, Math.trunc(input.graceDays)),
@@ -128,6 +139,7 @@ export async function setupPaymentPlan(
   const tx = redis.multi();
   tx.hset(redisKeys.payment(plan.userId), {
     planId: plan.planId,
+    planName: plan.planName,
     amountCents: plan.amountCents,
     dueDay: plan.dueDay,
     graceDays: plan.graceDays,

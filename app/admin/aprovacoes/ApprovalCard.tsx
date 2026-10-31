@@ -35,9 +35,12 @@ const inputClass =
 export function ApprovalCard({
   student,
   classOptions,
+  planNames,
 }: {
   readonly student: PublicStudent;
   readonly classOptions: readonly ClassOption[];
+  /** Nomes dos planos da vitrine, para o professor marcar o que foi contratado. */
+  readonly planNames: readonly string[];
 }) {
   const [showDocument, setShowDocument] = useState(false);
   const [rejecting, setRejecting] = useState(false);
@@ -219,6 +222,33 @@ export function ApprovalCard({
           <p className="mt-1 text-xs text-muted">
             O que foi combinado com o aluno. Ex.: vence dia 11, com tolerância até o dia 15.
           </p>
+
+          {/*
+            Qual plano o aluno contratou. É rótulo, não regra: o valor e o
+            período continuam sendo o que o professor digita abaixo. Serve para
+            o aluno reconhecer o que assinou e para a recepção conferir sem
+            abrir a ficha.
+          */}
+          {planNames.length > 0 ? (
+            <div className="mt-3">
+              <label htmlFor={`planName-${student.id}`} className="block text-xs text-muted">
+                Plano contratado
+              </label>
+              <select
+                id={`planName-${student.id}`}
+                name="planName"
+                defaultValue=""
+                className={cn(inputClass, 'mt-1.5')}
+              >
+                <option value="">Sem plano definido</option>
+                {planNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
           <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>

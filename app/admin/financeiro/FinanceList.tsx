@@ -15,6 +15,8 @@ export interface FinanceRow {
   readonly id: string;
   readonly name: string;
   readonly planId: PlanId;
+  /** Nome do plano contratado. Vazio nas mensalidades anteriores ao campo. */
+  readonly planName: string;
   readonly amountCents: number;
   readonly dueDate: string;
   readonly limitDate: string;
@@ -259,6 +261,7 @@ export function FinanceList({
                   <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
                   {row.hasPlan ? (
                     <p className="mt-1 text-xs text-muted">
+                      {row.planName ? `${row.planName} · ` : ''}
                       {PLAN_LABELS[row.planId]} · {formatCents(row.amountCents)} · vence dia{' '}
                       {row.dueDay}
                       {row.graceDays > 0 ? ` (até o dia ${row.dueDay + row.graceDays})` : ''}

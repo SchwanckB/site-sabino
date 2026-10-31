@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { PageHeader } from '@/components/app/PageHeader';
 
 import { weekdayLabels, type Weekday } from '@/data/seed';
+import { getPlans } from '@/lib/repositories/plansAdmin';
 import { getSchedule } from '@/lib/schedule';
 import { listStudentsByStatus, toPublicStudent } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
@@ -17,10 +18,15 @@ export default async function AprovacoesPage() {
   const now = new Date();
   const scope = await getUnitScope();
 
-  const [todosPendentes, schedule] = await Promise.all([
+  const [todosPendentes, schedule, planSet] = await Promise.all([
     listStudentsByStatus('pendente'),
     getSchedule(),
+    getPlans(),
   ]);
+
+  // Os nomes dos planos da vitrine alimentam o seletor da mensalidade: o
+  // professor marca o que o aluno contratou em vez de digitar de cabeça.
+  const planNames = planSet.plans.map((plan) => plan.name);
 
   const pending = filterByUnit(todosPendentes, scope);
 
@@ -56,6 +62,7 @@ export default async function AprovacoesPage() {
               key={student.id}
               student={toPublicStudent(student, now)}
               classOptions={classOptions}
+              planNames={planNames}
             />
           ))}
         </ul>

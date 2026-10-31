@@ -164,3 +164,74 @@ describe('destaque', () => {
     expect(atuais.find((p) => p.highlighted)?.name).toBe('Trimestral');
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* Nome do plano na mensalidade do aluno                                      */
+/* -------------------------------------------------------------------------- */
+
+describe('mensalidade guarda o nome do plano contratado', () => {
+  it('grava o nome escolhido na aprovação', async () => {
+    const payments = await import('@/lib/repositories/payments');
+
+    await payments.setupPaymentPlan(
+      {
+        userId: 'aluno-1',
+        planId: 'trimestral',
+        planName: 'Trimestral MMA',
+        amountCents: 42000,
+        dueDay: 10,
+        graceDays: 4,
+      },
+      agora,
+    );
+
+    const salvo = await payments.getPaymentPlan('aluno-1');
+    expect(salvo?.planName).toBe('Trimestral MMA');
+    // O nome é rótulo: quem decide a cobrança continua sendo período e valor.
+    expect(salvo?.planId).toBe('trimestral');
+    expect(salvo?.amountCents).toBe(42000);
+  });
+
+  it('editar o valor não apaga o nome já gravado', async () => {
+    const payments = await import('@/lib/repositories/payments');
+
+    await payments.setupPaymentPlan(
+      { userId: 'aluno-2', planId: 'mensal', planName: 'Mensal Jiu-Jitsu', amountCents: 15000, dueDay: 10, graceDays: 4 },
+      agora,
+    );
+
+    // Reajuste de valor pela tela do financeiro, que não manda o nome.
+    await payments.setupPaymentPlan(
+      { userId: 'aluno-2', planId: 'mensal', amountCents: 16000, dueDay: 10, graceDays: 4 },
+      agora,
+    );
+
+    const salvo = await payments.getPaymentPlan('aluno-2');
+    expect(salvo?.planName).toBe('Mensal Jiu-Jitsu');
+    expect(salvo?.amountCents).toBe(16000);
+  });
+
+  it('mensalidade sem plano definido fica com nome vazio', async () => {
+    const payments = await import('@/lib/repositories/payments');
+
+    await payments.setupPaymentPlan(
+      { userId: 'aluno-3', planId: 'mensal', amountCents: 15000, dueDay: 10, graceDays: 4 },
+      agora,
+    );
+
+    // Vazio, não `undefined`: a interface testa com `planName ? ... : ...`.
+    expect((await payments.getPaymentPlan('aluno-3'))?.planName).toBe('');
+  });
+
+  it('o resumo leva o nome para a tela do aluno', async () => {
+    const payments = await import('@/lib/repositories/payments');
+    const { getPaymentSummary } = await import('@/utils/paymentEngine');
+
+    const plano = await payments.setupPaymentPlan(
+      { userId: 'aluno-4', planId: 'anual', planName: 'Anual Kids', amountCents: 120000, dueDay: 5, graceDays: 4 },
+      agora,
+    );
+
+    expect(getPaymentSummary(plano, agora).planName).toBe('Anual Kids');
+  });
+});
