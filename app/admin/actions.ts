@@ -4,8 +4,10 @@ import { revalidatePath, revalidateTag } from 'next/cache';
 
 import { requireAdmin, type Role } from '@/lib/auth';
 import { CACHE_TAGS } from '@/lib/cacheTags';
+import { checkbox, intInRange, text, textList } from '@/lib/formData';
 import { setAccountRole } from '@/lib/repositories/accounts';
 import { recordCheckin, undoCheckin } from '@/lib/repositories/attendance';
+import { recordAudit, type AuditAction } from '@/lib/repositories/audit';
 import { removeEvent, upsertEvent } from '@/lib/repositories/calendar';
 import { saveClassLog } from '@/lib/repositories/classLog';
 import { registerDegree, promoteBelt, undoLastDegree } from '@/lib/repositories/graduation';
@@ -21,6 +23,7 @@ import { removeClass, resetScheduleToSeed, upsertClass } from '@/lib/repositorie
 import {
   approveStudent,
   getStudent,
+  getStudents,
   rejectStudent,
   setStudentStatus,
   updateStudent,
@@ -31,6 +34,7 @@ import {
   GENDERS,
   PAYMENT_METHODS,
   USER_STATUSES,
+  isBelt,
   toUnitId,
   toUnitScope,
   type Gender,
@@ -39,6 +43,7 @@ import {
 } from '@/types/domain';
 import { findOpenClasses } from '@/utils/attendanceEngine';
 import { saoPauloDateString } from '@/utils/datetime';
+import { KIDS_TOTAL_DEGREES } from '@/utils/graduationEngine';
 import { DEFAULT_GRACE_DAYS, parseCentsInput, type PlanId } from '@/utils/paymentEngine';
 
 /**
@@ -56,13 +61,85 @@ export interface ActionResult {
 
 const PLAN_IDS: readonly PlanId[] = ['mensal', 'trimestral', 'anual'];
 
-function text(form: FormData, key: string): string {
-  const value = form.get(key);
-  return typeof value === 'string' ? value.trim() : '';
-}
-
 function refreshAdmin(): void {
   revalidatePath('/admin', 'layout');
+}
+
+/**
+ * Anota uma ação destrutiva na trilha de auditoria.
+ *
+ * Fica num helper para que registrar seja mais curto que não registrar — é a
+ * única forma de a trilha continuar completa quando alguém adicionar a próxima
+ * ação de desfazer.
+ */
+async function audit(
+  admin: { readonly id: string; readonly name: string },
+  action: AuditAction,
+  target: { readonly id: string; readonly name: string },
+  detail: string,
+): Promise<void> {
+  await recordAudit({
+    at: new Date().toISOString(),
+    action,
+    byId: admin.id,
+    byName: admin.name,
+    targetId: target.id,
+    targetName: target.name,
+    detail,
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mensalidade: leitura e validação compartilhadas                            */
+/* -------------------------------------------------------------------------- */
+
+type PlanInput = Parameters<typeof setupPaymentPlan>[0];
+
+/**
+ * Lê e valida os campos da mensalidade.
+ *
+ * O bloco estava duplicado entre a aprovação e a edição do plano, mensagens de
+ * erro inclusive — e com uma divergência que só a duplicação explica: um lia a
+ * data em `firstDueDate` e o outro em `dueDate`. Agora os dois aceitam as duas
+ * chaves, para não quebrar formulário nenhum, e `firstDueDate` é a preferida.
+ */
+function readPlanInput(
+  form: FormData,
+  userId: string,
+): { readonly ok: true; readonly input: PlanInput } | { readonly ok: false; readonly message: string } {
+  const planId = text(form, 'planId');
+  if (!(PLAN_IDS as readonly string[]).includes(planId)) {
+    return { ok: false, message: 'Selecione o tipo de mensalidade.' };
+  }
+
+  const amountCents = parseCentsInput(text(form, 'amount'));
+  if (amountCents === null) {
+    return { ok: false, message: 'Informe o valor da mensalidade.' };
+  }
+  if (amountCents < 0) {
+    return { ok: false, message: 'O valor da mensalidade não pode ser negativo.' };
+  }
+
+  const dueDay = intInRange(form, 'dueDay', 1, 31);
+  if (dueDay === null) {
+    return { ok: false, message: 'Informe o dia do vencimento (1 a 31).' };
+  }
+
+  // Carência fora da faixa cai no padrão em vez de recusar: é um ajuste fino,
+  // não um dado que o professor precise acertar para salvar o plano.
+  const graceDays = intInRange(form, 'graceDays', 0, 90) ?? DEFAULT_GRACE_DAYS;
+
+  return {
+    ok: true,
+    input: {
+      userId,
+      planId: planId as PlanId,
+      amountCents,
+      dueDay,
+      graceDays,
+      firstDueDate: text(form, 'firstDueDate') || text(form, 'dueDate'),
+    },
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -76,59 +153,56 @@ export async function approveStudentAction(form: FormData): Promise<ActionResult
   const student = await getStudent(studentId);
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
 
-  const classIds = form.getAll('classIds').filter((v): v is string => typeof v === 'string');
+  const classIds = textList(form, 'classIds');
   const belt = text(form, 'belt') || 'branca';
-  const degree = Number(text(form, 'degree')) || 0;
+  if (!isBelt(belt)) return { ok: false, message: 'Faixa inválida.' };
+
+  /*
+   * Grau: vazio é 0 (faixa nova), mas valor fora da escada de 12 é recusado.
+   *
+   * Antes era `Number(text(...)) || 0`, que transformava tanto `"abc"` quanto
+   * `"999"` em zero sem avisar — o professor digitava errado, via "aprovado" e
+   * o aluno entrava com grau nenhum.
+   */
+  const degreeRaw = text(form, 'degree');
+  const degree = degreeRaw.length === 0 ? 0 : intInRange(form, 'degree', 0, KIDS_TOTAL_DEGREES);
+  if (degree === null) {
+    return { ok: false, message: `Grau inválido. Use um número de 0 a ${KIDS_TOTAL_DEGREES}.` };
+  }
+
   const notes = text(form, 'notes');
 
-  const planId = text(form, 'planId');
-  const amountCents = parseCentsInput(text(form, 'amount'));
-  const dueDay = Number(text(form, 'dueDay'));
-  const graceDays = Number(text(form, 'graceDays'));
-
-  if (!(PLAN_IDS as readonly string[]).includes(planId)) {
-    return { ok: false, message: 'Selecione o tipo de mensalidade.' };
-  }
-  if (amountCents === null) {
-    return { ok: false, message: 'Informe o valor da mensalidade.' };
-  }
-  if (!Number.isFinite(dueDay) || dueDay < 1 || dueDay > 31) {
-    return { ok: false, message: 'Informe o dia do vencimento (1 a 31).' };
-  }
+  const plan = readPlanInput(form, student.id);
+  if (!plan.ok) return { ok: false, message: plan.message };
 
   const now = new Date();
 
   try {
-    await approveStudent(student, {
-      classIds,
-      belt,
-      degree,
-      notes,
-      graduatesMonthly: form.get('graduatesMonthly') === 'on',
-    }, now);
-    await setupPaymentPlan(
+    await approveStudent(
+      student,
       {
-        userId: student.id,
-        planId: planId as PlanId,
-        amountCents,
-        dueDay,
-        graceDays: Number.isFinite(graceDays) ? graceDays : DEFAULT_GRACE_DAYS,
-        firstDueDate: text(form, 'firstDueDate'),
+        classIds,
+        belt,
+        degree,
+        notes,
+        graduatesMonthly: checkbox(form, 'graduatesMonthly'),
       },
       now,
     );
+    await setupPaymentPlan(plan.input, now);
   } catch (error) {
     console.error('[admin] falha ao aprovar', error);
     return { ok: false, message: 'Não foi possível aprovar. Tente novamente.' };
   }
 
-  void admin;
+  await audit(admin, 'aluno.aprovado', student, `faixa ${belt}, ${degree} grau(s)`);
+
   refreshAdmin();
   return { ok: true, message: `${student.name} foi aprovado.` };
 }
 
 export async function rejectStudentAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const student = await getStudent(text(form, 'studentId'));
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
@@ -139,12 +213,14 @@ export async function rejectStudentAction(form: FormData): Promise<ActionResult>
   }
 
   await rejectStudent(student, reason, new Date());
+  await audit(admin, 'aluno.recusado', student, reason);
+
   refreshAdmin();
   return { ok: true, message: `Cadastro de ${student.name} recusado.` };
 }
 
 export async function setStatusAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const student = await getStudent(text(form, 'studentId'));
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
@@ -155,6 +231,8 @@ export async function setStatusAction(form: FormData): Promise<ActionResult> {
   }
 
   await setStudentStatus(student, next as UserStatus, new Date());
+  await audit(admin, 'aluno.status', student, `${student.status} → ${next}`);
+
   refreshAdmin();
   return { ok: true, message: 'Status atualizado.' };
 }
@@ -166,10 +244,21 @@ export async function updateStudentAction(form: FormData): Promise<ActionResult>
   const student = await getStudent(text(form, 'studentId'));
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
 
-  const classIds = form.getAll('classIds').filter((v): v is string => typeof v === 'string');
+  const classIds = textList(form, 'classIds');
+
   const belt = text(form, 'belt') || student.belt;
-  const degreeRaw = Number(text(form, 'degree'));
-  const degree = Number.isFinite(degreeRaw) ? Math.max(0, Math.trunc(degreeRaw)) : student.degree;
+  if (!isBelt(belt)) return { ok: false, message: 'Faixa inválida.' };
+
+  // Campo em branco mantém o grau atual; valor fora da escada é recusado em vez
+  // de virar um número qualquer.
+  const degreeField = text(form, 'degree');
+  const degree =
+    degreeField.length === 0
+      ? student.degree
+      : intInRange(form, 'degree', 0, KIDS_TOTAL_DEGREES);
+  if (degree === null) {
+    return { ok: false, message: `Grau inválido. Use um número de 0 a ${KIDS_TOTAL_DEGREES}.` };
+  }
 
   const genderInput = text(form, 'gender');
   const gender: Gender = (GENDERS as readonly string[]).includes(genderInput)
@@ -230,12 +319,24 @@ export async function registerPaymentAction(form: FormData): Promise<ActionResul
 }
 
 export async function undoPaymentAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
-  const plan = await getPaymentPlan(text(form, 'studentId'));
+  const studentId = text(form, 'studentId');
+  const plan = await getPaymentPlan(studentId);
   if (!plan) return { ok: false, message: 'Mensalidade não encontrada.' };
 
   await undoLastPayment(plan, new Date());
+
+  // Apagar lançamento financeiro sem deixar rastro é o que tornava "o
+  // pagamento do meu filho desapareceu" uma pergunta sem resposta.
+  const student = await getStudent(studentId);
+  await audit(
+    admin,
+    'pagamento.desfeito',
+    { id: studentId, name: student?.name ?? studentId },
+    `valor de referência ${(plan.amountCents / 100).toFixed(2)}`,
+  );
+
   refreshAdmin();
   return { ok: true, message: 'Último pagamento desfeito.' };
 }
@@ -243,33 +344,10 @@ export async function undoPaymentAction(form: FormData): Promise<ActionResult> {
 export async function updatePlanAction(form: FormData): Promise<ActionResult> {
   await requireAdmin();
 
-  const studentId = text(form, 'studentId');
-  const planId = text(form, 'planId');
-  const amountCents = parseCentsInput(text(form, 'amount'));
-  const dueDay = Number(text(form, 'dueDay'));
-  const graceDays = Number(text(form, 'graceDays'));
+  const plan = readPlanInput(form, text(form, 'studentId'));
+  if (!plan.ok) return { ok: false, message: plan.message };
 
-  if (!(PLAN_IDS as readonly string[]).includes(planId)) {
-    return { ok: false, message: 'Tipo de mensalidade inválido.' };
-  }
-  if (amountCents === null) {
-    return { ok: false, message: 'Informe o valor da mensalidade.' };
-  }
-  if (!Number.isFinite(dueDay) || dueDay < 1 || dueDay > 31) {
-    return { ok: false, message: 'Informe o dia do vencimento (1 a 31).' };
-  }
-
-  await setupPaymentPlan(
-    {
-      userId: studentId,
-      planId: planId as PlanId,
-      amountCents,
-      dueDay,
-      graceDays: Number.isFinite(graceDays) ? graceDays : DEFAULT_GRACE_DAYS,
-      firstDueDate: text(form, 'dueDate'),
-    },
-    new Date(),
-  );
+  await setupPaymentPlan(plan.input, new Date());
 
   refreshAdmin();
   return { ok: true, message: 'Mensalidade atualizada.' };
@@ -279,19 +357,28 @@ export async function updatePlanAction(form: FormData): Promise<ActionResult> {
 /* Presença manual — individual e em lote                                     */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Resultado de uma tentativa de presença manual.
+ *
+ * `sem_banco` existe separado de propósito. Antes `recordCheckin` falhando por
+ * Redis indisponível era achatado em `ja_registrado`, e o professor lia "este
+ * aluno já tem presença hoje" — acreditava, não insistia, e a presença nunca
+ * entrava. Mensagem tranquilizadora em cima de falha é pior que erro cru.
+ */
+type PresenceOutcome = 'ok' | 'ja_registrado' | 'nao_encontrado' | 'inativo' | 'sem_banco';
+
 async function markPresent(
-  studentId: string,
+  student: Awaited<ReturnType<typeof getStudent>>,
   adminId: string,
   source: 'manual' | 'lote',
+  schedule: Awaited<ReturnType<typeof getSchedule>>,
   now: Date,
-): Promise<'ok' | 'ja_registrado' | 'nao_encontrado' | 'inativo'> {
-  const student = await getStudent(studentId);
+): Promise<PresenceOutcome> {
   if (!student) return 'nao_encontrado';
   if (student.status !== 'ativo') return 'inativo';
 
   // A aula é inferida pelo horário: se houver turma do aluno acontecendo
   // agora, a presença fica vinculada a ela.
-  const schedule = await getSchedule();
   const open = findOpenClasses(schedule.classes, student.classIds, now);
   const current = open[0] ?? null;
 
@@ -306,15 +393,11 @@ async function markPresent(
     now,
   );
 
-  return result.ok ? 'ok' : 'ja_registrado';
+  if (result.ok) return 'ok';
+  return result.reason === 'sem_banco' ? 'sem_banco' : 'ja_registrado';
 }
 
-export async function markPresenceAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
-
-  const outcome = await markPresent(text(form, 'studentId'), admin.id, 'manual', new Date());
-
-  refreshAdmin();
+function presenceMessage(outcome: PresenceOutcome): ActionResult {
   switch (outcome) {
     case 'ok':
       return { ok: true, message: 'Presença registrada.' };
@@ -322,43 +405,88 @@ export async function markPresenceAction(form: FormData): Promise<ActionResult> 
       return { ok: false, message: 'Este aluno já tem presença hoje.' };
     case 'inativo':
       return { ok: false, message: 'Aluno não está ativo.' };
+    case 'sem_banco':
+      return {
+        ok: false,
+        message:
+          'O banco de dados não respondeu. A presença NÃO foi registrada — tente de novo em alguns segundos.',
+      };
     default:
       return { ok: false, message: 'Aluno não encontrado.' };
   }
 }
 
-/** Marca vários alunos de uma vez, a partir da seleção na lista. */
+export async function markPresenceAction(form: FormData): Promise<ActionResult> {
+  const admin = await requireAdmin();
+
+  const now = new Date();
+  const [student, schedule] = await Promise.all([
+    getStudent(text(form, 'studentId')),
+    getSchedule(),
+  ]);
+
+  const outcome = await markPresent(student, admin.id, 'manual', schedule, now);
+
+  refreshAdmin();
+  return presenceMessage(outcome);
+}
+
+/**
+ * Marca vários alunos de uma vez, a partir da seleção na lista.
+ *
+ * As fichas e a grade são lidas **uma vez** antes do loop. Antes cada aluno
+ * disparava um `getStudent` e um `getSchedule` próprios, em série: marcar a
+ * chamada de uma turma de trinta custava mais de sessenta idas ao Redis, uma
+ * esperando a outra. A gravação em si continua sequencial — é ela que carrega a
+ * trava de "uma presença por dia".
+ */
 export async function markPresenceBatchAction(form: FormData): Promise<ActionResult> {
   const admin = await requireAdmin();
 
-  const ids = form.getAll('studentIds').filter((v): v is string => typeof v === 'string');
+  const ids = textList(form, 'studentIds');
   if (ids.length === 0) {
     return { ok: false, message: 'Selecione pelo menos um aluno.' };
   }
 
   const now = new Date();
+  const [students, schedule] = await Promise.all([getStudents(ids), getSchedule()]);
+  const byId = new Map(students.map((student) => [student.id, student]));
+
   let registered = 0;
   let already = 0;
   let skipped = 0;
+  let semBanco = 0;
 
   for (const id of ids) {
-    const outcome = await markPresent(id, admin.id, 'lote', now);
+    const outcome = await markPresent(byId.get(id) ?? null, admin.id, 'lote', schedule, now);
     if (outcome === 'ok') registered += 1;
     else if (outcome === 'ja_registrado') already += 1;
+    else if (outcome === 'sem_banco') semBanco += 1;
     else skipped += 1;
   }
 
   refreshAdmin();
 
+  // Banco fora do ar não pode sair como "ignorado": o professor precisa saber
+  // que aqueles alunos ficaram sem presença e que a culpa não foi da seleção.
+  if (semBanco > 0 && registered === 0) {
+    return {
+      ok: false,
+      message:
+        'O banco de dados não respondeu. Nenhuma presença foi registrada — tente de novo em alguns segundos.',
+    };
+  }
+
   const parts = [`${registered} presença${registered === 1 ? '' : 's'} registrada${registered === 1 ? '' : 's'}`];
   if (already > 0) parts.push(`${already} já tinha presença hoje`);
+  if (semBanco > 0) parts.push(`${semBanco} falhou no banco e precisa ser remarcado`);
   if (skipped > 0) parts.push(`${skipped} ignorado${skipped === 1 ? '' : 's'}`);
 
   return { ok: registered > 0, message: `${parts.join(', ')}.` };
 }
 
 export async function undoPresenceAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const student = await getStudent(text(form, 'studentId'));
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
@@ -366,6 +494,10 @@ export async function undoPresenceAction(form: FormData): Promise<ActionResult> 
   const now = new Date();
   const date = text(form, 'date') || saoPauloDateString(now);
   const removed = await undoCheckin(student, date, now);
+
+  if (removed) {
+    await audit(admin, 'presenca.removida', student, `presença do dia ${date}`);
+  }
 
   refreshAdmin();
   return removed
@@ -392,12 +524,16 @@ export async function registerDegreeAction(form: FormData): Promise<ActionResult
 }
 
 export async function undoDegreeAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const student = await getStudent(text(form, 'studentId'));
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
 
   const result = await undoLastDegree(student, new Date());
+
+  if (result.ok) {
+    await audit(admin, 'graduacao.desfeita', student, `voltou de ${student.degree} grau(s)`);
+  }
 
   refreshAdmin();
   return result.ok
@@ -413,6 +549,7 @@ export async function promoteBeltAction(form: FormData): Promise<ActionResult> {
 
   const toBelt = text(form, 'belt');
   if (toBelt.length === 0) return { ok: false, message: 'Selecione a nova faixa.' };
+  if (!isBelt(toBelt)) return { ok: false, message: 'Faixa inválida.' };
 
   await promoteBelt(student, toBelt, admin.id, text(form, 'note'), new Date());
 
@@ -504,6 +641,10 @@ export async function setAccountRoleAction(form: FormData): Promise<ActionResult
   }
 
   const result = await setAccountRole(targetId, role as Role);
+
+  if (result.ok) {
+    await audit(admin, 'papel.alterado', { id: targetId, name: targetId }, `virou ${role}`);
+  }
 
   refreshAdmin();
   revalidatePath('/admin/contas');

@@ -9,14 +9,38 @@
  * que o aluno abria a página.
  */
 
+/**
+ * Campos de texto devolvidos ao formulário depois de um erro.
+ *
+ * O React 19 reseta os campos não controlados quando a action termina —
+ * inclusive quando ela volta com erro. Sem devolver os valores, o aluno perdia
+ * CPF, dados do responsável e o consentimento a cada dígito errado, e tinha de
+ * anexar o documento de novo. Com eles, cada campo volta como `defaultValue`.
+ */
+export interface OnboardingValues {
+  readonly name: string;
+  readonly phone: string;
+  readonly cpf: string;
+  readonly birthDate: string;
+  readonly guardianName: string;
+  readonly guardianPhone: string;
+  readonly guardianCpf: string;
+  readonly gender: string;
+  readonly unit: string;
+  readonly consent: boolean;
+}
+
 export interface OnboardingState {
   readonly status: 'idle' | 'error' | 'success';
   readonly message: string;
   readonly fieldErrors: Readonly<Record<string, string>>;
+  /** `null` no estado inicial: aí valem os valores vindos do servidor. */
+  readonly values: OnboardingValues | null;
 }
 
 export const initialOnboardingState: OnboardingState = {
   status: 'idle',
   message: '',
   fieldErrors: {},
+  values: null,
 };

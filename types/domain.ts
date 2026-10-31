@@ -95,10 +95,38 @@ export const ADULT_BELTS: readonly AdultBelt[] = [
   'preta',
 ];
 
+/**
+ * Toda faixa válida, infantil ou adulta.
+ *
+ * As duas trilhas compartilham a branca, por isso o `Set` em vez de concatenar
+ * as listas. Existe porque as ações de admin gravavam a faixa conferindo só
+ * `length > 0`: um valor digitado errado — ou um `<select>` adulterado no
+ * navegador — entrava no banco e aparecia na ficha do aluno como se fosse uma
+ * graduação real. Status, sexo e forma de pagamento já eram validados contra as
+ * suas listas; a faixa tinha escapado.
+ */
+const ALL_BELTS: ReadonlySet<string> = new Set<string>([...KIDS_BELTS, ...ADULT_BELTS]);
+
+/** `true` se a faixa existe em uma das duas trilhas. */
+export function isBelt(value: string): boolean {
+  return ALL_BELTS.has(value);
+}
+
+/** Lista ordenada das faixas aceitas — para mensagem de erro e testes. */
+export const BELT_IDS: readonly string[] = [...ALL_BELTS];
+
 /** Idade a partir da qual o aluno sai da trilha infantil. */
 export const ADULT_AGE = 16;
 
-/** Idade abaixo da qual o cadastro exige responsável. */
+/**
+ * Idade abaixo da qual o cadastro exige responsável.
+ *
+ * Fonte única: `utils/onboardingValidation.ts` reexporta daqui em vez de
+ * declarar o próprio. Eram duas constantes com o mesmo valor, uma usada pelo
+ * cliente para **mostrar** os campos do responsável e outra usada pelo servidor
+ * para **exigir** — o dia em que divergissem, o formulário esconderia um campo
+ * que o servidor cobra, e o aluno veria um erro impossível de corrigir.
+ */
 export const GUARDIAN_REQUIRED_AGE = 18;
 
 /** Versão da política de privacidade aceita no cadastro. */

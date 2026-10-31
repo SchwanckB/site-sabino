@@ -122,12 +122,39 @@ function csvAlunos(students: readonly Student[], now: Date): string {
   );
 }
 
+/**
+ * Quantos alunos são consultados por vez.
+ *
+ * O histórico era lido aluno por aluno, em série: com duzentas fichas isso
+ * virava duzentas idas ao Redis esperando uma à outra, e a exportação estourava
+ * o tempo da função antes de devolver o arquivo. Em lotes, as leituras de cada
+ * lote saem em paralelo; o lote existe para não abrir duzentas conexões de uma
+ * vez e trocar o timeout por uma recusa do Redis.
+ */
+const LOTE_HISTORICO = 25;
+
+async function emLotes<T, R>(
+  items: readonly T[],
+  size: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += size) {
+    out.push(...(await Promise.all(items.slice(i, i + size).map(fn))));
+  }
+  return out;
+}
+
 async function csvPresencas(students: readonly Student[]): Promise<string> {
   const linhas: unknown[][] = [];
 
-  for (const student of students) {
-    // 400 entradas cobrem mais de um ano de treino cinco vezes por semana.
-    const checkins = await listCheckins(student.id, 400);
+  // 400 entradas cobrem mais de um ano de treino cinco vezes por semana.
+  const historicos = await emLotes(students, LOTE_HISTORICO, async (student) => ({
+    student,
+    checkins: await listCheckins(student.id, 400),
+  }));
+
+  for (const { student, checkins } of historicos) {
     for (const entry of checkins) {
       linhas.push([
         formatBr(entry.date),
@@ -150,10 +177,16 @@ async function csvFinanceiro(students: readonly Student[], now: Date): Promise<s
   const plans = await getPaymentPlans(students.map((s) => s.id));
   const linhas: unknown[][] = [];
 
-  for (const student of students) {
+  // Mesmo motivo do CSV de presenças: um `listPaymentHistory` por aluno em
+  // série não termina numa academia grande.
+  const historicos = await emLotes(students, LOTE_HISTORICO, async (student) => ({
+    student,
+    historico: await listPaymentHistory(student.id, 60),
+  }));
+
+  for (const { student, historico } of historicos) {
     const plan = plans.get(student.id);
     const summary = plan ? getPaymentSummary(plan, now) : null;
-    const historico = await listPaymentHistory(student.id, 60);
 
     if (historico.length === 0) {
       // Aluno sem lançamento ainda entra na planilha: é justamente quem o

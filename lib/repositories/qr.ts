@@ -22,19 +22,46 @@ import { UNITS, isUnitId, type UnitId } from '@/types/domain';
  *   2. **matrícula na turma** — o aluno só marca presença em turma dele;
  *   3. **uma presença por dia**, garantida por `SET NX` atômico.
  *
- * Por isso `QR_TOKEN_SECRET` é opcional e tem queda para um valor fixo: ele
- * serve só para a URL não ser adivinhável de bate-pronto, não como fronteira
- * de segurança. Antes era obrigatório, e um ambiente sem a variável fazia a
- * tela do QR falhar inteira — ponto de falha sem contrapartida. Definir um
- * segredo próprio continua valendo: troca todos os códigos de uma vez, caso a
- * academia queira invalidar os cartazes antigos.
+ * Mesmo assim o segredo importa, e a queda para um valor fixo tem um custo que
+ * antes ficava invisível: a constante está no repositório, então qualquer
+ * pessoa com acesso ao código calcula o token de qualquer unidade sem nunca
+ * pisar na academia. Somado às três travas acima, sobra uma brecha real — o
+ * aluno matriculado que marca presença de casa, no horário da própria aula. E
+ * presença alimenta graduação.
+ *
+ * Por isso a queda agora vale **só fora de produção**, onde serve para o `dev`
+ * rodar sem configurar nada. Em produção a ausência do segredo é registrada em
+ * log a cada geração: o cartaz continua funcionando — derrubar o check-in da
+ * academia inteira seria pior — mas o problema para de ser silencioso.
+ *
+ * Definir `QR_TOKEN_SECRET` também é o que permite invalidar os cartazes
+ * antigos de uma vez, trocando o valor.
  */
 
-const FALLBACK = 'sabino-checkin-v1';
+const DEV_FALLBACK = 'sabino-checkin-v1';
+const MIN_SECRET_LENGTH = 16;
+
+let avisou = false;
 
 function secret(): string {
   const value = process.env.QR_TOKEN_SECRET ?? '';
-  return value.length >= 16 ? value : FALLBACK;
+  if (value.length >= MIN_SECRET_LENGTH) return value;
+
+  if (process.env.NODE_ENV === 'production' && !avisou) {
+    avisou = true;
+    console.error(
+      '[qr] QR_TOKEN_SECRET ausente ou com menos de ' +
+        MIN_SECRET_LENGTH +
+        ' caracteres. Os códigos de presença estão derivados da constante pública do repositório e podem ser calculados por quem tiver acesso ao código. Defina a variável na Vercel.',
+    );
+  }
+
+  return DEV_FALLBACK;
+}
+
+/** `true` quando o segredo próprio está configurado. Alimenta o diagnóstico. */
+export function isQrSecretConfigured(): boolean {
+  return (process.env.QR_TOKEN_SECRET ?? '').length >= MIN_SECRET_LENGTH;
 }
 
 export interface QrToken {

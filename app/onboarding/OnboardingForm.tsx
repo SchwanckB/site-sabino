@@ -1,9 +1,9 @@
 'use client';
 
-import { useActionState, useEffect, useMemo, useState } from 'react';
-import { useFormStatus } from 'react-dom';
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { SubmitButton } from '@/components/app/ActionForm';
 import { ACCEPTED_DOCUMENT_LABEL, DOCUMENT_ACCEPT_ATTR } from '@/lib/documentRules';
 import { cn } from '@/lib/utils';
 import {
@@ -60,16 +60,6 @@ function Field({
 const inputClass =
   'w-full min-h-[44px] rounded-xl border border-hairline bg-white/[.04] px-4 py-3 text-base text-foreground placeholder:text-muted/70 transition-colors focus:border-crimson focus:outline-none';
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <button type="submit" disabled={pending} className="btn-primary w-full sm:w-auto sm:px-8">
-      {pending ? 'Enviando…' : 'Enviar cadastro'}
-    </button>
-  );
-}
-
 export function OnboardingForm({
   defaultName,
   defaultPhone,
@@ -84,16 +74,56 @@ export function OnboardingForm({
   /** `false` quando ainda não há armazenamento de arquivos configurado. */
   readonly documentEnabled: boolean;
 }) {
-  const [state, action] = useActionState(submitOnboarding, initialOnboardingState);
+  /*
+   * O arquivo escolhido fica guardado aqui entre as tentativas.
+   *
+   * O React 19 reseta os campos não controlados quando a action termina, e um
+   * `<input type="file">` não pode ser repreenchido por código. Sem esta
+   * lembrança, cada erro de validação obrigava o aluno a anexar o documento de
+   * novo — no celular, na fila da recepção. Os campos de texto voltam pelo
+   * `state.values`; o arquivo só volta por aqui.
+   */
+  const rememberedFile = useRef<File | null>(null);
+  const [fileLabel, setFileLabel] = useState('');
+
+  const [state, action] = useActionState(
+    async (previous: typeof initialOnboardingState, form: FormData) => {
+      const picked = form.get('document');
+      if (picked instanceof File && picked.size > 0) {
+        rememberedFile.current = picked;
+      } else if (rememberedFile.current) {
+        form.set('document', rememberedFile.current);
+      }
+      return submitOnboarding(previous, form);
+    },
+    initialOnboardingState,
+  );
+
+  const sent = state.values;
   const [birthDate, setBirthDate] = useState(defaultBirthDate);
   const router = useRouter();
   const isMinor = useIsMinor(birthDate);
 
   useEffect(() => {
     if (state.status === 'success') {
+      rememberedFile.current = null;
       router.push('/aguardando');
     }
   }, [state.status, router]);
+
+  // A data de nascimento é controlada: realinha com o que o servidor recebeu
+  // para que os campos do responsável não desapareçam depois de um erro.
+  useEffect(() => {
+    if (sent && sent.birthDate !== birthDate) setBirthDate(sent.birthDate);
+    // Só quando o servidor responde — digitar não deve disparar isto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sent]);
+
+  const onPickFile = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = event.target.files?.[0] ?? null;
+    if (picked) rememberedFile.current = picked;
+    setFileLabel(rememberedFile.current?.name ?? '');
+  }, []);
 
   const errors = state.fieldErrors;
 
@@ -114,7 +144,7 @@ export function OnboardingForm({
           name="name"
           type="text"
           autoComplete="name"
-          defaultValue={defaultName}
+          defaultValue={sent?.name ?? defaultName}
           aria-invalid={Boolean(errors['name'])}
           aria-describedby={errors['name'] ? 'name-erro' : undefined}
           className={inputClass}
@@ -130,7 +160,7 @@ export function OnboardingForm({
             inputMode="tel"
             autoComplete="tel"
             placeholder="(51) 99999-9999"
-            defaultValue={defaultPhone}
+            defaultValue={sent?.phone ?? defaultPhone}
             aria-invalid={Boolean(errors['phone'])}
             className={inputClass}
           />
@@ -143,6 +173,7 @@ export function OnboardingForm({
             type="text"
             inputMode="numeric"
             placeholder="000.000.000-00"
+            defaultValue={sent?.cpf ?? ''}
             aria-invalid={Boolean(errors['cpf'])}
             className={inputClass}
           />
@@ -171,7 +202,12 @@ export function OnboardingForm({
         name="unit"
         hint="Onde você vai treinar. Dá para mudar depois com o professor."
       >
-        <select id="unit" name="unit" defaultValue={DEFAULT_UNIT} className={inputClass}>
+        <select
+          id="unit"
+          name="unit"
+          defaultValue={sent?.unit || DEFAULT_UNIT}
+          className={inputClass}
+        >
           {UNITS.map((value) => (
             <option key={value} value={value}>
               {UNIT_LABELS[value]}
@@ -185,7 +221,12 @@ export function OnboardingForm({
         name="gender"
         hint="Usado para organizar as turmas (inclusive a feminina) e os relatórios."
       >
-        <select id="gender" name="gender" defaultValue="nao_informado" className={inputClass}>
+        <select
+          id="gender"
+          name="gender"
+          defaultValue={sent?.gender || 'nao_informado'}
+          className={inputClass}
+        >
           {GENDERS.map((value) => (
             <option key={value} value={value}>
               {GENDER_LABELS[value]}
@@ -209,6 +250,7 @@ export function OnboardingForm({
               id="guardianName"
               name="guardianName"
               type="text"
+              defaultValue={sent?.guardianName ?? ''}
               aria-invalid={Boolean(errors['guardianName'])}
               className={inputClass}
             />
@@ -226,6 +268,7 @@ export function OnboardingForm({
                 type="tel"
                 inputMode="tel"
                 placeholder="(51) 99999-9999"
+                defaultValue={sent?.guardianPhone ?? ''}
                 aria-invalid={Boolean(errors['guardianPhone'])}
                 className={inputClass}
               />
@@ -243,6 +286,7 @@ export function OnboardingForm({
                 type="text"
                 inputMode="numeric"
                 placeholder="000.000.000-00"
+                defaultValue={sent?.guardianCpf ?? ''}
                 aria-invalid={Boolean(errors['guardianCpf'])}
                 className={inputClass}
               />
@@ -257,9 +301,11 @@ export function OnboardingForm({
         name="document"
         error={errors['document']}
         hint={
-          hasDocument
-            ? `Já temos um documento seu. Envie outro só se quiser substituir. ${ACCEPTED_DOCUMENT_LABEL}.`
-            : `RG, CNH ou certidão de nascimento. ${ACCEPTED_DOCUMENT_LABEL}.`
+          fileLabel
+            ? `${fileLabel} — anexado. Escolha outro arquivo só se quiser trocar.`
+            : hasDocument
+              ? `Já temos um documento seu. Envie outro só se quiser substituir. ${ACCEPTED_DOCUMENT_LABEL}.`
+              : `RG, CNH ou certidão de nascimento. ${ACCEPTED_DOCUMENT_LABEL}.`
         }
       >
         <input
@@ -267,6 +313,7 @@ export function OnboardingForm({
           name="document"
           type="file"
           accept={DOCUMENT_ACCEPT_ATTR}
+          onChange={onPickFile}
           aria-invalid={Boolean(errors['document'])}
           className={cn(
             inputClass,
@@ -286,6 +333,7 @@ export function OnboardingForm({
           <input
             type="checkbox"
             name="consent"
+            defaultChecked={sent?.consent ?? false}
             className="mt-0.5 h-5 w-5 shrink-0 rounded border-hairline bg-white/[.06] accent-crimson"
             aria-invalid={Boolean(errors['consent'])}
           />
@@ -302,7 +350,9 @@ export function OnboardingForm({
         ) : null}
       </div>
 
-      <SubmitButton />
+      <SubmitButton className="btn-primary w-full sm:w-auto sm:px-8" pendingLabel="Enviando…">
+        Enviar cadastro
+      </SubmitButton>
     </form>
   );
 }

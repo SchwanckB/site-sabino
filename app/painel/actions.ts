@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { requireUser } from '@/lib/auth';
+import { consumeRateLimit, rateLimitMessage } from '@/lib/rateLimit';
 import { recordCheckin } from '@/lib/repositories/attendance';
 import { validateQrToken } from '@/lib/repositories/qr';
 import { getStudent } from '@/lib/repositories/students';
@@ -48,6 +49,21 @@ export type CheckinOptions =
  */
 export async function listCheckinOptions(token: string): Promise<CheckinOptions> {
   const user = await requireUser();
+
+  /*
+   * Teto de leituras por aluno.
+   *
+   * Esta função chama `getScheduleFresh()`, que ignora o cache de propósito — é
+   * a regra que decide se a presença entra, e uma grade de uma hora atrás
+   * recusaria a turma que o professor acabou de criar. O preço é que cada
+   * tentativa custa uma leitura real no Redis, o que faz dela um amplificador
+   * de carga se chamada em laço. Trinta tentativas em cinco minutos cobrem o
+   * aluno que escaneia errado várias vezes na porta da academia.
+   */
+  const quota = await consumeRateLimit('checkin:list', user.id, 30, 300);
+  if (!quota.allowed) {
+    return { ok: false, message: rateLimitMessage(quota.retryAfter) };
+  }
 
   const student = await getStudent(user.id);
   if (!student) return { ok: false, message: 'Cadastro não encontrado.' };

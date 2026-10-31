@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 import type { CheckinResult } from '@/types/domain';
+import { extractToken } from '@/utils/qrToken';
 
 import { checkinAction, listCheckinOptions, type OpenClassOption } from '../actions';
 
@@ -34,18 +35,62 @@ export function CheckinClient() {
   const scannerRef = useRef<{ stop: () => Promise<void> } | null>(null);
   const resolvido = useRef(false);
 
+  /*
+   * Trava de envio em andamento.
+   *
+   * Dedo nervoso na porta da academia toca duas vezes no mesmo botão, e os dois
+   * toques disparam antes de o React re-renderizar — `disabled` sozinho não
+   * pega o segundo. O servidor mantém a integridade pelo `SET NX`, mas a
+   * segunda chamada voltava `ja_registrado` e a tela mostrava "Presença já
+   * registrada" num check-in que acabara de dar certo. O aluno achava que
+   * falhou e ia chamar a recepção.
+   */
+  const enviando = useRef(false);
+
   const registrar = useCallback(async (codigo: string, classId: string) => {
+    if (enviando.current) return;
+    enviando.current = true;
+
     setPhase('enviando');
-    const response = await checkinAction(codigo, classId);
-    setResult(response);
-    setPhase(response.ok ? 'ok' : 'erro');
+    try {
+      const response = await checkinAction(codigo, classId);
+      setResult(response);
+      setPhase(response.ok ? 'ok' : 'erro');
+    } catch {
+      setResult({
+        ok: false,
+        reason: 'erro',
+        message: 'A conexão caiu no meio do envio. Confira com a recepção antes de treinar.',
+      });
+      setPhase('erro');
+    } finally {
+      enviando.current = false;
+    }
   }, []);
 
   /** Resolve o código: carrega as turmas abertas e decide se precisa perguntar. */
   const resolver = useCallback(
-    async (codigo: string) => {
-      const limpo = codigo.trim();
-      if (limpo.length === 0) return;
+    async (codigo: string | null) => {
+      /*
+       * Código ausente tem de virar erro visível, não retorno silencioso.
+       *
+       * O leitor aceita qualquer QR, e o aluno vai apontar para QR de Wi-Fi, de
+       * nota fiscal e de rede social. Antes a função simplesmente retornava: a
+       * câmera já tinha sido parada, a tela ficava no estado de escaneamento e o
+       * aluno encarava um retângulo preto sem mensagem e sem botão, com
+       * recarregar a página como única saída.
+       */
+      const limpo = codigo?.trim() ?? '';
+      if (limpo.length === 0) {
+        setResult({
+          ok: false,
+          reason: 'qr_invalido',
+          message:
+            'Esse código não é o da academia. Aponte para o cartaz de check-in na parede.',
+        });
+        setPhase('erro');
+        return;
+      }
 
       setToken(limpo);
       setPhase('carregando');
@@ -181,7 +226,8 @@ export function CheckinClient() {
                 <button
                   type="button"
                   onClick={() => void registrar(token, option.classId)}
-                  className="flex min-h-[60px] w-full items-center justify-between gap-3 rounded-xl border border-hairline bg-white/[.04] px-4 text-left transition-colors hover:border-crimson/50 hover:bg-crimson/[.07]"
+                  disabled={phase !== 'escolhendo'}
+                  className="flex min-h-[60px] w-full items-center justify-between gap-3 rounded-xl border border-hairline bg-white/[.04] px-4 text-left transition-colors hover:border-crimson/50 hover:bg-crimson/[.07] disabled:opacity-50"
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium text-foreground">
@@ -273,12 +319,3 @@ export function CheckinClient() {
   );
 }
 
-/** Aceita tanto a URL completa do QR quanto o código puro. */
-function extractToken(decoded: string): string {
-  try {
-    const url = new URL(decoded);
-    return url.searchParams.get('t') ?? '';
-  } catch {
-    return decoded.trim();
-  }
-}

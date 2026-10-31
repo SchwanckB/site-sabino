@@ -374,6 +374,39 @@ export class UpstashMock {
         return target.slice(start < 0 ? target.length + start : start, end);
       }
 
+      case 'ltrim': {
+        const target = this.list(key);
+        const start = Number(args[1]);
+        const stop = Number(args[2]);
+        const end = stop < 0 ? target.length + stop + 1 : stop + 1;
+        const kept = target.slice(start < 0 ? target.length + start : start, end);
+        this.store.set(key, { kind: 'list', value: kept });
+        return 'OK';
+      }
+
+      /*
+       * Contador do rate limiting.
+       *
+       * Chave ausente começa em 0, como no Redis. Sem este caso o limitador
+       * caía no tratamento de erro e liberava tudo — a trava existia no código
+       * e nunca era exercitada pelos testes.
+       */
+      case 'incr': {
+        const found = this.read(key);
+        const current = found?.kind === 'string' ? Number(found.value) : 0;
+        const next = (Number.isFinite(current) ? current : 0) + 1;
+        this.store.set(key, { kind: 'string', value: String(next) });
+        return next;
+      }
+
+      case 'decr': {
+        const found = this.read(key);
+        const current = found?.kind === 'string' ? Number(found.value) : 0;
+        const next = (Number.isFinite(current) ? current : 0) - 1;
+        this.store.set(key, { kind: 'string', value: String(next) });
+        return next;
+      }
+
       default:
         // Falha alto: um comando não implementado não pode passar por "ok".
         throw new Error(`ERR comando não suportado pelo mock: ${name}`);

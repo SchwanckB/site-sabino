@@ -1,4 +1,4 @@
-import { toUnitId, type UnitId } from '@/types/domain';
+import { GUARDIAN_REQUIRED_AGE, toUnitId, type UnitId } from '@/types/domain';
 
 /**
  * Validação do pré-cadastro — função pura, sem I/O.
@@ -18,8 +18,17 @@ import { calculateAge } from './graduationEngine';
 export const MIN_AGE = 3;
 export const MAX_AGE = 100;
 
-/** Abaixo disso, o cadastro exige responsável. */
-export const GUARDIAN_AGE = 18;
+/**
+ * Abaixo disso, o cadastro exige responsável.
+ *
+ * Reexportado de `types/domain` em vez de declarado aqui. Eram duas constantes
+ * com o mesmo valor: o formulário usava a de `domain` para **mostrar** os campos
+ * do responsável e esta validação usava a própria para **exigir**. Enquanto os
+ * números batiam, ninguém notava; no dia em que divergissem, o formulário
+ * esconderia um campo que o servidor cobra e o aluno veria um erro em campo
+ * invisível, impossível de corrigir.
+ */
+export const GUARDIAN_AGE = GUARDIAN_REQUIRED_AGE;
 
 const PHONE_MIN_DIGITS = 10;
 const PHONE_MAX_DIGITS = 13;
