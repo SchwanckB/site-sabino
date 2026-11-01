@@ -110,6 +110,29 @@ export type RoleChangeResult =
  * `getSessionUser()` — a mudança vale no próximo carregamento de página, sem
  * precisar de novo deploy.
  */
+/**
+ * Apaga a conta de login. **Não tem desfazer.**
+ *
+ * Devolve `false` quando a conta já não existe, o que não é erro: o objetivo é
+ * que ela deixe de existir, e alguém pode tê-la removido pelo painel do Clerk.
+ * Erro de verdade sobe, para a ação não anunciar sucesso ao deixar o login de
+ * pé enquanto apagou os dados da academia.
+ */
+export async function deleteAccount(targetUserId: string): Promise<boolean> {
+  if (!isClerkConfigured()) return false;
+
+  const client = await clerkClient();
+
+  try {
+    await client.users.deleteUser(targetUserId);
+    return true;
+  } catch (error) {
+    const status = (error as { status?: number }).status;
+    if (status === 404) return false;
+    throw error;
+  }
+}
+
 export async function setAccountRole(
   targetUserId: string,
   role: Role,

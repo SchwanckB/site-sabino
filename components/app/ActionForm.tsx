@@ -75,15 +75,22 @@ export function SubmitButton({
   children,
   className = 'btn-primary',
   pendingLabel = 'Salvando…',
+  disabled = false,
 }: {
   readonly children: React.ReactNode;
   readonly className?: string;
   readonly pendingLabel?: string;
+  /**
+   * Trava adicional de quem chama — uma confirmação ainda não preenchida, por
+   * exemplo. Soma ao bloqueio durante o envio, nunca o substitui: um botão que
+   * destrava no meio da requisição aceitaria envio duplicado.
+   */
+  readonly disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
 
   return (
-    <button type="submit" disabled={pending} className={className}>
+    <button type="submit" disabled={pending || disabled} className={className}>
       {pending ? pendingLabel : children}
     </button>
   );

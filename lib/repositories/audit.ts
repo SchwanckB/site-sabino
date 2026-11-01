@@ -29,6 +29,8 @@ export type AuditAction =
   | 'aluno.aprovado'
   | 'aluno.recusado'
   | 'aluno.status'
+  /** Exclusão definitiva: ficha, histórico, arquivo e login. */
+  | 'aluno.apagado'
   | 'pagamento.desfeito'
   | 'graduacao.desfeita'
   | 'presenca.removida'

@@ -5,9 +5,10 @@ import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireAdmin, type Role } from '@/lib/auth';
 import { CACHE_TAGS } from '@/lib/cacheTags';
 import { checkbox, intInRange, text, textList } from '@/lib/formData';
-import { setAccountRole } from '@/lib/repositories/accounts';
+import { deleteAccount, setAccountRole } from '@/lib/repositories/accounts';
 import { recordCheckin, undoCheckin } from '@/lib/repositories/attendance';
 import { recordAudit, type AuditAction } from '@/lib/repositories/audit';
+import { deleteDocument } from '@/lib/repositories/documents';
 import { removeEvent, upsertEvent } from '@/lib/repositories/calendar';
 import { saveClassLog } from '@/lib/repositories/classLog';
 import { registerDegree, promoteBelt, undoLastDegree } from '@/lib/repositories/graduation';
@@ -22,6 +23,7 @@ import { saveAcademySettings } from '@/lib/repositories/settings';
 import { removeClass, resetScheduleToSeed, upsertClass } from '@/lib/repositories/scheduleAdmin';
 import {
   approveStudent,
+  deleteStudent,
   getStudent,
   getStudents,
   rejectStudent,
@@ -239,6 +241,77 @@ export async function setStatusAction(form: FormData): Promise<ActionResult> {
 
   refreshAdmin();
   return { ok: true, message: 'Status atualizado.' };
+}
+
+/**
+ * Apaga o cadastro inteiro: ficha, histórico, arquivo e conta de login.
+ *
+ * **Não tem desfazer.** Para quem apenas parou de treinar existe o status
+ * "inativo", que some das listas e da cobrança preservando o histórico. Isto
+ * aqui é para cadastro de teste e para pedido de exclusão do próprio aluno.
+ *
+ * Exige que o professor digite o nome do aluno. Uma caixa de confirmação sozinha
+ * é um clique de distância de apagar a ficha errada numa lista de homônimos, e
+ * o estrago não é recuperável.
+ *
+ * A ordem importa: Redis primeiro, depois arquivo, depois Clerk. Se o Clerk
+ * falhar, sobra um login sem dados — incômodo e corrigível pelo painel. Se
+ * fosse ao contrário, sobraria a ficha de alguém que já não consegue entrar.
+ */
+export async function deleteStudentAction(form: FormData): Promise<ActionResult> {
+  const admin = await requireAdmin();
+
+  const student = await getStudent(text(form, 'studentId'));
+  if (!student) return { ok: false, message: 'Aluno não encontrado.' };
+
+  const digitado = text(form, 'confirmName');
+  if (digitado.toLowerCase() !== student.name.trim().toLowerCase()) {
+    return {
+      ok: false,
+      message: `Para apagar, digite o nome exatamente como está na ficha: ${student.name}`,
+    };
+  }
+
+  // Registrado antes: depois de apagar não há de onde tirar nome nem e-mail.
+  await audit(
+    admin,
+    'aluno.apagado',
+    student,
+    `${student.email || 'sem e-mail'} · cadastro de ${student.createdAt.slice(0, 10)}`,
+  );
+
+  try {
+    await deleteStudent(student);
+  } catch (error) {
+    console.error('[admin] falha ao apagar a ficha', error);
+    return { ok: false, message: 'Não foi possível apagar o cadastro. Nada foi removido.' };
+  }
+
+  if (student.docBlobKey) {
+    // Falhar aqui não desfaz o que já foi apagado; registra e segue.
+    try {
+      await deleteDocument(student.docBlobKey);
+    } catch (error) {
+      console.error('[admin] ficha apagada, mas o arquivo ficou no Blob', error);
+    }
+  }
+
+  let loginApagado = false;
+  try {
+    loginApagado = await deleteAccount(student.id);
+  } catch (error) {
+    console.error('[admin] ficha apagada, mas a conta do Clerk continua', error);
+  }
+
+  refreshAdmin();
+  revalidatePath('/admin/alunos');
+
+  return {
+    ok: true,
+    message: loginApagado
+      ? `Cadastro de ${student.name} apagado, inclusive o login.`
+      : `Cadastro de ${student.name} apagado. A conta de login não pôde ser removida — confira no painel do Clerk.`,
+  };
 }
 
 /** Altera turmas, faixa, graus e observações de um aluno já ativo. */

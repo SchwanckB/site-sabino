@@ -22,6 +22,7 @@ import { daysBetween, formatBr, saoPauloDateString } from '@/utils/datetime';
 import { formatCents, getPaymentSummary, PLAN_LABELS } from '@/utils/paymentEngine';
 
 import type { ClassOption } from '../../aprovacoes/ApprovalCard';
+import { DeleteStudentForm } from './DeleteStudentForm';
 import { StudentEditor } from './StudentEditor';
 
 export const metadata: Metadata = { title: 'Ficha do aluno' };
@@ -312,6 +313,30 @@ export default async function AlunoPage({
           )}
         </section>
       </div>
+
+      {/*
+        Exclusão definitiva.
+
+        Fica no fim da página, separada e em vermelho, porque não tem desfazer.
+        Para quem apenas parou de treinar existe o status "inativo", logo acima
+        — e o texto diz isso, senão o botão vira o caminho fácil para resolver
+        "esse aluno não treina mais".
+      */}
+      <section className="mt-10 rounded-2xl border border-crimson/40 bg-crimson/[.05] p-5 sm:p-6">
+        <h2 className="text-lg normal-case tracking-normal text-crimson">Apagar cadastro</h2>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          Remove em definitivo a ficha, o histórico de presenças e graduações, a mensalidade,
+          o arquivo anexado e a conta de login. <strong className="text-foreground">Não
+          tem como desfazer.</strong>
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          Se o aluno só parou de treinar, marque como <strong className="text-foreground">
+          inativo</strong> ali em cima: ele some das listas e da cobrança, mas o histórico fica
+          guardado caso volte.
+        </p>
+
+        <DeleteStudentForm studentId={student.id} studentName={student.name} />
+      </section>
     </div>
   );
 }

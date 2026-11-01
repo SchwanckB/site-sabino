@@ -11,6 +11,7 @@ import {
 } from '@/lib/repositories/parse';
 import {
   ADULT_AGE,
+  BELT_IDS,
   GENDERS,
   USER_STATUSES,
   type Category,
@@ -491,6 +492,56 @@ export function filterStudents(
     if (digits.length >= 3 && student.cpf.includes(digits)) return true;
     return false;
   });
+}
+
+/**
+ * Apaga a ficha e tudo que pende dela no Redis. **Não tem desfazer.**
+ *
+ * Existe para a academia conseguir remover de verdade um cadastro — de teste ou
+ * a pedido do aluno, que é o que a LGPD chama de direito ao esquecimento.
+ * Inativar continua sendo o caminho de quem só parou de treinar: preserva
+ * histórico e permite voltar.
+ *
+ * O arquivo no Blob e a conta no Clerk são apagados por quem chama, porque
+ * dependem de serviços externos a este módulo.
+ *
+ * **Órfãos aceitos de propósito:** as entradas em `rank:month:*` e
+ * `rank:belt:*:month:*` não são varridas. Seriam uma chave por mês e por faixa
+ * já usada, sem lista que as enumere. Não causam dano: a tela de ranking resolve
+ * cada id para uma ficha e descarta quem não encontra, e essas chaves já expiram
+ * sozinhas em 400 dias. O ranking geral e os por faixa, que não expiram, são
+ * limpos aqui.
+ */
+export async function deleteStudent(student: StudentRecord): Promise<void> {
+  const redis = getRedis();
+  if (!redis) throw new Error('Banco de dados não configurado');
+
+  const tx = redis.multi();
+
+  tx.del(redisKeys.user(student.id));
+  tx.del(redisKeys.payment(student.id));
+  tx.del(redisKeys.paymentsHistory(student.id));
+  tx.del(redisKeys.checkins(student.id));
+  tx.del(redisKeys.graduationHistory(student.id));
+
+  tx.srem('users:index', student.id);
+  // Todos os status, não só o atual: uma ficha que trocou de fila no passado
+  // pode ter deixado rastro se alguma gravação falhou pela metade.
+  for (const status of USER_STATUSES) {
+    tx.srem(redisKeys.usersByStatus(status), student.id);
+  }
+
+  tx.zrem(redisKeys.graduationDue(), student.id);
+  tx.zrem(redisKeys.paymentsDue(), student.id);
+  tx.zrem(redisKeys.rankAll(), student.id);
+
+  // Faixas são lista fechada e curta; varrer todas cobre as que o aluno já
+  // teve, não só a atual.
+  for (const belt of BELT_IDS) {
+    tx.zrem(redisKeys.rankBelt(belt), student.id);
+  }
+
+  await tx.exec();
 }
 
 export { rowToStudent, studentToRow, isRecord };
