@@ -3,6 +3,7 @@ import { ptBR } from '@clerk/localizations';
 import type { Metadata, Viewport } from 'next';
 import { Inter, Oswald } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 import { isClerkConfigured } from '@/lib/env';
 import { siteConfig, siteUrl } from '@/lib/site';
@@ -82,6 +83,7 @@ export default function RootLayout({
         </a>
         {children}
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
