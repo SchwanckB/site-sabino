@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
+import { DOCUMENT_KIND_SHORT } from '@/lib/documentRules';
 import { cn } from '@/lib/utils';
 import {
   ADULT_BELTS,
@@ -105,17 +106,32 @@ export function ApprovalCard({
             aria-expanded={showDocument}
             className="btn-secondary"
           >
-            {showDocument ? 'Ocultar documento' : 'Ver documento'}
+            {showDocument
+              ? 'Ocultar'
+              : `Ver ${DOCUMENT_KIND_SHORT[student.docKind].toLowerCase()}`}
           </button>
+
+          {/*
+            O tipo fica visível antes de abrir. O aluno pode mandar foto do
+            rosto em vez de documento, e isso muda o que o professor está
+            conferindo — principalmente em matrícula de menor.
+          */}
+          <p className="mt-2 text-xs text-muted">
+            Anexado: <strong className="font-medium">{DOCUMENT_KIND_SHORT[student.docKind]}</strong>
+            {student.docKind === 'foto'
+              ? ' — o aluno optou por não enviar documento de identidade.'
+              : ''}
+          </p>
+
           {showDocument ? (
             <div className="mt-3 overflow-hidden rounded-xl border border-hairline bg-white/[.03]">
               <iframe
                 src={`/api/admin/documento/${student.id}`}
-                title={`Documento de ${student.name}`}
+                title={`${DOCUMENT_KIND_SHORT[student.docKind]} de ${student.name}`}
                 className="h-[26rem] w-full border-0 bg-white"
               />
               <p className="border-t border-hairline px-3 py-2 text-[11px] text-muted">
-                Documento pessoal — acesso restrito ao administrador e registrado apenas para a
+                Dado pessoal — acesso restrito ao administrador e registrado apenas para a
                 conferência da matrícula.
               </p>
             </div>
@@ -123,7 +139,7 @@ export function ApprovalCard({
         </div>
       ) : (
         <p className="mt-5 rounded-lg bg-crimson/10 px-3 py-2 text-xs text-crimson">
-          Este cadastro não tem documento anexado.
+          Este cadastro não tem nenhum arquivo anexado.
         </p>
       )}
 

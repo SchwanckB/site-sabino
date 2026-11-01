@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { requireUser } from '@/lib/auth';
+import { toDocumentKind } from '@/lib/documentRules';
 import { isBlobConfigured, isRedisConfigured } from '@/lib/env';
 import { checkbox, text } from '@/lib/formData';
 import { consumeRateLimit, rateLimitMessage } from '@/lib/rateLimit';
@@ -41,6 +42,7 @@ function readValues(form: FormData): OnboardingValues {
     gender: text(form, 'gender'),
     unit: text(form, 'unit'),
     consent: checkbox(form, 'consent'),
+    docKind: text(form, 'docKind'),
   };
 }
 
@@ -158,6 +160,8 @@ export async function submitOnboarding(
         guardianPhone: normalized.guardianPhone,
         guardianCpf: normalized.guardianCpf,
         docBlobKey,
+        // Só faz sentido registrar o tipo quando existe anexo.
+        docKind: docBlobKey ? toDocumentKind(values.docKind) : 'documento',
         consentVersion: CONSENT_VERSION,
         consentAt: now.toISOString(),
       },

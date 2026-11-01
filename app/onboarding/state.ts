@@ -28,6 +28,8 @@ export interface OnboardingValues {
   readonly gender: string;
   readonly unit: string;
   readonly consent: boolean;
+  /** Tipo de anexo escolhido, para o radio voltar marcado depois de um erro. */
+  readonly docKind: string;
 }
 
 export interface OnboardingState {

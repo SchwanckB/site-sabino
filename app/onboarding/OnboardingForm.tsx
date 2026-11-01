@@ -4,7 +4,13 @@ import { useActionState, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useRouter } from 'next/navigation';
 
 import { SubmitButton } from '@/components/app/ActionForm';
-import { ACCEPTED_DOCUMENT_LABEL, DOCUMENT_ACCEPT_ATTR } from '@/lib/documentRules';
+import {
+  ACCEPTED_DOCUMENT_LABEL,
+  DOCUMENT_ACCEPT_ATTR,
+  DOCUMENT_KINDS,
+  DOCUMENT_KIND_LABELS,
+  type DocumentKind,
+} from '@/lib/documentRules';
 import { cn } from '@/lib/utils';
 import {
   DEFAULT_UNIT,
@@ -85,6 +91,8 @@ export function OnboardingForm({
    */
   const rememberedFile = useRef<File | null>(null);
   const [fileLabel, setFileLabel] = useState('');
+  // Alterna o rótulo e a dica do campo de arquivo conforme a escolha.
+  const [docKind, setDocKind] = useState<DocumentKind>('documento');
 
   const [state, action] = useActionState(
     async (previous: typeof initialOnboardingState, form: FormData) => {
@@ -295,17 +303,50 @@ export function OnboardingForm({
         </fieldset>
       ) : null}
 
+      {/*
+        Duas opções de anexo.
+
+        Nem todo mundo se sente à vontade mandando RG ou CNH para uma academia,
+        e barrar a matrícula por isso custa aluno. A foto do rosto resolve o uso
+        cotidiano do anexo, que é a recepção reconhecer quem chega. O tipo vai
+        gravado para o professor saber, na hora de aprovar, o que tem em mãos.
+      */}
       {documentEnabled ? (
+        <>
+      <fieldset className="mt-6">
+        <legend className="text-sm font-medium text-foreground">O que você vai enviar</legend>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {DOCUMENT_KINDS.map((kind) => (
+            <label
+              key={kind}
+              className="flex cursor-pointer items-start gap-3 rounded-xl border border-hairline bg-white/[.04] px-4 py-3 text-sm transition-colors hover:border-crimson/50 has-[:checked]:border-crimson has-[:checked]:bg-crimson/[.07]"
+            >
+              <input
+                type="radio"
+                name="docKind"
+                value={kind}
+                defaultChecked={(sent?.docKind ?? 'documento') === kind}
+                onChange={() => setDocKind(kind)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-crimson"
+              />
+              <span>{DOCUMENT_KIND_LABELS[kind]}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
       <Field
-        label="Documento com foto"
+        label={docKind === 'foto' ? 'Foto do aluno' : 'Documento com foto'}
         name="document"
         error={errors['document']}
         hint={
           fileLabel
             ? `${fileLabel} — anexado. Escolha outro arquivo só se quiser trocar.`
             : hasDocument
-              ? `Já temos um documento seu. Envie outro só se quiser substituir. ${ACCEPTED_DOCUMENT_LABEL}.`
-              : `RG, CNH ou certidão de nascimento. ${ACCEPTED_DOCUMENT_LABEL}.`
+              ? `Já temos um arquivo seu. Envie outro só se quiser substituir. ${ACCEPTED_DOCUMENT_LABEL}.`
+              : docKind === 'foto'
+                ? `Uma foto do rosto, de frente e com boa luz. ${ACCEPTED_DOCUMENT_LABEL}.`
+                : `RG, CNH ou certidão de nascimento. ${ACCEPTED_DOCUMENT_LABEL}.`
         }
       >
         <input
@@ -321,10 +362,11 @@ export function OnboardingForm({
           )}
         />
       </Field>
+        </>
       ) : (
         <p className="rounded-xl border border-dashed border-hairline px-4 py-3 text-xs leading-relaxed text-muted">
-          O envio de documento está temporariamente indisponível. Siga com o cadastro — a
-          academia pede o documento pessoalmente na primeira aula.
+          O envio de arquivo está temporariamente indisponível. Siga com o cadastro — a
+          academia resolve isso pessoalmente na primeira aula.
         </p>
       )}
 

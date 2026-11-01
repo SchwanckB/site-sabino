@@ -652,3 +652,81 @@ describe('validação da mensalidade é a mesma nos dois caminhos', () => {
     expect(comDueDate.ok).toBe(true);
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* Foto do documento OU foto do rosto                                         */
+/* -------------------------------------------------------------------------- */
+
+describe('o anexo pode ser documento ou foto do rosto', () => {
+  it('grava a escolha "foto" quando o aluno não quer mandar documento', async () => {
+    blobLigado = true;
+    const arquivo = new File([new Uint8Array(2048)], 'eu.jpg', { type: 'image/jpeg' });
+
+    const result = await onboarding.submitOnboarding(
+      estadoInicial,
+      formulario({ ...cadastroValido, docKind: 'foto' }, arquivo),
+    );
+
+    expect(result.status).toBe('success');
+    expect((await students.getStudent('user_aluno'))?.docKind).toBe('foto');
+  });
+
+  it('grava "documento" quando é o caso', async () => {
+    blobLigado = true;
+    const arquivo = new File([new Uint8Array(2048)], 'rg.jpg', { type: 'image/jpeg' });
+
+    await onboarding.submitOnboarding(
+      estadoInicial,
+      formulario({ ...cadastroValido, docKind: 'documento' }, arquivo),
+    );
+
+    expect((await students.getStudent('user_aluno'))?.docKind).toBe('documento');
+  });
+
+  it('valor estranho cai em "documento", nunca em algo inventado', async () => {
+    blobLigado = true;
+    const arquivo = new File([new Uint8Array(2048)], 'x.jpg', { type: 'image/jpeg' });
+
+    await onboarding.submitOnboarding(
+      estadoInicial,
+      formulario({ ...cadastroValido, docKind: 'selfie-maneira' }, arquivo),
+    );
+
+    expect((await students.getStudent('user_aluno'))?.docKind).toBe('documento');
+  });
+
+  it('sem anexo nenhum, o tipo não vira "foto" por acidente', async () => {
+    // Blob desligado: o cadastro passa sem arquivo.
+    const result = await onboarding.submitOnboarding(
+      estadoInicial,
+      formulario({ ...cadastroValido, docKind: 'foto' }),
+    );
+
+    expect(result.status).toBe('success');
+    const ficha = await students.getStudent('user_aluno');
+    expect(ficha?.docBlobKey).toBeNull();
+    // Sem arquivo o rótulo não significa nada; não pode sugerir que há foto.
+    expect(ficha?.docKind).toBe('documento');
+  });
+
+  it('a escolha volta ao formulário depois de um erro de validação', async () => {
+    const result = await onboarding.submitOnboarding(
+      estadoInicial,
+      formulario({ ...cadastroValido, cpf: '111.111.111-11', docKind: 'foto' }),
+    );
+
+    expect(result.status).toBe('error');
+    expect(result.values?.docKind).toBe('foto');
+  });
+
+  it('fichas antigas, sem o campo, são lidas como documento', async () => {
+    const { toDocumentKind } = await import('@/lib/documentRules');
+
+    // É assim que o registro gravado antes do campo existir chega do Redis.
+    expect(toDocumentKind(undefined)).toBe('documento');
+    expect(toDocumentKind('')).toBe('documento');
+    expect(toDocumentKind(null)).toBe('documento');
+    // E o único valor que muda o significado precisa ser exato.
+    expect(toDocumentKind('foto')).toBe('foto');
+  });
+});

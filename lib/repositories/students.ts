@@ -22,6 +22,7 @@ import {
   DEFAULT_UNIT,
   toUnitId,
 } from '@/types/domain';
+import { toDocumentKind, type DocumentKind } from '@/lib/documentRules';
 import { maskCpf } from '@/utils/cpf';
 import { saoPauloDateString } from '@/utils/datetime';
 import { SCORE_MIN } from '@/utils/redisScore';
@@ -79,6 +80,8 @@ function rowToStudent(id: string, row: Record<string, unknown>): StudentRecord {
     joinedAt: asNullableString(row['joinedAt']),
     lastGraduationAt: asNullableString(row['lastGraduationAt']),
     docBlobKey: asNullableString(row['docBlobKey']),
+    // Fichas anteriores ao campo: eram sempre documento de identidade.
+    docKind: toDocumentKind(row['docKind']),
     consentVersion: asString(row['consentVersion']),
     consentAt: asString(row['consentAt']),
     classIds: asStringArray(row['classIds']),
@@ -110,6 +113,7 @@ function studentToRow(student: StudentRecord): Record<string, string | number> {
     joinedAt: student.joinedAt ?? '',
     lastGraduationAt: student.lastGraduationAt ?? '',
     docBlobKey: student.docBlobKey ?? '',
+    docKind: student.docKind,
     consentVersion: student.consentVersion,
     consentAt: student.consentAt,
     classIds: JSON.stringify(student.classIds),
@@ -145,6 +149,7 @@ export function toPublicStudent(student: StudentRecord, now: Date): PublicStuden
     joinedAt: student.joinedAt,
     lastGraduationAt: student.lastGraduationAt,
     hasDocument: student.docBlobKey !== null,
+    docKind: student.docKind,
     classIds: student.classIds,
     rejectionReason: student.rejectionReason,
     notes: student.notes,
@@ -232,11 +237,28 @@ export function categoryFor(birthDate: string, now: Date): Category {
  * desde que ela ainda não tenha sido aprovada.
  */
 export async function createPendingStudent(
-  input: Omit<StudentRecord, 'status' | 'createdAt' | 'updatedAt' | 'joinedAt' | 'lastGraduationAt' | 'classIds' | 'rejectionReason' | 'notes' | 'degree' | 'category' | 'unit' | 'graduatesMonthly'> & {
+  input: Omit<
+    StudentRecord,
+    | 'status'
+    | 'createdAt'
+    | 'updatedAt'
+    | 'joinedAt'
+    | 'lastGraduationAt'
+    | 'classIds'
+    | 'rejectionReason'
+    | 'notes'
+    | 'degree'
+    | 'category'
+    | 'unit'
+    | 'graduatesMonthly'
+    | 'docKind'
+  > & {
     readonly degree?: number;
     /** Ausente em cadastro antigo e em teste: cai na unidade padrão. */
     readonly unit?: UnitId;
     readonly graduatesMonthly?: boolean;
+    /** Ausente em cadastro antigo e em teste: assume documento de identidade. */
+    readonly docKind?: DocumentKind;
   },
   now: Date,
 ): Promise<StudentRecord> {
@@ -254,6 +276,7 @@ export async function createPendingStudent(
     degree: input.degree ?? 0,
     unit: input.unit ?? DEFAULT_UNIT,
     graduatesMonthly: input.graduatesMonthly ?? true,
+    docKind: input.docKind ?? 'documento',
     category: categoryFor(input.birthDate, now),
     status: 'pendente',
     joinedAt: null,

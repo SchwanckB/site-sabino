@@ -1,3 +1,4 @@
+import type { DocumentKind } from '@/lib/documentRules';
 import type { AdultBelt } from '@/utils/graduationEngine';
 import type { PlanId } from '@/utils/paymentEngine';
 
@@ -202,6 +203,14 @@ export interface StudentRecord {
   readonly lastGraduationAt: string | null;
   /** Caminho no Vercel Blob privado. **Nunca** uma URL pública. */
   readonly docBlobKey: string | null;
+  /**
+   * O que foi anexado: documento de identidade ou foto do rosto.
+   *
+   * As duas valem para a matrícula, mas não se equivalem — o professor precisa
+   * saber o que tem em mãos ao aprovar. Fichas anteriores ao campo são lidas
+   * como `documento`, que era a única opção quando foram criadas.
+   */
+  readonly docKind: DocumentKind;
   readonly consentVersion: string;
   readonly consentAt: string;
   /** Turmas atribuídas pelo admin na aprovação. */
@@ -237,6 +246,8 @@ export interface PublicStudent {
   readonly joinedAt: string | null;
   readonly lastGraduationAt: string | null;
   readonly hasDocument: boolean;
+  /** O que foi anexado: documento de identidade ou foto do rosto. */
+  readonly docKind: DocumentKind;
   readonly classIds: readonly string[];
   readonly rejectionReason: string | null;
   readonly notes: string;

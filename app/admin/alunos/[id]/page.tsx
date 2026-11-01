@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 
 import { BeltDisplay } from '@/components/app/BeltDisplay';
 import { weekdayLabels, type Weekday } from '@/data/seed';
+import { DOCUMENT_KIND_SHORT } from '@/lib/documentRules';
 import { countCheckins, listCheckins } from '@/lib/repositories/attendance';
 import { listGraduationHistory } from '@/lib/repositories/graduation';
 import { buildTimeline, formatSpan } from '@/utils/graduationTimeline';
@@ -143,10 +144,10 @@ export default async function AlunoPage({
             rel="noopener noreferrer"
             className="btn-secondary mt-5"
           >
-            Abrir documento
+            Abrir {DOCUMENT_KIND_SHORT[publicStudent.docKind].toLowerCase()}
           </a>
         ) : (
-          <p className="mt-5 text-xs text-crimson">Sem documento anexado.</p>
+          <p className="mt-5 text-xs text-crimson">Sem arquivo anexado.</p>
         )}
       </section>
 
