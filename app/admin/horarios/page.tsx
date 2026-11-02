@@ -41,6 +41,7 @@ export default async function HorariosPage() {
           startTime: item.startTime,
           endTime: item.endTime,
           normalTime: `${slot.startTime} às ${slot.endTime}`,
+          canceled: item.canceled,
           note: item.note,
           isToday: item.date === today,
         },

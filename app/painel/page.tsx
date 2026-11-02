@@ -17,7 +17,7 @@ import {
   formatMinutes,
   groupAssignedByWeekday,
 } from '@/utils/attendanceEngine';
-import { recurringOnly } from '@/utils/classOverrides';
+import { canceledOn, recurringOnly } from '@/utils/classOverrides';
 import { daysBetween, formatBr, saoPauloDateString, saoPauloParts } from '@/utils/datetime';
 import { occurrencesInMonth } from '@/utils/classReport';
 import { getDegreeColor } from '@/utils/graduationEngine';
@@ -55,6 +55,7 @@ export default async function PainelPage() {
   const myDays = groupAssignedByWeekday(schedule.classes, student.classIds);
 
   const today = saoPauloDateString(now);
+  const canceladasHoje = canceledOn(schedule.classes, student.classIds, today);
   const last90 = checkins.filter((entry) => daysBetween(today, entry.date) < 90).length;
   const thisMonth = checkins.filter((entry) => entry.date.startsWith(today.slice(0, 7))).length;
 
@@ -265,6 +266,26 @@ export default async function PainelPage() {
           )}
         </section>
       </div>
+
+      {/*
+        Aula cancelada hoje: o aviso tem de aparecer antes de tudo. Sem ele o
+        aluno só descobriria na porta da academia — a tela diria apenas que a
+        próxima aula é semana que vem, e ninguém lê isso como "hoje não tem".
+      */}
+      {canceladasHoje.length > 0 ? (
+        <div className="mb-3 rounded-xl border border-crimson/50 bg-crimson/[.08] px-4 py-3">
+          <p className="text-sm font-semibold text-crimson">
+            {canceladasHoje.length === 1 ? 'Aula cancelada hoje' : 'Aulas canceladas hoje'}
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {canceladasHoje.map((slot) => (
+              <li key={slot.id} className="text-sm text-foreground">
+                {slot.title} · {slot.startTime} às {slot.endTime}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="grid gap-3 lg:grid-cols-3">
         {/* Próxima aula ------------------------------------------------- */}

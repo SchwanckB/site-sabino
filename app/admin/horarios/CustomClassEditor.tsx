@@ -24,17 +24,18 @@ export interface CustomClassView {
   readonly endTime: string;
   /** Horário da grade, para o professor ver o que mudou. */
   readonly normalTime: string;
+  readonly canceled: boolean;
   readonly note: string;
   readonly isToday: boolean;
 }
 
 /**
- * Aula personalizada: a turma em outro horário, num dia só.
+ * Aula personalizada: a turma mudada num dia só — outro horário, ou cancelada.
  *
- * A grade não é tocada — no dia seguinte a turma volta ao horário normal
- * sozinha, e o site continua anunciando a grade de verdade. No dia marcado, o
- * check-in do aluno passa a valer no horário novo (e abre uma hora antes
- * dele), e o horário normal daquele dia deixa de aceitar presença.
+ * A grade não é tocada: no dia seguinte a turma volta ao normal sozinha, e o
+ * site continua anunciando a grade de verdade. No dia marcado, o horário
+ * normal deixa de aceitar presença; o check-in abre no horário novo (uma hora
+ * antes dele), ou não abre, se a aula foi cancelada.
  */
 export function CustomClassEditor({
   classes,
@@ -50,6 +51,7 @@ export function CustomClassEditor({
 }) {
   const [creating, setCreating] = useState(false);
   const [classId, setClassId] = useState(classes[0]?.id ?? '');
+  const [canceling, setCanceling] = useState(false);
 
   const selected = classes.find((slot) => slot.id === classId) ?? null;
 
@@ -63,19 +65,34 @@ export function CustomClassEditor({
         <div>
           <h2 className="font-display text-lg uppercase tracking-tight">Aulas personalizadas</h2>
           <p className="mt-1 max-w-prose text-sm text-muted">
-            Mude o horário de uma turma em um dia só, sem alterar a grade. Serve para hoje ou
-            para um dia à frente — no dia seguinte a turma volta ao horário normal sozinha.
+            Mude o horário de uma turma em um dia só, ou cancele a aula daquele dia. A grade
+            não muda: no dia seguinte a turma volta ao horário normal sozinha.
           </p>
         </div>
 
         {classes.length > 0 ? (
-          <button
-            type="button"
-            onClick={() => setCreating((open) => !open)}
-            className="btn-primary"
-          >
-            {creating ? 'Fechar' : 'Nova aula personalizada'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCanceling(false);
+                setCreating((open) => !open || canceling);
+              }}
+              className="btn-primary"
+            >
+              {creating && !canceling ? 'Fechar' : 'Mudar horário de um dia'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCanceling(true);
+                setCreating((open) => !open || !canceling);
+              }}
+              className="btn-secondary"
+            >
+              {creating && canceling ? 'Fechar' : 'Cancelar uma aula'}
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -123,40 +140,46 @@ export function CustomClassEditor({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              {/*
-                `key` na turma: trocar a turma no select precisa redesenhar os
-                campos de hora para o `defaultValue` novo entrar. Sem isso o
-                professor escolhia o Kids e salvava com o horário do MMA.
-              */}
-              <div key={`start-${selected.id}`}>
-                <label htmlFor="override-start" className="block text-xs text-muted">
-                  Início
-                </label>
-                <input
-                  id="override-start"
-                  name="startTime"
-                  type="time"
-                  required
-                  defaultValue={selected.startTime}
-                  className={cn(inputClass, 'mt-1')}
-                />
-              </div>
+            {canceling ? (
+              // O horário de uma aula cancelada não é escolha do professor: é
+              // o da grade, e quem preenche é o servidor.
+              <input type="hidden" name="canceled" value="on" />
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {/*
+                  `key` na turma: trocar a turma no select precisa redesenhar
+                  os campos de hora para o `defaultValue` novo entrar. Sem isso
+                  o professor escolhia o Kids e salvava com o horário do MMA.
+                */}
+                <div key={`start-${selected.id}`}>
+                  <label htmlFor="override-start" className="block text-xs text-muted">
+                    Início
+                  </label>
+                  <input
+                    id="override-start"
+                    name="startTime"
+                    type="time"
+                    required
+                    defaultValue={selected.startTime}
+                    className={cn(inputClass, 'mt-1')}
+                  />
+                </div>
 
-              <div key={`end-${selected.id}`}>
-                <label htmlFor="override-end" className="block text-xs text-muted">
-                  Fim
-                </label>
-                <input
-                  id="override-end"
-                  name="endTime"
-                  type="time"
-                  required
-                  defaultValue={selected.endTime}
-                  className={cn(inputClass, 'mt-1')}
-                />
+                <div key={`end-${selected.id}`}>
+                  <label htmlFor="override-end" className="block text-xs text-muted">
+                    Fim
+                  </label>
+                  <input
+                    id="override-end"
+                    name="endTime"
+                    type="time"
+                    required
+                    defaultValue={selected.endTime}
+                    className={cn(inputClass, 'mt-1')}
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="sm:col-span-2 lg:col-span-4">
               <label htmlFor="override-note" className="block text-xs text-muted">
@@ -167,7 +190,9 @@ export function CustomClassEditor({
                 name="note"
                 type="text"
                 maxLength={140}
-                placeholder="Hoje mais cedo por causa do evento"
+                placeholder={
+                  canceling ? 'Professor viajando' : 'Hoje mais cedo por causa do evento'
+                }
                 className={cn(inputClass, 'mt-1')}
               />
             </div>
@@ -175,12 +200,14 @@ export function CustomClassEditor({
 
           <p className="mt-3 text-xs text-muted">
             Horário normal desta turma: {weekdayShortLabels[selected.weekday as Weekday]}{' '}
-            {selected.startTime} às {selected.endTime}. O check-in abre uma hora antes do início
-            que você salvar e fecha 15 minutos depois do fim.
+            {selected.startTime} às {selected.endTime}.{' '}
+            {canceling
+              ? 'Neste dia a turma não vai acontecer: o check-in não abre, e quem é matriculado nela vê o aviso no painel.'
+              : 'O check-in abre uma hora antes do início que você salvar e fecha 15 minutos depois do fim.'}
           </p>
 
           <div className="mt-4 flex flex-wrap gap-3">
-            <SubmitButton>Salvar aula personalizada</SubmitButton>
+            <SubmitButton>{canceling ? 'Cancelar esta aula' : 'Salvar aula personalizada'}</SubmitButton>
             <button type="button" onClick={() => setCreating(false)} className="btn-secondary">
               Cancelar
             </button>
@@ -195,11 +222,27 @@ export function CustomClassEditor({
       ) : (
         <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {overrides.map((item) => (
-            <li key={item.id} className="surface-card p-4">
+            <li
+              key={item.id}
+              className={cn(
+                'surface-card p-4',
+                item.canceled ? 'border-crimson/40' : null,
+              )}
+            >
               <div className="flex items-center gap-2">
-                <span className="font-display text-base tabular-nums">
+                <span
+                  className={cn(
+                    'font-display text-base tabular-nums',
+                    item.canceled ? 'text-crimson line-through' : null,
+                  )}
+                >
                   {item.startTime} às {item.endTime}
                 </span>
+                {item.canceled ? (
+                  <span className="rounded-full border border-crimson/50 px-2 py-0.5 text-[11px] font-semibold text-crimson">
+                    Cancelada
+                  </span>
+                ) : null}
                 {item.isToday ? (
                   <span className="rounded-full bg-crimson px-2 py-0.5 text-[11px] font-semibold text-foreground">
                     Hoje
@@ -209,18 +252,23 @@ export function CustomClassEditor({
 
               <p className="mt-1 truncate text-sm text-foreground">{item.classTitle}</p>
               <p className="text-xs text-muted">
-                {item.weekdayLabel}, {item.dateLabel} · normal {item.normalTime}
+                {item.weekdayLabel}, {item.dateLabel}
+                {item.canceled ? '' : ` · normal ${item.normalTime}`}
               </p>
               {item.note ? <p className="mt-2 text-xs text-muted">{item.note}</p> : null}
 
               <ActionForm
                 action={deleteClassOverrideAction}
                 className="mt-3"
-                confirm={`Remover a aula personalizada de ${item.dateLabel}? A turma volta para o horário ${item.normalTime}.`}
+                confirm={
+                  item.canceled
+                    ? `Desfazer o cancelamento de ${item.dateLabel}? A aula volta a acontecer às ${item.normalTime}.`
+                    : `Remover a aula personalizada de ${item.dateLabel}? A turma volta para o horário ${item.normalTime}.`
+                }
               >
                 <input type="hidden" name="id" value={item.id} />
                 <SubmitButton className="btn-ghost text-xs text-crimson" pendingLabel="…">
-                  Remover
+                  {item.canceled ? 'Desfazer cancelamento' : 'Remover'}
                 </SubmitButton>
               </ActionForm>
             </li>

@@ -143,6 +143,118 @@ async function marcarMaisCedo(date: string, start = '18:30', end = '19:30') {
   return result;
 }
 
+/** Cancela a aula do dia — sem informar horário nenhum. */
+async function cancelar(date: string) {
+  atual = professor;
+  const form = new FormData();
+  form.set('classId', 'seg-1930-mma');
+  form.set('date', date);
+  form.set('canceled', 'on');
+  form.set('note', 'Professor viajando');
+
+  const result = await adminActions.saveClassOverrideAction(form);
+  atual = aluno;
+  return result;
+}
+
+describe('o professor cancela a aula do dia', () => {
+  it('não precisa digitar horário: vem da grade', async () => {
+    agora(SEGUNDA, '10:00');
+
+    const result = await cancelar(SEGUNDA);
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain('cancelada');
+
+    const gravadas = await overrides.listUpcomingClassOverrides(em(SEGUNDA, '10:00'));
+    expect(gravadas[0]?.canceled).toBe(true);
+    // O horário que a turma teria, para o registro descrever o que caiu.
+    expect(gravadas[0]?.startTime).toBe('19:30');
+    expect(gravadas[0]?.endTime).toBe('20:30');
+  });
+
+  it('recusa turma que não existe na grade', async () => {
+    agora(SEGUNDA, '10:00');
+    atual = professor;
+
+    const form = new FormData();
+    form.set('classId', 'turma-inventada');
+    form.set('date', SEGUNDA);
+    form.set('canceled', 'on');
+    form.set('note', '');
+
+    const result = await adminActions.saveClassOverrideAction(form);
+    atual = aluno;
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('não encontrada');
+  });
+
+  it('fecha o check-in o dia inteiro', async () => {
+    await alunoDeMma();
+
+    agora(SEGUNDA, '10:00');
+    await cancelar(SEGUNDA);
+
+    const token = qr.getCurrentQrToken('tres-cachoeiras').token;
+
+    // Nem cedo, nem na hora da aula.
+    agora(SEGUNDA, '18:45');
+    const cedo = await painel.listCheckinOptions(token);
+    expect(cedo.ok === true && cedo.classes).toEqual([]);
+
+    agora(SEGUNDA, '19:45');
+    const naHora = await painel.listCheckinOptions(token);
+    expect(naHora.ok === true && naHora.classes).toEqual([]);
+
+    const result = await painel.checkinAction(token, 'seg-1930-mma');
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reason).toBe('sem_aula_agora');
+  });
+
+  it('a semana seguinte continua valendo', async () => {
+    await alunoDeMma();
+
+    agora(SEGUNDA, '10:00');
+    await cancelar(SEGUNDA);
+
+    agora(OUTRA_SEGUNDA, '19:45');
+    const token = qr.getCurrentQrToken('tres-cachoeiras').token;
+    const opcoes = await painel.listCheckinOptions(token);
+
+    expect(opcoes.ok === true && opcoes.classes.map((item) => item.time)).toEqual(['19:30']);
+  });
+
+  it('cancelar substitui um horário remarcado do mesmo dia', async () => {
+    agora(SEGUNDA, '10:00');
+    await marcarMaisCedo(SEGUNDA);
+    await cancelar(SEGUNDA);
+
+    const gravadas = await overrides.listUpcomingClassOverrides(em(SEGUNDA, '10:00'));
+    expect(gravadas).toHaveLength(1);
+    expect(gravadas[0]?.canceled).toBe(true);
+  });
+
+  it('desfazer o cancelamento devolve a aula no mesmo dia', async () => {
+    await alunoDeMma();
+
+    agora(SEGUNDA, '10:00');
+    await cancelar(SEGUNDA);
+
+    atual = professor;
+    const gravadas = await overrides.listUpcomingClassOverrides(em(SEGUNDA, '10:00'));
+    const form = new FormData();
+    form.set('id', gravadas[0]?.id ?? '');
+    expect((await adminActions.deleteClassOverrideAction(form)).ok).toBe(true);
+    atual = aluno;
+
+    agora(SEGUNDA, '19:45');
+    const token = qr.getCurrentQrToken('tres-cachoeiras').token;
+    const opcoes = await painel.listCheckinOptions(token);
+
+    expect(opcoes.ok === true && opcoes.classes.map((item) => item.time)).toEqual(['19:30']);
+  });
+});
+
 describe('o professor marca a aula personalizada', () => {
   it('grava e descreve o novo horário na mensagem', async () => {
     agora(SEGUNDA, '10:00');

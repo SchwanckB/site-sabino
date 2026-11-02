@@ -21,7 +21,12 @@ import {
 } from '@/lib/repositories/payments';
 import { removePlan, resetPlansToSeed, upsertPlan } from '@/lib/repositories/plansAdmin';
 import { saveAcademySettings } from '@/lib/repositories/settings';
-import { removeClass, resetScheduleToSeed, upsertClass } from '@/lib/repositories/scheduleAdmin';
+import {
+  getEditableSchedule,
+  removeClass,
+  resetScheduleToSeed,
+  upsertClass,
+} from '@/lib/repositories/scheduleAdmin';
 import {
   approveStudent,
   deleteStudent,
@@ -683,7 +688,7 @@ export async function deleteClassAction(form: FormData): Promise<ActionResult> {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Marca a turma em outro horário, num dia só.
+ * Muda a turma num dia só: outro horário, ou aula cancelada.
  *
  * Não invalida `CACHE_TAGS.schedule` nem a landing page de propósito: a grade
  * anunciada no site não muda, e as exceções são lidas sem cache por quem
@@ -692,23 +697,41 @@ export async function deleteClassAction(form: FormData): Promise<ActionResult> {
 export async function saveClassOverrideAction(form: FormData): Promise<ActionResult> {
   await requireAdmin();
 
+  const classId = text(form, 'classId');
+  const canceled = checkbox(form, 'canceled');
+
+  let startTime = text(form, 'startTime');
+  let endTime = text(form, 'endTime');
+
+  if (canceled) {
+    /*
+     * Cancelar não pede horário — o professor marca a turma e o dia, e pronto.
+     * O horário que a turma teria vem da grade, aqui no servidor, só para o
+     * registro descrever o que foi cancelado. Pedir isso ao formulário seria
+     * deixar o cliente informar um dado que o servidor já conhece.
+     */
+    const slot = (await getEditableSchedule()).find((item) => item.id === classId);
+    if (!slot) return { ok: false, message: 'Turma não encontrada na grade.' };
+
+    startTime = slot.startTime;
+    endTime = slot.endTime;
+  }
+
   const result = await upsertClassOverride(
-    {
-      classId: text(form, 'classId'),
-      date: text(form, 'date'),
-      startTime: text(form, 'startTime'),
-      endTime: text(form, 'endTime'),
-      note: text(form, 'note'),
-    },
+    { classId, date: text(form, 'date'), startTime, endTime, canceled, note: text(form, 'note') },
     new Date(),
   );
 
   if (!result.ok) return { ok: false, message: result.error };
 
+  const { date, startTime: inicio, endTime: fim } = result.override;
+
   refreshAdmin();
   return {
     ok: true,
-    message: `Aula personalizada salva: ${formatBr(result.override.date)}, ${result.override.startTime} às ${result.override.endTime}. O check-in abre uma hora antes.`,
+    message: canceled
+      ? `Aula cancelada em ${formatBr(date)}. O check-in não vai abrir, e o aluno é avisado no painel.`
+      : `Aula personalizada salva: ${formatBr(date)}, ${inicio} às ${fim}. O check-in abre uma hora antes.`,
   };
 }
 

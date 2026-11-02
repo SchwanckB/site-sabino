@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { ClassSlot } from '@/data/seed';
 
-import { applyClassOverrides, recurringOnly, type ClassOverrideTimes } from './classOverrides';
+import {
+  applyClassOverrides,
+  canceledOn,
+  recurringOnly,
+  type ClassOverrideTimes,
+} from './classOverrides';
 import { findNextClass, findOpenClasses } from './attendanceEngine';
 
 /** Horário cheio em São Paulo (UTC-3). */
@@ -85,6 +90,63 @@ describe('applyClassOverrides', () => {
     const efetiva = applyClassOverrides(grade, [{ ...maisCedo, classId: 'turma-apagada' }]);
 
     expect(efetiva).toEqual(grade);
+  });
+});
+
+/** "Hoje não tem Jiu-Jitsu Kids." */
+const cancelada: ClassOverrideTimes = {
+  classId: 'seg-1930-mma',
+  date: SEGUNDA,
+  startTime: '19:30',
+  endTime: '20:30',
+  canceled: true,
+};
+
+describe('aula cancelada', () => {
+  const efetiva = applyClassOverrides(grade, [cancelada]);
+  const meusIds = ['seg-1930-mma'];
+
+  it('não põe ocorrência nenhuma no lugar', () => {
+    expect(efetiva.filter((slot) => slot.onlyOnDate !== undefined)).toEqual([]);
+  });
+
+  it('marca o dia como cancelado, além de furado', () => {
+    const recorrente = efetiva.find((slot) => slot.id === 'seg-1930-mma');
+
+    expect(recorrente?.skipDates).toEqual([SEGUNDA]);
+    expect(recorrente?.canceledDates).toEqual([SEGUNDA]);
+  });
+
+  it('fecha o check-in o dia inteiro', () => {
+    expect(findOpenClasses(efetiva, meusIds, sp(SEGUNDA, '18:30'))).toEqual([]);
+    expect(findOpenClasses(efetiva, meusIds, sp(SEGUNDA, '19:45'))).toEqual([]);
+    expect(findOpenClasses(efetiva, meusIds, sp(SEGUNDA, '20:40'))).toEqual([]);
+  });
+
+  it('manda a próxima aula para a semana seguinte', () => {
+    const proxima = findNextClass(efetiva, meusIds, sp(SEGUNDA, '08:00'));
+
+    expect(proxima?.daysUntil).toBe(7);
+    expect(proxima?.startTime).toBe('19:30');
+  });
+
+  it('não afeta a semana seguinte', () => {
+    const aberto = findOpenClasses(efetiva, meusIds, sp(OUTRA_SEGUNDA, '19:45'));
+
+    expect(aberto[0]?.classId).toBe('seg-1930-mma');
+  });
+
+  it('aparece para o aluno matriculado, e só para ele', () => {
+    expect(canceledOn(efetiva, meusIds, SEGUNDA).map((slot) => slot.title)).toEqual(['MMA']);
+    expect(canceledOn(efetiva, ['seg-2030-jj'], SEGUNDA)).toEqual([]);
+    expect(canceledOn(efetiva, meusIds, OUTRA_SEGUNDA)).toEqual([]);
+  });
+
+  it('aula remarcada não conta como cancelada', () => {
+    // As duas tiram a turma do horário normal; só uma significa "não venha".
+    const remarcada = applyClassOverrides(grade, [maisCedo]);
+
+    expect(canceledOn(remarcada, meusIds, SEGUNDA)).toEqual([]);
   });
 });
 

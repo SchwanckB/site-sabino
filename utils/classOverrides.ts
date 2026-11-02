@@ -30,6 +30,14 @@ export interface ClassOverrideTimes {
   readonly date: string;
   readonly startTime: string;
   readonly endTime: string;
+  /** `true` quando a aula daquele dia foi cancelada, e não remarcada. */
+  readonly canceled?: boolean;
+}
+
+function push(map: Map<string, string[]>, key: string, value: string): void {
+  const current = map.get(key);
+  if (current) current.push(value);
+  else map.set(key, [value]);
 }
 
 export function applyClassOverrides(
@@ -42,6 +50,7 @@ export function applyClassOverrides(
   for (const slot of classes) byId.set(slot.id, slot);
 
   const skipByClass = new Map<string, string[]>();
+  const canceledByClass = new Map<string, string[]>();
   const occurrences: ClassSlot[] = [];
 
   for (const override of overrides) {
@@ -51,9 +60,15 @@ export function applyClassOverrides(
     // há matrícula para conferir, então a exceção deixa de existir junto.
     if (!base) continue;
 
-    const dates = skipByClass.get(base.id);
-    if (dates) dates.push(override.date);
-    else skipByClass.set(base.id, [override.date]);
+    // Nos dois casos a turma não acontece no horário normal. A diferença é o
+    // que entra no lugar: a aula remarcada ganha uma ocorrência nova, a
+    // cancelada não ganha nada.
+    push(skipByClass, base.id, override.date);
+
+    if (override.canceled === true) {
+      push(canceledByClass, base.id, override.date);
+      continue;
+    }
 
     occurrences.push({
       ...base,
@@ -66,10 +81,32 @@ export function applyClassOverrides(
 
   const recurring = classes.map((slot) => {
     const skip = skipByClass.get(slot.id);
-    return skip ? { ...slot, skipDates: skip } : slot;
+    if (!skip) return slot;
+
+    const canceled = canceledByClass.get(slot.id);
+    return canceled ? { ...slot, skipDates: skip, canceledDates: canceled } : { ...slot, skipDates: skip };
   });
 
   return [...recurring, ...occurrences];
+}
+
+/**
+ * Turmas do aluno canceladas nesta data.
+ *
+ * O aluno precisa ver isto. Sem o aviso, o cancelamento só apareceria como
+ * ausência da aula na tela — ele viajaria até a academia para descobrir na
+ * porta. É por isso que cancelada e remarcada são marcas separadas: as duas
+ * tiram a turma do horário normal, mas só uma significa "não venha".
+ */
+export function canceledOn(
+  classes: readonly ClassSlot[],
+  assignedIds: readonly string[],
+  date: string,
+): ClassSlot[] {
+  const allowed = new Set(assignedIds);
+  return classes.filter(
+    (slot) => allowed.has(slot.id) && (slot.canceledDates ?? []).includes(date),
+  );
 }
 
 /**

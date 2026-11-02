@@ -180,8 +180,17 @@ export interface ClassSlot {
    * mesclar as exceções do dia (`utils/classOverrides.ts`).
    */
   readonly onlyOnDate?: string;
-  /** Datas civis em que esta turma foi remarcada para outro horário. */
+  /**
+   * Datas civis em que esta turma não acontece no horário normal — porque foi
+   * remarcada para outro horário, ou porque foi cancelada.
+   */
   readonly skipDates?: readonly string[];
+  /**
+   * Subconjunto de `skipDates`: as datas em que a aula foi **cancelada**, e
+   * não remarcada. Só muda o que a tela diz ao aluno; para o check-in as duas
+   * marcas valem igual.
+   */
+  readonly canceledDates?: readonly string[];
 }
 
 export interface Schedule {

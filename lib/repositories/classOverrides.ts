@@ -1,16 +1,19 @@
 import 'server-only';
 
 import { getRedis, redisKeys } from '@/lib/redis';
-import { asString, isRecord } from '@/lib/repositories/parse';
+import { asBoolean, asString, isRecord } from '@/lib/repositories/parse';
 import { addDays, saoPauloDateString } from '@/utils/datetime';
 
 /**
  * Aulas personalizadas (`schedule:overrides`).
  *
- * Uma aula personalizada é **a mesma turma da grade, em outro horário, numa
- * data só**: "hoje o MMA é 18:30 em vez de 19:30". No dia marcado, a turma
- * deixa de acontecer no horário normal e passa a acontecer no personalizado —
- * e é nesse horário que o QR da academia libera o check-in.
+ * Uma aula personalizada é **a mesma turma da grade, mudada numa data só**.
+ * São dois casos, e os dois tiram a turma do horário normal naquele dia:
+ *
+ *  - **remarcada**: "hoje o MMA é 18:30 em vez de 19:30". A aula acontece no
+ *    horário novo, e é nele que o QR da academia libera o check-in.
+ *  - **cancelada**: "hoje não tem Jiu-Jitsu Kids". A aula não acontece, o
+ *    check-in não abre, e o aluno é avisado no painel.
  *
  * Duas decisões sustentam o resto:
  *
@@ -38,9 +41,17 @@ export interface ClassOverride {
   readonly classId: string;
   /** `YYYY-MM-DD` — dia civil em São Paulo. */
   readonly date: string;
-  /** `HH:mm` no fuso de São Paulo. */
+  /**
+   * `HH:mm` no fuso de São Paulo — o horário novo da aula.
+   *
+   * Numa aula cancelada estes campos guardam o horário que a turma **teria**
+   * naquele dia. Não são usados para nada além de descrever o que foi
+   * cancelado; quem preenche é a action, lendo a grade.
+   */
   readonly startTime: string;
   readonly endTime: string;
+  /** `true` quando a aula foi cancelada, e não remarcada. */
+  readonly canceled: boolean;
   /** Recado opcional do professor, mostrado ao aluno. */
   readonly note: string;
   readonly createdAt: string;
@@ -79,6 +90,7 @@ function parseOverride(value: unknown): ClassOverride | null {
     date,
     startTime,
     endTime,
+    canceled: asBoolean(value['canceled']),
     note: asString(value['note']).slice(0, MAX_NOTE),
     createdAt: asString(value['createdAt']),
   };
@@ -139,8 +151,13 @@ async function persist(overrides: readonly ClassOverride[], now: Date): Promise<
 export interface ClassOverrideInput {
   readonly classId: string;
   readonly date: string;
+  /**
+   * Horário novo da aula. No cancelamento, a action preenche com o horário
+   * que a turma teria — o professor não digita hora para cancelar.
+   */
   readonly startTime: string;
   readonly endTime: string;
+  readonly canceled: boolean;
   readonly note: string;
 }
 
@@ -154,7 +171,7 @@ export function validateClassOverride(
 ): ClassOverrideValidation {
   const classId = input.classId.trim();
   if (classId.length === 0) {
-    return { ok: false, error: 'Escolha a turma que vai mudar de horário.' };
+    return { ok: false, error: 'Escolha a turma.' };
   }
 
   if (!DATE_PATTERN.test(input.date)) {
@@ -183,6 +200,7 @@ export function validateClassOverride(
       date: input.date,
       startTime: input.startTime,
       endTime: input.endTime,
+      canceled: input.canceled,
       note: input.note.trim().slice(0, MAX_NOTE),
       createdAt: now.toISOString(),
     },
