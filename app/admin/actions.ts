@@ -10,6 +10,15 @@ import { recordCheckin, undoCheckin } from '@/lib/repositories/attendance';
 import { recordAudit, type AuditAction } from '@/lib/repositories/audit';
 import { deleteDocument } from '@/lib/repositories/documents';
 import { removeEvent, upsertEvent } from '@/lib/repositories/calendar';
+import {
+  isMonth,
+  postRecurringForMonth,
+  removeCashEntry,
+  removeRecurringCost,
+  setMonthClosed,
+  upsertCashEntry,
+  upsertRecurringCost,
+} from '@/lib/repositories/cashbook';
 import { removeClassOverride, upsertClassOverride } from '@/lib/repositories/classOverrides';
 import { saveClassLog } from '@/lib/repositories/classLog';
 import { clearFollowup, isFollowupKind, markFollowup } from '@/lib/repositories/followups';
@@ -54,7 +63,13 @@ import {
 import { findOpenClasses } from '@/utils/attendanceEngine';
 import { formatBr, saoPauloDateString } from '@/utils/datetime';
 import { KIDS_TOTAL_DEGREES } from '@/utils/graduationEngine';
-import { DEFAULT_GRACE_DAYS, parseCentsInput, type PlanId } from '@/utils/paymentEngine';
+import {
+  DEFAULT_GRACE_DAYS,
+  formatCents,
+  installmentCents,
+  parseCentsInput,
+  type PlanId,
+} from '@/utils/paymentEngine';
 
 /**
  * Ações do administrador.
@@ -152,6 +167,25 @@ function readPlanInput(
   // não um dado que o professor precise acertar para salvar o plano.
   const graceDays = intInRange(form, 'graceDays', 0, 90) ?? DEFAULT_GRACE_DAYS;
 
+  /*
+   * Desconto: bolsa, irmão, combinado.
+   *
+   * Campo ausente preserva o que está gravado — a aprovação não manda este
+   * campo, e zerar o desconto de quem já tem bolsa a cada edição de valor
+   * seria o pior tipo de erro silencioso.
+   */
+  const descontoBruto = text(form, 'discount');
+  const discountCents = descontoBruto.length > 0 ? parseCentsInput(descontoBruto) : undefined;
+  if (discountCents === null) {
+    return { ok: false, message: 'Desconto inválido. Use apenas números.' };
+  }
+  if (discountCents !== undefined && discountCents > amountCents) {
+    return {
+      ok: false,
+      message: 'O desconto não pode ser maior que a mensalidade. Para isentar, use o valor cheio.',
+    };
+  }
+
   return {
     ok: true,
     input: {
@@ -165,6 +199,9 @@ function readPlanInput(
       dueDay,
       graceDays,
       firstDueDate: text(form, 'firstDueDate') || text(form, 'dueDate'),
+      ...(discountCents !== undefined ? { discountCents } : {}),
+      ...(form.has('discountReason') ? { discountReason: text(form, 'discountReason') } : {}),
+      changeNote: text(form, 'changeNote'),
     },
   };
 }
@@ -597,18 +634,58 @@ export async function registerPaymentAction(form: FormData): Promise<ActionResul
 
   const amountOverride = parseCentsInput(text(form, 'amount'));
 
-  await registerPayment(
+  const resultado = await registerPayment(
     plan,
     {
       method: method as PaymentMethod,
-      amountCents: amountOverride ?? plan.amountCents,
+      // Sem valor informado, o padrão é a parcela **com desconto** — é o que o
+      // aluno de bolsa deve, e cobrar a tabela dele seria erro silencioso.
+      amountCents: amountOverride ?? installmentCents(plan),
       registeredBy: admin.id,
     },
     new Date(),
   );
 
   refreshAdmin();
-  return { ok: true, message: 'Pagamento registrado.' };
+
+  /*
+   * A mensagem diz o que aconteceu com o dinheiro.
+   *
+   * Pagamento parcial não quita, e anunciar "pagamento registrado" seco faria
+   * o professor acreditar que o aluno está em dia — o erro que o parcial
+   * existe para evitar.
+   */
+  const { entry, partial, plan: atualizado } = resultado;
+
+  if (partial) {
+    return {
+      ok: true,
+      message: `Recebido ${formatCents(entry.amountCents)}. Falta ${formatCents(
+        Math.max(0, installmentCents(plan) - atualizado.creditCents),
+      )} para fechar a parcela de ${formatBr(plan.dueDate)}.`,
+    };
+  }
+
+  const recibo = entry.receiptNumber > 0 ? ` Recibo nº ${entry.receiptNumber}.` : '';
+
+  if (entry.installments > 1) {
+    return {
+      ok: true,
+      message: `${entry.installments} parcelas quitadas. Próximo vencimento em ${formatBr(
+        atualizado.dueDate,
+      )}.${recibo}`,
+    };
+  }
+
+  const troco =
+    atualizado.creditCents > 0
+      ? ` Sobraram ${formatCents(atualizado.creditCents)} como crédito.`
+      : '';
+
+  return {
+    ok: true,
+    message: `Pagamento registrado. Próximo vencimento em ${formatBr(atualizado.dueDate)}.${recibo}${troco}`,
+  };
 }
 
 export async function undoPaymentAction(form: FormData): Promise<ActionResult> {
@@ -635,15 +712,104 @@ export async function undoPaymentAction(form: FormData): Promise<ActionResult> {
 }
 
 export async function updatePlanAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const plan = readPlanInput(form, text(form, 'studentId'));
   if (!plan.ok) return { ok: false, message: plan.message };
 
-  await setupPaymentPlan(plan.input, new Date());
+  // `registeredBy` entra aqui, e não em `readPlanInput`: a leitura do
+  // formulário não conhece quem está logado, e o histórico de valor precisa
+  // saber quem reajustou.
+  const salvo = await setupPaymentPlan({ ...plan.input, registeredBy: admin.id }, new Date());
 
   refreshAdmin();
-  return { ok: true, message: 'Mensalidade atualizada.' };
+
+  const liquido = installmentCents(salvo);
+  return {
+    ok: true,
+    message:
+      salvo.discountCents > 0
+        ? `Mensalidade atualizada: ${formatCents(salvo.amountCents)} com ${formatCents(
+            salvo.discountCents,
+          )} de desconto — o aluno paga ${formatCents(liquido)}.`
+        : `Mensalidade atualizada para ${formatCents(liquido)}.`,
+  };
+}
+
+/**
+ * Reajuste em lote.
+ *
+ * Reajustar um por um é o que fazia o professor postergar o reajuste: trinta
+ * alunos, trinta telas. Aqui o percentual é aplicado sobre o valor de tabela
+ * de cada um, o desconto de quem tem bolsa é preservado, e cada mudança entra
+ * no histórico individual com o motivo.
+ *
+ * O vencimento **não** se move: reajuste é valor, não prazo.
+ */
+export async function bulkRaiseAction(form: FormData): Promise<ActionResult> {
+  const admin = await requireAdmin();
+
+  const ids = textList(form, 'studentIds');
+  if (ids.length === 0) return { ok: false, message: 'Selecione pelo menos um aluno.' };
+
+  const percentual = Number(text(form, 'percent').replace(',', '.'));
+  if (!Number.isFinite(percentual) || percentual === 0) {
+    return { ok: false, message: 'Informe o percentual do reajuste.' };
+  }
+  if (percentual < -50 || percentual > 100) {
+    return { ok: false, message: 'Percentual fora da faixa aceita (-50% a +100%).' };
+  }
+
+  const note = text(form, 'changeNote') || `reajuste de ${percentual}%`;
+  const now = new Date();
+
+  let aplicados = 0;
+  let semPlano = 0;
+
+  for (const id of ids) {
+    const atual = await getPaymentPlan(id);
+    if (!atual) {
+      semPlano += 1;
+      continue;
+    }
+
+    // Arredonda ao centavo: meio centavo por aluno viraria diferença de
+    // alguns reais no fechamento do mês.
+    const novo = Math.max(0, Math.round(atual.amountCents * (1 + percentual / 100)));
+    if (novo === atual.amountCents) continue;
+
+    await setupPaymentPlan(
+      {
+        userId: id,
+        planId: atual.planId,
+        planName: atual.planName,
+        amountCents: novo,
+        dueDay: atual.dueDay,
+        graceDays: atual.graceDays,
+        // Preserva o vencimento em aberto: o reajuste não antecipa nem adia.
+        firstDueDate: atual.dueDate,
+        registeredBy: admin.id,
+        changeNote: note,
+      },
+      now,
+    );
+
+    aplicados += 1;
+  }
+
+  refreshAdmin();
+
+  if (aplicados === 0) {
+    return { ok: false, message: 'Nenhuma mensalidade foi alterada.' };
+  }
+
+  return {
+    ok: true,
+    message:
+      semPlano > 0
+        ? `${aplicados} mensalidades reajustadas. ${semPlano} sem mensalidade definida ficaram de fora.`
+        : `${aplicados} ${aplicados === 1 ? 'mensalidade reajustada' : 'mensalidades reajustadas'}.`,
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -892,6 +1058,152 @@ export async function deleteClassAction(form: FormData): Promise<ActionResult> {
   revalidateTag(CACHE_TAGS.schedule);
   revalidatePath('/');
   return { ok: true, message: 'Turma removida.' };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Livro-caixa                                                                */
+/* -------------------------------------------------------------------------- */
+
+export async function saveCashEntryAction(form: FormData): Promise<ActionResult> {
+  const admin = await requireAdmin();
+
+  const amountCents = parseCentsInput(text(form, 'amount'));
+  if (amountCents === null) {
+    return { ok: false, message: 'Informe o valor do lançamento.' };
+  }
+
+  const result = await upsertCashEntry(
+    {
+      id: text(form, 'id') || undefined,
+      kind: text(form, 'kind'),
+      date: text(form, 'date'),
+      amountCents,
+      category: text(form, 'category'),
+      description: text(form, 'description'),
+      unit: text(form, 'unit'),
+      registeredBy: admin.id,
+    },
+    new Date(),
+  );
+
+  if (!result.ok) return { ok: false, message: result.error };
+
+  refreshAdmin();
+  return {
+    ok: true,
+    message:
+      result.entry.kind === 'despesa'
+        ? `Saída de ${formatCents(result.entry.amountCents)} lançada.`
+        : `Entrada de ${formatCents(result.entry.amountCents)} lançada.`,
+  };
+}
+
+export async function deleteCashEntryAction(form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const result = await removeCashEntry(text(form, 'month'), text(form, 'id'), new Date());
+  if (!result.ok) return { ok: false, message: result.error ?? 'Não foi possível remover.' };
+
+  refreshAdmin();
+  return { ok: true, message: 'Lançamento removido.' };
+}
+
+export async function saveRecurringCostAction(form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const amountCents = parseCentsInput(text(form, 'amount'));
+  if (amountCents === null) return { ok: false, message: 'Informe o valor da conta fixa.' };
+
+  const result = await upsertRecurringCost(
+    {
+      id: text(form, 'id') || undefined,
+      kind: text(form, 'kind'),
+      amountCents,
+      category: text(form, 'category'),
+      description: text(form, 'description'),
+      unit: text(form, 'unit'),
+      dueDay: Number(text(form, 'dueDay')) || 1,
+    },
+    new Date(),
+  );
+
+  if (!result.ok) return { ok: false, message: result.error };
+
+  refreshAdmin();
+  return { ok: true, message: 'Conta fixa salva.' };
+}
+
+export async function deleteRecurringCostAction(form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const id = text(form, 'id');
+  if (id.length === 0) return { ok: false, message: 'Conta fixa inválida.' };
+
+  await removeRecurringCost(id, new Date());
+
+  refreshAdmin();
+  return { ok: true, message: 'Conta fixa removida.' };
+}
+
+/**
+ * Lança as contas fixas do mês de uma vez.
+ *
+ * É idempotente no repositório: clicar duas vezes não duplica o aluguel. Sem
+ * essa garantia o professor evitaria o botão por medo, que é o mesmo que não
+ * ter o botão.
+ */
+export async function postRecurringAction(form: FormData): Promise<ActionResult> {
+  const admin = await requireAdmin();
+
+  const month = text(form, 'month');
+  const result = await postRecurringForMonth(month, admin.id, new Date());
+
+  if (result.error) return { ok: false, message: result.error };
+
+  refreshAdmin();
+
+  if (result.posted === 0) {
+    return { ok: true, message: 'As contas fixas deste mês já estavam lançadas.' };
+  }
+
+  return {
+    ok: true,
+    message:
+      result.skipped > 0
+        ? `${result.posted} contas fixas lançadas. ${result.skipped} já estavam no mês.`
+        : `${result.posted} ${result.posted === 1 ? 'conta fixa lançada' : 'contas fixas lançadas'}.`,
+  };
+}
+
+/**
+ * Fecha ou reabre um mês do caixa.
+ *
+ * Fechar não é burocracia: enquanto todo mês aceita lançamento retroativo,
+ * nenhuma comparação entre meses é confiável — o número do mês passado pode
+ * mudar depois de ter sido usado para decidir algo.
+ */
+export async function setMonthClosedAction(form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const month = text(form, 'month');
+  if (!isMonth(month)) return { ok: false, message: 'Mês inválido.' };
+
+  const fechar = checkbox(form, 'close');
+
+  try {
+    await setMonthClosed(month, fechar);
+  } catch (error) {
+    console.error('[admin] falha ao fechar o mês', error);
+    return { ok: false, message: 'Não foi possível alterar o fechamento.' };
+  }
+
+  refreshAdmin();
+  return {
+    ok: true,
+    message: fechar
+      ? `${month} fechado. Lançamentos neste mês ficam bloqueados.`
+      : `${month} reaberto.`,
+  };
 }
 
 /* -------------------------------------------------------------------------- */

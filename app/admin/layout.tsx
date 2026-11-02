@@ -44,6 +44,7 @@ export default async function AdminLayout({
     { href: '/admin/graduacao', label: 'Graduação', icon: 'faixa', group: 'Alunos' },
 
     { href: '/admin/financeiro', label: 'Financeiro', icon: 'dinheiro', group: 'Dinheiro' },
+    { href: '/admin/caixa', label: 'Caixa', icon: 'grafico', group: 'Dinheiro' },
     { href: '/admin/planos', label: 'Planos', icon: 'plano', group: 'Dinheiro' },
 
     { href: '/admin/horarios', label: 'Horários', icon: 'horarios', group: 'Academia' },

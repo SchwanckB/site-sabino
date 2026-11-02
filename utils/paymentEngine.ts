@@ -54,8 +54,35 @@ export interface PaymentPlan {
    * mostra só o período nesse caso, sem migração de dado.
    */
   readonly planName: string;
-  /** Valor da parcela em centavos — inteiro, nunca float. */
+  /**
+   * Valor de tabela da parcela, em centavos — inteiro, nunca float.
+   *
+   * É o combinado cheio, antes de desconto. Fica separado de {@link
+   * PaymentPlan.discountCents} de propósito: baixar este número esconderia
+   * que a academia dá desconto, e com ele some a resposta de "quanto deixo de
+   * cobrar por mês".
+   */
   readonly amountCents: number;
+  /**
+   * Desconto fixo por parcela, em centavos. Bolsa, irmão, combinado.
+   *
+   * Valor e não percentual: é assim que o acerto é feito no balcão ("paga
+   * 120 em vez de 150"), e percentual sobre centavos geraria arredondamento
+   * diferente a cada mês.
+   */
+  readonly discountCents?: number;
+  /** Por que tem desconto. Aparece na ficha e no relatório. */
+  readonly discountReason?: string;
+  /**
+   * Dinheiro recebido que ainda não fechou uma parcela.
+   *
+   * É o que torna o pagamento parcial possível: o aluno entrega 100 de uma
+   * parcela de 150, os 100 ficam aqui, e o vencimento só avança quando a
+   * soma alcançar o valor da parcela. Antes a baixa era tudo ou nada, e o
+   * professor tinha de escolher entre dar a parcela por paga ou não registrar
+   * nada — as duas erradas.
+   */
+  readonly creditCents?: number;
   /** Dia do vencimento (1 a 31). Meses curtos usam o último dia. */
   readonly dueDay: number;
   readonly graceDays: number;
@@ -76,8 +103,22 @@ export interface PaymentSummary {
   readonly daysOverdue: number;
   /** Parcelas em aberto, incluindo a do mês corrente. Nunca menor que 1. */
   readonly openInstallments: number;
+  /** Quanto falta entrar: parcelas abertas menos o crédito já recebido. */
   readonly totalOpenCents: number;
+  /**
+   * Valor a pagar por parcela, **já com o desconto aplicado**.
+   *
+   * Continua sendo este o campo que a cobrança, o recibo e a fila usam — era
+   * assim antes do desconto existir, e mudar o significado faria toda tela
+   * cobrar o valor de tabela de quem tem bolsa.
+   */
   readonly amountCents: number;
+  /** Valor de tabela, antes do desconto. Igual a `amountCents` sem desconto. */
+  readonly grossCents: number;
+  readonly discountCents: number;
+  readonly discountReason: string;
+  /** Crédito em caixa: pagamento parcial que ainda não fechou a parcela. */
+  readonly creditCents: number;
   readonly planId: PlanId;
   /** Nome do plano contratado. Vazio quando a mensalidade é anterior ao campo. */
   readonly planName: string;
@@ -133,6 +174,9 @@ export function getPaymentSummary(plan: PaymentPlan, now: Date): PaymentSummary 
     openInstallments += 1;
   }
 
+  const net = installmentCents(plan);
+  const credit = toCents(plan.creditCents);
+
   return {
     userId: plan.userId,
     status,
@@ -141,11 +185,100 @@ export function getPaymentSummary(plan: PaymentPlan, now: Date): PaymentSummary 
     daysUntilDue,
     daysOverdue: Math.max(0, daysPastLimit),
     openInstallments,
-    totalOpenCents: openInstallments * plan.amountCents,
-    amountCents: plan.amountCents,
+    // O crédito abate o que falta entrar: quem pagou 100 de 150 deve 50, e
+    // mostrar 150 em aberto faria o professor cobrar o valor inteiro de novo.
+    totalOpenCents: Math.max(0, openInstallments * net - credit),
+    amountCents: net,
+    grossCents: plan.amountCents,
+    discountCents: toCents(plan.discountCents),
+    discountReason: plan.discountReason ?? '',
+    creditCents: credit,
     planId: plan.planId,
     planName: plan.planName,
     lastPaidAt: plan.lastPaidAt,
+  };
+}
+
+/**
+ * Valor que o aluno paga por parcela: tabela menos desconto, nunca negativo.
+ *
+ * Um desconto maior que a mensalidade significa isento, e não academia
+ * devendo ao aluno.
+ */
+export function installmentCents(plan: PaymentPlan): number {
+  return Math.max(0, Math.trunc(plan.amountCents) - toCents(plan.discountCents));
+}
+
+/**
+ * Centavos de um campo que pode não existir.
+ *
+ * Desconto e crédito entraram depois: mensalidade gravada antes deles não tem
+ * os campos, e `Math.trunc(undefined)` é `NaN` — que contaminaria toda a
+ * conta do mês em silêncio, mostrando "R$ NaN" na tela do professor.
+ */
+function toCents(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.trunc(value));
+}
+
+export interface AppliedPayment {
+  /** Quantas parcelas o dinheiro recebido fechou. `0` em pagamento parcial. */
+  readonly installmentsPaid: number;
+  /** Vencimento depois do pagamento. Igual ao atual quando nada fechou. */
+  readonly nextDueDate: string;
+  /** Sobra que fica como crédito para a próxima parcela. */
+  readonly creditCents: number;
+  /** Mês de referência de cada parcela quitada, na ordem. */
+  readonly coveredMonths: readonly string[];
+}
+
+/**
+ * Distribui um valor recebido entre as parcelas em aberto.
+ *
+ * Resolve de uma vez os três casos que a baixa "tudo ou nada" não cobria:
+ *
+ *  - **parcial**: recebeu menos que a parcela. Nada vence, o valor fica como
+ *    crédito e o professor vê quanto falta;
+ *  - **exato**: fecha a parcela e empurra o vencimento, como antes;
+ *  - **adiantado**: pagou duas ou três de uma vez. Fecha quantas couberem e
+ *    guarda o resto, em vez de dar uma só por paga e perder a diferença.
+ *
+ * Função pura: não toca em banco, e é onde a conta de dinheiro é testada.
+ */
+export function applyPayment(plan: PaymentPlan, receivedCents: number): AppliedPayment {
+  const parcela = installmentCents(plan);
+  const disponivel = toCents(plan.creditCents) + toCents(receivedCents);
+
+  // Parcela zerada (aluno isento) não pode virar laço infinito: o pagamento
+  // fecha a parcela corrente e para.
+  if (parcela <= 0) {
+    return {
+      installmentsPaid: 1,
+      nextDueDate: addMonths(plan.dueDate, PLAN_MONTHS[plan.planId], plan.dueDay),
+      creditCents: 0,
+      coveredMonths: [plan.dueDate.slice(0, 7)],
+    };
+  }
+
+  let restante = disponivel;
+  let dueDate = plan.dueDate;
+  let fechadas = 0;
+  const meses: string[] = [];
+
+  // Teto de 120 pela mesma razão do laço de parcelas em aberto: um valor
+  // absurdo digitado por engano não deve travar o servidor.
+  while (restante >= parcela && fechadas < 120) {
+    meses.push(dueDate.slice(0, 7));
+    restante -= parcela;
+    dueDate = addMonths(dueDate, PLAN_MONTHS[plan.planId], plan.dueDay);
+    fechadas += 1;
+  }
+
+  return {
+    installmentsPaid: fechadas,
+    nextDueDate: dueDate,
+    creditCents: restante,
+    coveredMonths: meses,
   };
 }
 

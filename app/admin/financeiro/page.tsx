@@ -24,9 +24,17 @@ import {
   type ChargeItem,
   type PaidItem,
 } from '@/utils/financeMonth';
+import {
+  delinquencyOverview,
+  recoveryReport,
+  studentDelinquency,
+  type PaidInstallment,
+  type RecoveryInput,
+} from '@/utils/delinquency';
 import { getPaymentSummary } from '@/utils/paymentEngine';
 
 import { BillingQueue, type BillingTarget } from './BillingQueue';
+import { DelinquencyPanel, type ChronicRow } from './DelinquencyPanel';
 import { FinanceList, type FinanceRow } from './FinanceList';
 import { MonthClose } from './MonthClose';
 
@@ -138,6 +146,10 @@ export default async function FinanceiroPage() {
           totalOpenCents: 0,
           lastPaidAt: null,
           hasPlan: false,
+          grossCents: 0,
+          discountCents: 0,
+          discountReason: '',
+          creditCents: 0,
           phone: telefoneDe(student),
           unitLabel: UNIT_LABELS[student.unit],
           lastMethod,
@@ -161,6 +173,10 @@ export default async function FinanceiroPage() {
         totalOpenCents: summary.totalOpenCents,
         lastPaidAt: summary.lastPaidAt,
         hasPlan: true,
+        grossCents: summary.grossCents,
+        discountCents: summary.discountCents,
+        discountReason: summary.discountReason,
+        creditCents: summary.creditCents,
         phone: telefoneDe(student),
         unitLabel: UNIT_LABELS[student.unit],
         lastMethod,
@@ -213,6 +229,53 @@ export default async function FinanceiroPage() {
     };
   });
 
+  /*
+   * Pontualidade: sai do histórico, não do estado de hoje.
+   *
+   * Cada baixa guarda o vencimento da parcela que quitou, então o atraso é um
+   * dado. Pagamentos gravados antes desse campo ficam de fora — entrar com
+   * atraso zero faria a academia parecer mais pontual do que é.
+   */
+  const perfis = students.map((student) =>
+    studentDelinquency(
+      student.id,
+      (historicos.get(student.id) ?? []).map(
+        (entry): PaidInstallment => ({
+          paidOn: saoPauloDateString(new Date(entry.paidAt)),
+          dueDate: entry.dueDate,
+        }),
+      ),
+    ),
+  );
+
+  const overview = delinquencyOverview(perfis);
+  const porId = new Map(students.map((student) => [student.id, student.name]));
+
+  const chronic: ChronicRow[] = perfis
+    .filter((perfil) => perfil.chronic)
+    .sort((a, b) => (b.averageDelayDays ?? 0) - (a.averageDelayDays ?? 0))
+    .slice(0, 10)
+    .map((perfil) => ({
+      id: perfil.userId,
+      name: porId.get(perfil.userId) ?? perfil.userId,
+      averageDelayDays: perfil.averageDelayDays,
+      worstDelayDays: perfil.worstDelayDays,
+      lateCount: perfil.lateCount,
+      measured: perfil.measured,
+    }));
+
+  // A cobrança funciona? Cruza a data da cobrança com a do último pagamento.
+  const recovery = recoveryReport(
+    students.map((student): RecoveryInput => {
+      const ultimo = historicos.get(student.id)?.[0];
+      return {
+        userId: student.id,
+        chargedOn: cobrados.get(student.id),
+        lastPaidOn: ultimo ? saoPauloDateString(new Date(ultimo.paidAt)) : undefined,
+      };
+    }),
+  );
+
   return (
     <div className="page-stack">
       <PageHeader
@@ -240,6 +303,8 @@ export default async function FinanceiroPage() {
           />
 
           <BillingQueue targets={targets} />
+
+          <DelinquencyPanel overview={overview} recovery={recovery} chronic={chronic} />
 
           <FinanceList
             rows={rows}

@@ -271,11 +271,45 @@ export interface PaymentEntry {
   readonly paidAt: string;
   /** `YYYY-MM` da parcela quitada. */
   readonly referenceMonth: string;
+  /** Valor recebido — não necessariamente o da parcela, desde o parcial. */
   readonly amountCents: number;
   readonly method: string;
   readonly registeredBy: string;
   /** Novo vencimento depois deste pagamento. */
   readonly coveredUntil: string;
+  /**
+   * Vencimento da parcela que este pagamento quitou.
+   *
+   * É o que torna o atraso um dado em vez de uma estimativa: sem ele, só dava
+   * para inferir o vencimento a partir de `coveredUntil` menos o período, e a
+   * conta errava em quem mudou de plano. Vazio nos pagamentos gravados antes
+   * do campo — a análise de inadimplência ignora esses em vez de contá-los
+   * como pontuais.
+   */
+  readonly dueDate: string;
+  /**
+   * Quantas parcelas o valor recebido fechou.
+   *
+   * `0` em pagamento parcial — o dinheiro entrou e nada venceu. Mais de uma
+   * em pagamento adiantado. `1` nos registros antigos, que era o único caso
+   * possível quando a baixa era tudo ou nada.
+   */
+  readonly installments: number;
+  /** Crédito que havia **antes** deste pagamento. É o que o desfazer repõe. */
+  readonly creditBeforeCents: number;
+  /** Número sequencial do recibo. `0` nos pagamentos anteriores ao recibo. */
+  readonly receiptNumber: number;
+}
+
+/** Uma mudança no valor combinado da mensalidade. */
+export interface PlanChangeEntry {
+  readonly at: string;
+  readonly fromCents: number;
+  readonly toCents: number;
+  readonly fromDiscountCents: number;
+  readonly toDiscountCents: number;
+  readonly registeredBy: string;
+  readonly note: string;
 }
 
 export const PAYMENT_METHODS = ['pix', 'dinheiro', 'cartao', 'transferencia', 'outro'] as const;
@@ -321,7 +355,13 @@ export interface PaymentPlanRecord {
    * correspondente.
    */
   readonly planName: string;
+  /** Valor de tabela, antes do desconto. */
   readonly amountCents: number;
+  /** Desconto fixo por parcela: bolsa, irmão, combinado. */
+  readonly discountCents: number;
+  readonly discountReason: string;
+  /** Pagamento parcial que ainda não fechou parcela. */
+  readonly creditCents: number;
   readonly dueDay: number;
   readonly graceDays: number;
   readonly dueDate: string;

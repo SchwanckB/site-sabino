@@ -237,7 +237,9 @@ describe('mensalidade', () => {
       new Date('2026-03-10T12:00:00-03:00'),
     );
 
-    expect(pago.dueDate).toBe('2026-04-11');
+    expect(pago.plan.dueDate).toBe('2026-04-11');
+    expect(pago.partial).toBe(false);
+    expect(pago.entry.receiptNumber).toBeGreaterThan(0);
 
     const historico = await payments.listPaymentHistory(fichaBase.id);
     expect(historico).toHaveLength(1);
@@ -258,7 +260,10 @@ describe('mensalidade', () => {
       new Date('2026-03-10T12:00:00-03:00'),
     );
 
-    const desfeito = await payments.undoLastPayment(pago, new Date('2026-03-10T12:05:00-03:00'));
+    const desfeito = await payments.undoLastPayment(
+      pago.plan,
+      new Date('2026-03-10T12:05:00-03:00'),
+    );
 
     expect(desfeito.dueDate).toBe('2026-03-11');
     expect(desfeito.lastPaidAt).toBeNull();

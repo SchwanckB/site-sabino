@@ -31,6 +31,12 @@ export interface FinanceRow {
   readonly phone: string;
   readonly unitLabel: string;
   readonly lastMethod: string;
+  /** Valor de tabela, antes do desconto. */
+  readonly grossCents: number;
+  readonly discountCents: number;
+  readonly discountReason: string;
+  /** Pagamento parcial que ainda não fechou parcela. */
+  readonly creditCents: number;
 }
 
 type Filter = 'vencidas' | 'em_breve' | 'todos' | 'sem_plano';
@@ -340,7 +346,7 @@ export function FinanceList({
 
                     <div>
                       <label htmlFor={`amount-${row.id}`} className="block text-xs text-muted">
-                        Valor
+                        Valor recebido
                       </label>
                       <input
                         id={`amount-${row.id}`}
@@ -352,7 +358,7 @@ export function FinanceList({
                       />
                     </div>
 
-                    <SubmitButton pendingLabel="Registrando…">Marcar como pago</SubmitButton>
+                    <SubmitButton pendingLabel="Registrando…">Registrar pagamento</SubmitButton>
                   </ActionForm>
                 ) : null}
 
@@ -449,6 +455,46 @@ export function FinanceList({
                         min={0}
                         max={28}
                         defaultValue={row.graceDays}
+                        className={cn(inputClass, 'mt-1')}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={`discount-${row.id}`} className="block text-xs text-muted">
+                        Desconto (R$)
+                      </label>
+                      <input
+                        id={`discount-${row.id}`}
+                        name="discount"
+                        type="text"
+                        inputMode="decimal"
+                        defaultValue={(row.discountCents / 100).toFixed(2).replace('.', ',')}
+                        className={cn(inputClass, 'mt-1')}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label htmlFor={`discountReason-${row.id}`} className="block text-xs text-muted">
+                        Motivo do desconto
+                      </label>
+                      <input
+                        id={`discountReason-${row.id}`}
+                        name="discountReason"
+                        type="text"
+                        maxLength={80}
+                        placeholder="bolsa, irmão de aluno, combinado"
+                        defaultValue={row.discountReason}
+                        className={cn(inputClass, 'mt-1')}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label htmlFor={`changeNote-${row.id}`} className="block text-xs text-muted">
+                        Motivo da mudança de valor (vai para o histórico)
+                      </label>
+                      <input
+                        id={`changeNote-${row.id}`}
+                        name="changeNote"
+                        type="text"
+                        maxLength={80}
+                        placeholder="reajuste anual"
                         className={cn(inputClass, 'mt-1')}
                       />
                     </div>

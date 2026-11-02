@@ -55,6 +55,16 @@ export const redisKeys = {
   calendarEvents: () => 'calendar:events',
   classLog: (classId: string) => 'class:log:' + classId,
   academySettings: () => 'settings:academy',
+  /** Livro-caixa, uma chave por mês: `cash:entries:2026-03`. */
+  cashEntries: (month: string) => 'cash:entries:' + month,
+  /** Contas fixas, como modelo para lançar o mês. */
+  cashRecurring: () => 'cash:recurring',
+  /** Meses fechados, que não aceitam mais lançamento. */
+  cashClosed: () => 'cash:closed',
+  /** Contador do número do recibo. */
+  receiptSeq: () => 'finance:receipt:seq',
+  /** Histórico de valor da mensalidade de um aluno. */
+  planHistory: (userId: string) => 'payments:plan-history:' + userId,
   /** Com quem o professor já falou sobre cobrança, retorno ou aniversário. */
   followup: (kind: string) => 'followup:' + kind,
   qrCurrent: (classId: string) => 'qr:current:' + classId,

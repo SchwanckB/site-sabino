@@ -4,6 +4,7 @@ import {
   DEFAULT_GRACE_DAYS,
   DUE_SOON_DAYS,
   advanceDueDate,
+  applyPayment,
   firstDueDate,
   formatCents,
   getPaymentSummary,
@@ -198,5 +199,132 @@ describe('constantes', () => {
   it('mantém os padrões documentados', () => {
     expect(DUE_SOON_DAYS).toBe(5);
     expect(DEFAULT_GRACE_DAYS).toBe(4);
+  });
+});
+
+
+/**
+ * Desconto, crédito e pagamento parcial.
+ *
+ * A baixa era tudo ou nada: o aluno que entregava parte do valor deixava o
+ * professor escolher entre dar a parcela por paga — perdendo a diferença — ou
+ * não registrar nada. E o desconto de bolsa ou de irmão vivia numa observação
+ * em texto, fora da conta do mês.
+ */
+describe('desconto na mensalidade', () => {
+  const comDesconto = plan({
+    amountCents: 15000,
+    discountCents: 3000,
+    discountReason: 'irmão de aluno',
+  });
+
+  it('cobra o valor com desconto, e guarda o de tabela', () => {
+    const resumo = getPaymentSummary(comDesconto, spNoon('2026-03-05'));
+
+    expect(resumo.amountCents).toBe(12000);
+    expect(resumo.grossCents).toBe(15000);
+    expect(resumo.discountCents).toBe(3000);
+    expect(resumo.discountReason).toBe('irmão de aluno');
+  });
+
+  it('desconto maior que a mensalidade significa isento, não crédito', () => {
+    const isento = plan({ amountCents: 15000, discountCents: 20000 });
+
+    expect(getPaymentSummary(isento, spNoon('2026-03-05')).amountCents).toBe(0);
+  });
+
+  it('mensalidade antiga, sem os campos novos, continua valendo', () => {
+    // Plano gravado antes do desconto existir: sem tratamento, `undefined`
+    // viraria NaN e a tela mostraria "R$ NaN".
+    const resumo = getPaymentSummary(plan({ amountCents: 15000 }), spNoon('2026-03-05'));
+
+    expect(resumo.amountCents).toBe(15000);
+    expect(resumo.discountCents).toBe(0);
+    expect(resumo.creditCents).toBe(0);
+    expect(Number.isNaN(resumo.totalOpenCents)).toBe(false);
+  });
+
+  it('o crédito abate o que falta entrar', () => {
+    const parcial = plan({ amountCents: 15000, creditCents: 10000 });
+    const resumo = getPaymentSummary(parcial, spNoon('2026-03-05'));
+
+    // Pagou 100 de 150: deve 50, e não 150.
+    expect(resumo.totalOpenCents).toBe(5000);
+    expect(resumo.creditCents).toBe(10000);
+  });
+});
+
+describe('applyPayment', () => {
+  const base = plan({ amountCents: 15000, dueDate: '2026-03-10', dueDay: 10 });
+
+  it('pagamento exato fecha a parcela e empurra o vencimento', () => {
+    const r = applyPayment(base, 15000);
+
+    expect(r.installmentsPaid).toBe(1);
+    expect(r.nextDueDate).toBe('2026-04-10');
+    expect(r.creditCents).toBe(0);
+    expect(r.coveredMonths).toEqual(['2026-03']);
+  });
+
+  it('pagamento parcial não vence nada e fica como crédito', () => {
+    const r = applyPayment(base, 10000);
+
+    expect(r.installmentsPaid).toBe(0);
+    expect(r.nextDueDate).toBe('2026-03-10');
+    expect(r.creditCents).toBe(10000);
+    expect(r.coveredMonths).toEqual([]);
+  });
+
+  it('o crédito soma com o pagamento seguinte e fecha a parcela', () => {
+    const r = applyPayment(plan({ ...base, creditCents: 10000 }), 5000);
+
+    expect(r.installmentsPaid).toBe(1);
+    expect(r.nextDueDate).toBe('2026-04-10');
+    expect(r.creditCents).toBe(0);
+  });
+
+  it('pagamento adiantado fecha várias parcelas de uma vez', () => {
+    const r = applyPayment(base, 45000);
+
+    expect(r.installmentsPaid).toBe(3);
+    expect(r.nextDueDate).toBe('2026-06-10');
+    expect(r.coveredMonths).toEqual(['2026-03', '2026-04', '2026-05']);
+    expect(r.creditCents).toBe(0);
+  });
+
+  it('o troco de um adiantamento vira crédito, em vez de se perder', () => {
+    const r = applyPayment(base, 40000);
+
+    expect(r.installmentsPaid).toBe(2);
+    expect(r.creditCents).toBe(10000);
+  });
+
+  it('respeita o desconto ao distribuir o valor', () => {
+    // Parcela de 100 depois da bolsa: 200 fecham duas.
+    const r = applyPayment(plan({ ...base, discountCents: 5000 }), 20000);
+
+    expect(r.installmentsPaid).toBe(2);
+    expect(r.creditCents).toBe(0);
+  });
+
+  it('plano trimestral avança três meses por parcela', () => {
+    const r = applyPayment(plan({ ...base, planId: 'trimestral' }), 15000);
+
+    expect(r.installmentsPaid).toBe(1);
+    expect(r.nextDueDate).toBe('2026-06-10');
+  });
+
+  it('aluno isento fecha a parcela sem dinheiro, e não trava', () => {
+    const r = applyPayment(plan({ ...base, discountCents: 15000 }), 0);
+
+    expect(r.installmentsPaid).toBe(1);
+    expect(r.nextDueDate).toBe('2026-04-10');
+  });
+
+  it('valor negativo digitado por engano não vira crédito', () => {
+    const r = applyPayment(base, -5000);
+
+    expect(r.installmentsPaid).toBe(0);
+    expect(r.creditCents).toBe(0);
   });
 });
