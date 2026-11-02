@@ -33,6 +33,10 @@ const inputClass =
  */
 export function StudentEditor({
   studentId,
+  name,
+  joinedAt,
+  lastGraduationAt,
+  today,
   belt,
   degree,
   notes,
@@ -45,6 +49,13 @@ export function StudentEditor({
   classOptions,
 }: {
   readonly studentId: string;
+  readonly name: string;
+  /** `YYYY-MM-DD` da matrícula, ou vazio para quem ainda não foi aprovado. */
+  readonly joinedAt: string;
+  /** `YYYY-MM-DD` da última graduação, ou vazio para quem nunca graduou. */
+  readonly lastGraduationAt: string;
+  /** Hoje em São Paulo: teto do campo de data. */
+  readonly today: string;
   readonly belt: string;
   readonly degree: number;
   readonly notes: string;
@@ -64,7 +75,74 @@ export function StudentEditor({
       {/* Turmas, faixa e graus ------------------------------------------ */}
       <ActionForm action={updateStudentAction} className="panel p-5 sm:p-6">
         <input type="hidden" name="studentId" value={studentId} />
-        <h2 className="text-lg normal-case tracking-normal">Turmas e graduação</h2>
+        <h2 className="text-lg normal-case tracking-normal">Cadastro, turmas e graduação</h2>
+
+        {/*
+          Nome e data de matrícula: as duas correções que só davam para fazer
+          no banco. O aluno digita o nome no cadastro e erra — abreviado, tudo
+          minúsculo, sem sobrenome — e a matrícula de quem já treinava antes do
+          sistema entrou com a data da aprovação, não a real.
+        */}
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium">
+              Nome do aluno
+            </label>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              defaultValue={name}
+              className={cn(inputClass, 'mt-2')}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="joinedAt" className="block text-sm font-medium">
+              Matriculado em
+            </label>
+            <input
+              id="joinedAt"
+              name="joinedAt"
+              type="date"
+              max={today}
+              defaultValue={joinedAt}
+              className={cn(inputClass, 'mt-2')}
+            />
+            <p className="mt-2 text-xs leading-relaxed text-muted">
+              {isKids
+                ? 'Conta o tempo de casa e, para quem ainda não graduou, é a data de onde sai a previsão do próximo grau.'
+                : 'Conta o tempo de casa e o tempo na faixa.'}
+            </p>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label htmlFor="lastGraduationAt" className="block text-sm font-medium">
+              Última graduação
+            </label>
+
+            {/*
+              O marcador distingue "o formulário não mandou o campo" de "o
+              professor apagou o campo". Sem ele, limpar a data seria lido
+              como ausência e a data antiga continuaria no banco.
+            */}
+            <input type="hidden" name="lastGraduationAtPresent" value="on" />
+            <input
+              id="lastGraduationAt"
+              name="lastGraduationAt"
+              type="date"
+              max={today}
+              defaultValue={lastGraduationAt}
+              className={cn(inputClass, 'mt-2 sm:max-w-xs')}
+            />
+            <p className="mt-2 text-xs leading-relaxed text-muted">
+              Para quem já treinava antes do sistema e não lembra a data exata, vale a
+              aproximação — é daqui que sai o tempo na faixa
+              {isKids ? ' e a previsão do próximo grau' : ''}. Em branco, conta desde a
+              matrícula. Registrar um grau pelo botão abaixo sobrescreve esta data.
+            </p>
+          </div>
+        </div>
 
         <fieldset className="mt-5">
           <legend className="text-sm font-medium">Em quais aulas ele treina</legend>

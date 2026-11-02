@@ -180,3 +180,166 @@ describe('updateStudent grava booleano', () => {
     expect(ficha?.belt).toBe('branca');
   });
 });
+
+/**
+ * Nome, matrícula e última graduação passaram a ser editáveis pelo professor.
+ *
+ * As duas datas não são campos quaisquer: são a âncora de `graduation:due`, o
+ * índice que diz em que dia o próximo grau libera. Corrigi-las sem reindexar
+ * deixaria a agenda apontando para a data antiga — e nada na tela denunciaria
+ * a diferença, porque a ficha mostraria a data nova.
+ */
+describe('corrigir nome e as datas de âncora', () => {
+  it('corrige o nome do aluno', async () => {
+    await pedroPulli();
+
+    const result = await adminActions.updateStudentAction(
+      formulario({
+        studentId: 'user_pedro',
+        name: 'Pedro Henrique Pulli',
+        belt: 'branca',
+        degree: '0',
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect((await students.getStudent('user_pedro'))?.name).toBe('Pedro Henrique Pulli');
+  });
+
+  it('recusa nome curto em vez de gravar lixo', async () => {
+    await pedroPulli();
+
+    const result = await adminActions.updateStudentAction(
+      formulario({ studentId: 'user_pedro', name: 'P', belt: 'branca', degree: '0' }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect((await students.getStudent('user_pedro'))?.name).toBe('Pedro Pulli');
+  });
+
+  it('nome em branco mantém o atual', async () => {
+    await pedroPulli();
+
+    await adminActions.updateStudentAction(
+      formulario({ studentId: 'user_pedro', name: '', belt: 'branca', degree: '0' }),
+    );
+
+    expect((await students.getStudent('user_pedro'))?.name).toBe('Pedro Pulli');
+  });
+
+  it('corrige a matrícula e recalcula a agenda de graduação', async () => {
+    await pedroPulli();
+
+    // Aprovado hoje (10/03), o próximo grau sairia em 09/04 — longe da
+    // janela de hoje. Com a matrícula corrigida para 40 dias atrás, ele
+    // passa a estar elegível agora.
+    const result = await adminActions.updateStudentAction(
+      formulario({
+        studentId: 'user_pedro',
+        joinedAt: '2026-01-29',
+        belt: 'branca',
+        degree: '0',
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain('agenda de graduação');
+
+    const ficha = await students.getStudent('user_pedro');
+    expect(ficha?.joinedAt?.slice(0, 10)).toBe('2026-01-29');
+
+    // A prova de que o índice foi reescrito, e não só o campo da ficha.
+    expect(await students.listGraduationDueIds(agora)).toContain('user_pedro');
+  });
+
+  it('corrige a última graduação, que manda na agenda', async () => {
+    await pedroPulli();
+
+    await adminActions.updateStudentAction(
+      formulario({
+        studentId: 'user_pedro',
+        joinedAt: '2026-01-29',
+        lastGraduationAtPresent: 'on',
+        // Graduou há dez dias: a espera recomeça, e sai da fila de hoje.
+        lastGraduationAt: '2026-02-28',
+        belt: 'branca',
+        degree: '0',
+      }),
+    );
+
+    const ficha = await students.getStudent('user_pedro');
+    expect(ficha?.lastGraduationAt?.slice(0, 10)).toBe('2026-02-28');
+    expect(await students.listGraduationDueIds(agora)).not.toContain('user_pedro');
+  });
+
+  it('apagar a última graduação volta a contar desde a matrícula', async () => {
+    await pedroPulli();
+
+    await adminActions.updateStudentAction(
+      formulario({
+        studentId: 'user_pedro',
+        joinedAt: '2026-01-29',
+        lastGraduationAtPresent: 'on',
+        lastGraduationAt: '2026-02-28',
+        belt: 'branca',
+        degree: '0',
+      }),
+    );
+
+    // Campo enviado vazio: é assim que se desfaz um valor posto por engano.
+    await adminActions.updateStudentAction(
+      formulario({
+        studentId: 'user_pedro',
+        lastGraduationAtPresent: 'on',
+        lastGraduationAt: '',
+        belt: 'branca',
+        degree: '0',
+      }),
+    );
+
+    const ficha = await students.getStudent('user_pedro');
+    expect(ficha?.lastGraduationAt).toBeNull();
+    // Voltou a contar da matrícula de 29/01, logo está elegível de novo.
+    expect(await students.listGraduationDueIds(agora)).toContain('user_pedro');
+  });
+
+  it('recusa data no futuro', async () => {
+    await pedroPulli();
+
+    const futuro = await adminActions.updateStudentAction(
+      formulario({ studentId: 'user_pedro', joinedAt: '2027-01-01', belt: 'branca', degree: '0' }),
+    );
+
+    expect(futuro.ok).toBe(false);
+    expect(futuro.message).toContain('futuro');
+  });
+
+  it('recusa matrícula anterior ao nascimento', async () => {
+    await pedroPulli();
+
+    const result = await adminActions.updateStudentAction(
+      formulario({ studentId: 'user_pedro', joinedAt: '2010-01-01', belt: 'branca', degree: '0' }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('nascimento');
+  });
+
+  it('recusa graduação anterior à matrícula', async () => {
+    await pedroPulli();
+
+    const result = await adminActions.updateStudentAction(
+      formulario({
+        studentId: 'user_pedro',
+        joinedAt: '2026-02-01',
+        lastGraduationAtPresent: 'on',
+        lastGraduationAt: '2026-01-01',
+        belt: 'branca',
+        degree: '0',
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('anterior à matrícula');
+  });
+});

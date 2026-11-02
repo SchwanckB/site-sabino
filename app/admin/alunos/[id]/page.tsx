@@ -196,6 +196,12 @@ export default async function AlunoPage({
       <div className="mt-6">
         <StudentEditor
           studentId={student.id}
+          name={student.name}
+          joinedAt={student.joinedAt ? student.joinedAt.slice(0, 10) : ''}
+          lastGraduationAt={
+            student.lastGraduationAt ? student.lastGraduationAt.slice(0, 10) : ''
+          }
+          today={today}
           belt={student.belt}
           degree={student.degree}
           notes={student.notes}

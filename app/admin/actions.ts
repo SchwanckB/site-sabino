@@ -34,6 +34,7 @@ import {
   getStudent,
   getStudents,
   rejectStudent,
+  setGraduationAnchors,
   setStudentStatus,
   updateStudent,
 } from '@/lib/repositories/students';
@@ -69,6 +70,19 @@ export interface ActionResult {
 }
 
 const PLAN_IDS: readonly PlanId[] = ['mensal', 'trimestral', 'anual'];
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Data civil escolhida pelo professor, gravada como instante.
+ *
+ * Meio-dia em UTC, e não meia-noite: às 9h de São Paulo o dia civil é o mesmo
+ * que ele escolheu no calendário. Com meia-noite UTC, a conversão para o fuso
+ * da academia (UTC-3) recuaria a data um dia na exibição.
+ */
+function atMidday(civilDate: string): string {
+  return `${civilDate}T12:00:00.000Z`;
+}
 
 function refreshAdmin(): void {
   revalidatePath('/admin', 'layout');
@@ -455,9 +469,23 @@ export async function updateStudentAction(form: FormData): Promise<ActionResult>
 
   const unit = toUnitId(text(form, 'unit'));
 
+  /*
+   * Nome: o aluno digita no cadastro e erra — abreviado, tudo minúsculo, com
+   * o sobrenome faltando. Até agora só dava para corrigir no banco. Em branco
+   * mantém o atual, para um envio sem o campo não apagar a ficha.
+   */
+  const nomeDigitado = text(form, 'name').trim();
+  if (nomeDigitado.length > 0 && nomeDigitado.length < 3) {
+    return { ok: false, message: 'O nome precisa ter pelo menos 3 letras.' };
+  }
+  const name = nomeDigitado.length > 0 ? nomeDigitado : student.name;
+
+  const now = new Date();
+
   await updateStudent(
     student.id,
     {
+      name,
       classIds,
       belt,
       degree,
@@ -467,8 +495,85 @@ export async function updateStudentAction(form: FormData): Promise<ActionResult>
       graduatesMonthly: form.get('graduatesMonthly') === 'on',
       notes: text(form, 'notes'),
     },
-    new Date(),
+    now,
   );
+
+  /*
+   * Matrícula e última graduação vão por um caminho próprio.
+   *
+   * Não são campos comuns da ficha: são as âncoras da agenda de graduação, e
+   * `setGraduationAnchors` reindexa `graduation:due` junto. Há aluno que
+   * treinava antes do sistema existir e entrou com a data da aprovação, e há
+   * quem não lembre quando graduou — as duas precisam ser corrigíveis.
+   */
+  const hoje = saoPauloDateString(now);
+  const anchors: { joinedAt?: string; lastGraduationAt?: string | null } = {};
+
+  const joinedField = text(form, 'joinedAt').trim();
+  if (joinedField.length > 0) {
+    if (!DATE_ONLY.test(joinedField)) {
+      return { ok: false, message: 'Data de matrícula inválida.' };
+    }
+    if (joinedField > hoje) {
+      return { ok: false, message: 'A data de matrícula não pode estar no futuro.' };
+    }
+    if (student.birthDate.length > 0 && joinedField < student.birthDate) {
+      return {
+        ok: false,
+        message: 'A matrícula não pode ser anterior à data de nascimento do aluno.',
+      };
+    }
+    if (joinedField !== (student.joinedAt ?? '').slice(0, 10)) {
+      anchors.joinedAt = atMidday(joinedField);
+    }
+  }
+
+  /*
+   * Última graduação aceita ser esvaziada: é assim que se desfaz um valor
+   * posto por engano, e o aluno volta a contar o tempo desde a matrícula.
+   * Para distinguir "não mandei o campo" de "apaguei o campo", o formulário
+   * envia um marcador junto.
+   */
+  const temCampoGraduacao = form.get('lastGraduationAtPresent') === 'on';
+  const graduationField = text(form, 'lastGraduationAt').trim();
+
+  if (temCampoGraduacao) {
+    if (graduationField.length === 0) {
+      if (student.lastGraduationAt !== null) anchors.lastGraduationAt = null;
+    } else {
+      if (!DATE_ONLY.test(graduationField)) {
+        return { ok: false, message: 'Data da última graduação inválida.' };
+      }
+      if (graduationField > hoje) {
+        return { ok: false, message: 'A última graduação não pode estar no futuro.' };
+      }
+
+      const matricula = (anchors.joinedAt ?? student.joinedAt ?? '').slice(0, 10);
+      if (matricula.length > 0 && graduationField < matricula) {
+        return {
+          ok: false,
+          message: 'A última graduação não pode ser anterior à matrícula.',
+        };
+      }
+
+      if (graduationField !== (student.lastGraduationAt ?? '').slice(0, 10)) {
+        anchors.lastGraduationAt = atMidday(graduationField);
+      }
+    }
+  }
+
+  if (anchors.joinedAt !== undefined || anchors.lastGraduationAt !== undefined) {
+    await setGraduationAnchors(student, anchors, now);
+
+    refreshAdmin();
+    return {
+      ok: true,
+      message:
+        student.category === 'kids'
+          ? 'Dados atualizados. A agenda de graduação foi recalculada a partir das novas datas.'
+          : 'Dados atualizados.',
+    };
+  }
 
   refreshAdmin();
   return { ok: true, message: 'Dados atualizados.' };

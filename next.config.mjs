@@ -90,9 +90,20 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob: https://img.clerk.com https://*.clerk.com",
   "font-src 'self' data:",
   `connect-src 'self' ${CLERK_HOSTS.join(' ')} ${TURNSTILE_HOST} https://clerk-telemetry.com`,
-  // Mapa do Google na seção "Onde estamos" + fluxos em iframe do Clerk.
-  // O Turnstile roda dentro de um iframe próprio.
-  `frame-src https://www.google.com ${CLERK_HOSTS.join(' ')} ${TURNSTILE_HOST}`,
+  /*
+   * Mapa do Google na seção "Onde estamos" + fluxos em iframe do Clerk.
+   * O Turnstile roda dentro de um iframe próprio.
+   *
+   * `'self'` é o documento do aluno na tela de aprovação, exibido num iframe
+   * que aponta para a rota autenticada `/api/admin/documento/[userId]`. Sem
+   * ele a diretiva caía no `default-src`, que não lista `'self'` para frames:
+   * o navegador bloqueava o iframe e o professor **não conseguia ver a foto
+   * antes de aprovar** — justamente quando ela importa. Depois de aprovado a
+   * ficha abre o arquivo num link em nova aba, que é navegação e não frame, e
+   * por isso funcionava; a diferença parecia uma regra de permissão, e era a
+   * CSP.
+   */
+  `frame-src 'self' https://www.google.com ${CLERK_HOSTS.join(' ')} ${TURNSTILE_HOST}`,
   // O Clerk inicializa workers a partir de blob:.
   "worker-src 'self' blob:",
   "object-src 'none'",

@@ -346,6 +346,57 @@ export async function updateStudent(
   await redis.hset(redisKeys.user(id), row);
 }
 
+/**
+ * Corrige as datas que ancoram a graduação: matrícula e última graduação.
+ *
+ * Não é um `updateStudent` com mais dois campos porque estas duas datas não
+ * são só dados da ficha: são a **âncora** da escada de graus da trilha
+ * infantil. O índice `graduation:due` guarda, por aluno, o dia em que o
+ * próximo grau libera — calculado a partir da última graduação ou, para quem
+ * nunca graduou, da matrícula. Trocar as datas pelo caminho comum deixaria o
+ * índice parado no valor antigo, e a agenda passaria a liberar grau na data
+ * errada, sem nada na tela denunciando a diferença.
+ *
+ * Gravação e reindexação no mesmo `MULTI`, como todas as trocas de estado
+ * deste módulo — e uma reindexação só, mesmo quando as duas datas mudam.
+ */
+export async function setGraduationAnchors(
+  student: StudentRecord,
+  patch: {
+    /** ISO da matrícula. Ausente mantém a atual. */
+    readonly joinedAt?: string;
+    /** ISO da última graduação; `null` volta o aluno para "nunca graduou". */
+    readonly lastGraduationAt?: string | null;
+  },
+  now: Date,
+): Promise<void> {
+  const redis = getRedis();
+  if (!redis) throw new Error('Banco de dados não configurado');
+
+  const joinedAt = patch.joinedAt ?? student.joinedAt;
+  const lastGraduationAt =
+    patch.lastGraduationAt === undefined ? student.lastGraduationAt : patch.lastGraduationAt;
+
+  const row: Record<string, string> = { updatedAt: now.toISOString() };
+  if (patch.joinedAt !== undefined) row['joinedAt'] = patch.joinedAt;
+  // Vazio é como este módulo grava nulo no hash — ver `studentToRow`.
+  if (patch.lastGraduationAt !== undefined) row['lastGraduationAt'] = patch.lastGraduationAt ?? '';
+
+  const tx = redis.multi();
+  tx.hset(redisKeys.user(student.id), row);
+
+  // Mesma regra de `approveStudent`: só a trilha infantil ativa tem agenda.
+  if (student.status === 'ativo' && student.category === 'kids') {
+    const anchor = lastGraduationAt ?? joinedAt ?? now.toISOString();
+    tx.zadd(redisKeys.graduationDue(), {
+      score: dayNumber(toIsoDate(anchor)) + KIDS_GRADUATION_INTERVAL_DAYS,
+      member: student.id,
+    });
+  }
+
+  await tx.exec();
+}
+
 export interface ApprovalInput {
   readonly classIds: readonly string[];
   readonly belt: string;

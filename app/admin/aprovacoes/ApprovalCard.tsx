@@ -116,16 +116,32 @@ export function ApprovalCard({
 
       {student.hasDocument ? (
         <div className="mt-5">
-          <button
-            type="button"
-            onClick={() => setShowDocument((open) => !open)}
-            aria-expanded={showDocument}
-            className="btn-secondary"
-          >
-            {showDocument
-              ? 'Ocultar'
-              : `Ver ${DOCUMENT_KIND_SHORT[student.docKind].toLowerCase()}`}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setShowDocument((open) => !open)}
+              aria-expanded={showDocument}
+              className="btn-secondary"
+            >
+              {showDocument
+                ? 'Ocultar'
+                : `Ver ${DOCUMENT_KIND_SHORT[student.docKind].toLowerCase()}`}
+            </button>
+
+            {/*
+              Nova aba ao lado do visualizador embutido: no celular o iframe
+              fica apertado para conferir um documento, e girar a tela não
+              resolve. A mesma rota autenticada serve as duas formas.
+            */}
+            <a
+              href={`/api/admin/documento/${student.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-ghost text-xs"
+            >
+              Abrir em nova aba
+            </a>
+          </div>
 
           {/*
             O tipo fica visível antes de abrir. O aluno pode mandar foto do
