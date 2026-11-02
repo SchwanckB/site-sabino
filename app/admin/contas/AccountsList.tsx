@@ -8,7 +8,7 @@ import { cn, initials } from '@/lib/utils';
 import { STATUS_LABELS, type UserStatus } from '@/types/domain';
 import { formatBr } from '@/utils/datetime';
 
-import { setAccountRoleAction } from '../actions';
+import { deleteAccountAction, setAccountRoleAction } from '../actions';
 
 export interface AccountRow {
   readonly id: string;
@@ -42,6 +42,7 @@ const STATUS_STYLE: Readonly<Record<UserStatus, string>> = {
 
 export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] }) {
   const [filter, setFilter] = useState<Filter>('todos');
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
   const visible = useMemo(() => {
@@ -129,10 +130,8 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
             <li
               key={row.id}
               className={cn(
-                'rounded-2xl border p-4 backdrop-blur-md sm:p-5',
-                row.role === 'ADMIN'
-                  ? 'border-crimson/30 bg-crimson/[.05]'
-                  : 'border-hairline bg-white/[.04]',
+                'panel p-4 sm:p-5',
+                row.role === 'ADMIN' ? 'border-crimson/30 bg-crimson/[.05]' : null,
               )}
             >
               <div className="flex flex-wrap items-start gap-4">
@@ -159,10 +158,10 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span
                       className={cn(
-                        'rounded-full px-2.5 py-1 text-[11px] font-semibold',
+                        'badge',
                         row.role === 'ADMIN'
-                          ? 'bg-crimson/20 text-crimson'
-                          : 'bg-white/10 text-muted',
+                          ? 'border-crimson/40 bg-crimson/20 text-crimson'
+                          : 'border-white/[.12] bg-white/[.07] text-muted',
                       )}
                     >
                       {row.role === 'ADMIN' ? 'Professor' : 'Aluno'}
@@ -170,23 +169,16 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
 
                     {row.enrollmentStatus ? (
                       <span
-                        className={cn(
-                          'rounded-full px-2.5 py-1 text-[11px] font-semibold',
-                          STATUS_STYLE[row.enrollmentStatus],
-                        )}
+                        className={STATUS_STYLE[row.enrollmentStatus]}
                       >
                         {STATUS_LABELS[row.enrollmentStatus]}
                       </span>
                     ) : (
-                      <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] text-muted">
-                        Ficha não preenchida
-                      </span>
+                      <span className="badge-neutral">Ficha não preenchida</span>
                     )}
 
                     {row.roleFromEnv && !row.rolePersisted ? (
-                      <span className="rounded-full border border-dashed border-amber-500/50 px-2.5 py-1 text-[11px] text-amber-200">
-                        acesso só via ADMIN_EMAILS
-                      </span>
+                      <span className="badge-warn border-dashed">acesso só via ADMIN_EMAILS</span>
                     ) : null}
                   </div>
                 </div>
@@ -258,7 +250,63 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
                     Abrir ficha
                   </Link>
                 ) : null}
+
+                {/*
+                  Apagar só existia na página do aluno, que só existe para quem
+                  tem ficha. A conta velha mais comum é justamente a de quem
+                  criou o login e nunca terminou o cadastro: ela não tinha
+                  página nenhuma e ficava na lista para sempre.
+                */}
+                {!row.isSelf && !row.roleFromEnv ? (
+                  <button
+                    type="button"
+                    onClick={() => setDeleting(deleting === row.id ? null : row.id)}
+                    className="btn-ghost text-xs text-crimson"
+                  >
+                    {deleting === row.id ? 'Cancelar' : 'Apagar conta'}
+                  </button>
+                ) : null}
               </div>
+
+              {deleting === row.id ? (
+                <ActionForm
+                  action={deleteAccountAction}
+                  className="notice-late mt-3"
+                  onDone={(result) => {
+                    if (result.ok) setDeleting(null);
+                  }}
+                >
+                  <input type="hidden" name="userId" value={row.id} />
+
+                  <p className="text-sm font-semibold text-crimson">
+                    Apagar a conta de {row.name}
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted">
+                    {row.enrollmentStatus
+                      ? 'Apaga o login e também a ficha: presenças, graduações, mensalidade e documento. Não tem desfazer.'
+                      : 'Esta conta não tem ficha de aluno. Apaga só o login, e não tem desfazer.'}
+                  </p>
+
+                  <label className="mt-3 block">
+                    <span className="block text-xs text-muted">
+                      Digite o e-mail da conta para confirmar
+                    </span>
+                    <input
+                      name="confirmEmail"
+                      type="text"
+                      autoComplete="off"
+                      placeholder={row.email || 'conta sem e-mail'}
+                      className="mt-1 min-h-[44px] w-full max-w-sm rounded-xl border border-crimson/40 bg-white/[.04] px-3 py-2 text-sm text-foreground focus:border-crimson focus:outline-none"
+                    />
+                  </label>
+
+                  <div className="mt-3">
+                    <SubmitButton className="btn-primary text-xs" pendingLabel="Apagando…">
+                      Apagar definitivamente
+                    </SubmitButton>
+                  </div>
+                </ActionForm>
+              ) : null}
 
               {row.isSelf && row.role === 'ADMIN' ? (
                 <p className="mt-2 text-[11px] text-muted">

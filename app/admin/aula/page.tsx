@@ -192,6 +192,7 @@ export default async function AulaPage({
             {weekdayLabels[escolhida.weekday as Weekday]}, {escolhida.startTime} às{' '}
             {escolhida.endTime}
             {escolhida.level ? ` · ${escolhida.level}` : ''}
+            {escolhida.teacher ? ` · com ${escolhida.teacher}` : ''}
             {scope === 'todas' ? ` · ${UNIT_SHORT[escolhida.unit]}` : ''}
           </p>
         </div>

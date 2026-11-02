@@ -2,16 +2,17 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache';
 
-import { requireAdmin, type Role } from '@/lib/auth';
+import { isAdminEmail, requireAdmin, type Role } from '@/lib/auth';
 import { CACHE_TAGS } from '@/lib/cacheTags';
 import { checkbox, intInRange, text, textList } from '@/lib/formData';
-import { deleteAccount, setAccountRole } from '@/lib/repositories/accounts';
+import { deleteAccount, getAccountSummary, setAccountRole } from '@/lib/repositories/accounts';
 import { recordCheckin, undoCheckin } from '@/lib/repositories/attendance';
 import { recordAudit, type AuditAction } from '@/lib/repositories/audit';
 import { deleteDocument } from '@/lib/repositories/documents';
 import { removeEvent, upsertEvent } from '@/lib/repositories/calendar';
 import { removeClassOverride, upsertClassOverride } from '@/lib/repositories/classOverrides';
 import { saveClassLog } from '@/lib/repositories/classLog';
+import { clearFollowup, isFollowupKind, markFollowup } from '@/lib/repositories/followups';
 import { registerDegree, promoteBelt, undoLastDegree } from '@/lib/repositories/graduation';
 import {
   getPaymentPlan,
@@ -317,6 +318,110 @@ export async function deleteStudentAction(form: FormData): Promise<ActionResult>
     message: loginApagado
       ? `Cadastro de ${student.name} apagado, inclusive o login.`
       : `Cadastro de ${student.name} apagado. A conta de login não pôde ser removida — confira no painel do Clerk.`,
+  };
+}
+
+/**
+ * Apaga uma conta de login pela tela de contas.
+ *
+ * Existe porque faltava caminho para o caso mais comum de conta velha: quem
+ * criou o login, não terminou o cadastro e nunca mais voltou. Essas pessoas
+ * não têm ficha, então não têm página de aluno — e apagar só existia lá.
+ * Ficavam na lista para sempre.
+ *
+ * Quando há ficha, apaga tudo junto: presenças, graduações, mensalidade,
+ * documento e login. É a mesma limpeza de `deleteStudentAction`, pelo outro
+ * lado da porta.
+ *
+ * A confirmação é o **e-mail**, e não o nome: conta sem ficha muitas vezes não
+ * tem nome preenchido, e "Sem nome" não confirma nada.
+ */
+export async function deleteAccountAction(form: FormData): Promise<ActionResult> {
+  const admin = await requireAdmin();
+
+  const targetId = text(form, 'userId');
+  if (targetId.length === 0) return { ok: false, message: 'Conta inválida.' };
+
+  if (targetId === admin.id) {
+    return {
+      ok: false,
+      message: 'Você não pode apagar a sua própria conta. Peça a outro professor.',
+    };
+  }
+
+  const account = await getAccountSummary(targetId);
+  if (!account) {
+    return { ok: false, message: 'Conta não encontrada. Ela já pode ter sido removida.' };
+  }
+
+  // ADMIN_EMAILS reconstrói o acesso no próximo login. Apagar a conta aqui
+  // deixaria a pessoa entrar de novo, como professor, e parecer um fantasma.
+  if (account.email.length > 0 && isAdminEmail(account.email)) {
+    return {
+      ok: false,
+      message:
+        'Este e-mail está em ADMIN_EMAILS: a conta voltaria no próximo login. Remova-o da variável de ambiente na Vercel primeiro.',
+    };
+  }
+
+  const digitado = text(form, 'confirmEmail').trim().toLowerCase();
+  if (digitado !== account.email.trim().toLowerCase()) {
+    return {
+      ok: false,
+      message: `Para apagar, digite o e-mail exatamente como está na conta: ${account.email || '(conta sem e-mail)'}`,
+    };
+  }
+
+  const student = await getStudent(targetId);
+
+  // Registrado antes de apagar: depois não há de onde tirar nome nem e-mail.
+  await audit(
+    admin,
+    'conta.apagada',
+    { id: targetId, name: student?.name ?? account.name },
+    `${account.email || 'sem e-mail'} · ${student ? 'tinha ficha de aluno' : 'nunca preencheu a ficha'}`,
+  );
+
+  if (student) {
+    try {
+      await deleteStudent(student);
+    } catch (error) {
+      console.error('[admin] falha ao apagar a ficha', error);
+      return { ok: false, message: 'Não foi possível apagar a ficha. Nada foi removido.' };
+    }
+
+    if (student.docBlobKey) {
+      // Falhar aqui não desfaz o que já foi apagado; registra e segue.
+      try {
+        await deleteDocument(student.docBlobKey);
+      } catch (error) {
+        console.error('[admin] ficha apagada, mas o arquivo ficou no Blob', error);
+      }
+    }
+  }
+
+  let loginApagado = false;
+  try {
+    loginApagado = await deleteAccount(targetId);
+  } catch (error) {
+    console.error('[admin] falha ao apagar a conta no Clerk', error);
+    return {
+      ok: false,
+      message: student
+        ? 'A ficha foi apagada, mas a conta de login continua. Tente de novo ou remova pelo painel do Clerk.'
+        : 'Não foi possível apagar a conta de login. Tente de novo em alguns segundos.',
+    };
+  }
+
+  refreshAdmin();
+  revalidatePath('/admin/alunos');
+
+  const quem = student?.name ?? account.name;
+  return {
+    ok: true,
+    message: loginApagado
+      ? `Conta de ${quem} apagada${student ? ', com a ficha e todo o histórico' : ''}.`
+      : `A conta de ${quem} já não existia no provedor de login. O resto foi limpo.`,
   };
 }
 
@@ -657,6 +762,7 @@ export async function saveClassAction(form: FormData): Promise<ActionResult> {
       modality: text(form, 'modality'),
       level: text(form, 'level'),
       unit: text(form, 'unit'),
+      teacher: text(form, 'teacher'),
     },
     new Date(),
   );
@@ -681,6 +787,47 @@ export async function deleteClassAction(form: FormData): Promise<ActionResult> {
   revalidateTag(CACHE_TAGS.schedule);
   revalidatePath('/');
   return { ok: true, message: 'Turma removida.' };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Acompanhamento: com quem já falei                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Anota que o professor já falou com o aluno sobre um assunto.
+ *
+ * Uma action para os três assuntos — cobrança, retorno e aniversário — porque
+ * a operação é idêntica e o que muda é só a regra de quando o aviso volta,
+ * que vive no repositório.
+ */
+export async function markFollowupAction(form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const kind = text(form, 'kind');
+  const userId = text(form, 'userId');
+
+  if (!isFollowupKind(kind)) return { ok: false, message: 'Assunto inválido.' };
+  if (userId.length === 0) return { ok: false, message: 'Aluno inválido.' };
+
+  const desfazer = checkbox(form, 'undo');
+
+  try {
+    if (desfazer) await clearFollowup(kind, userId);
+    else await markFollowup(kind, userId, new Date());
+  } catch (error) {
+    console.error('[admin] falha ao anotar o contato', error);
+    return { ok: false, message: 'Não foi possível anotar. Tente novamente.' };
+  }
+
+  refreshAdmin();
+
+  const feito = {
+    cobranca: desfazer ? 'Cobrança desmarcada.' : 'Marcado como cobrado.',
+    retorno: desfazer ? 'Contato desmarcado.' : 'Anotado. Volta a aparecer em 15 dias.',
+    aniversario: desfazer ? 'Parabéns desmarcado.' : 'Parabéns anotado.',
+  } as const;
+
+  return { ok: true, message: feito[kind] };
 }
 
 /* -------------------------------------------------------------------------- */

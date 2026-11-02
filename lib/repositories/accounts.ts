@@ -99,6 +99,32 @@ export async function listAccounts(): Promise<Account[]> {
   });
 }
 
+/**
+ * Uma conta pelo id, para conferir antes de apagar.
+ *
+ * Existe para não ter de listar as quinhentas: a tela de contas já mostra o
+ * e-mail, mas o servidor não pode acreditar no que o formulário manda — é com
+ * este e-mail que a confirmação digitada é comparada.
+ */
+export async function getAccountSummary(
+  targetUserId: string,
+): Promise<{ readonly email: string; readonly name: string } | null> {
+  if (!isClerkConfigured()) return null;
+
+  const client = await clerkClient();
+
+  try {
+    const user = await client.users.getUser(targetUserId);
+    const email = user.primaryEmailAddress?.emailAddress ?? '';
+    return {
+      email,
+      name: displayName(user.firstName, user.lastName, user.username, email),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export type RoleChangeResult =
   | { readonly ok: true; readonly message: string }
   | { readonly ok: false; readonly message: string };

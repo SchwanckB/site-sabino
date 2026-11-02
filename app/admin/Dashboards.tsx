@@ -3,9 +3,12 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
+import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
 import { Stat, StatStrip } from '@/components/app/PageHeader';
 import { cn, pluralize } from '@/lib/utils';
 import { formatCents, type PaymentStatus } from '@/utils/paymentEngine';
+
+import { markFollowupAction } from './actions';
 
 export interface DashboardRow {
   readonly id: string;
@@ -21,6 +24,10 @@ export interface DashboardRow {
   readonly checkinsTotal: number;
   readonly lastCheckinAt: string | null;
   readonly daysSinceLastCheckin: number | null;
+  /** Conversa de retorno pronta. `null` sem telefone utilizável na ficha. */
+  readonly comebackUrl: string | null;
+  /** `true` quando o professor já falou com ele nos últimos dias. */
+  readonly recentlyContacted: boolean;
 }
 
 type Recorte = 'todos' | 'kids' | 'adulto';
@@ -211,20 +218,62 @@ export function Dashboards({ rows }: { readonly rows: readonly DashboardRow[] })
           ) : (
             <ul className="mt-4 divide-y divide-hairline">
               {sumidos.map((row) => (
-                <li key={row.id}>
-                  <Link
-                    href={`/admin/alunos/${row.id}`}
-                    className="group flex min-h-[44px] items-center justify-between gap-3 py-2.5 text-sm"
-                  >
-                    <span className="min-w-0 truncate text-foreground group-hover:text-crimson">
+                <li key={row.id} className="py-2">
+                  <div className="flex min-h-[44px] items-center justify-between gap-3 text-sm">
+                    <Link
+                      href={`/admin/alunos/${row.id}`}
+                      className="min-w-0 truncate text-foreground hover:text-crimson"
+                    >
                       {row.name}
-                    </span>
+                    </Link>
                     <span className="shrink-0 text-xs text-muted">
                       {row.daysSinceLastCheckin === null
                         ? 'nunca treinou'
                         : `há ${row.daysSinceLastCheckin} dias`}
                     </span>
-                  </Link>
+                  </div>
+
+                  {/*
+                    A lista era só leitura: mostrava quem estava sumindo e
+                    deixava o professor com o trabalho todo — abrir a ficha,
+                    copiar o telefone, escrever a mensagem. E voltava igual no
+                    dia seguinte, sem saber que ele já havia ligado.
+                  */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {row.recentlyContacted ? (
+                      <>
+                        <span className="badge-neutral">Já falei com ele</span>
+                        <ActionForm action={markFollowupAction}>
+                          <input type="hidden" name="kind" value="retorno" />
+                          <input type="hidden" name="userId" value={row.id} />
+                          <input type="hidden" name="undo" value="on" />
+                          <SubmitButton className="btn-ghost px-1 text-[11px]" pendingLabel="…">
+                            desmarcar
+                          </SubmitButton>
+                        </ActionForm>
+                      </>
+                    ) : row.comebackUrl ? (
+                      <>
+                        <a
+                          href={row.comebackUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-ghost px-1 text-[11px] text-emerald-300"
+                        >
+                          Chamar no WhatsApp
+                        </a>
+                        <ActionForm action={markFollowupAction}>
+                          <input type="hidden" name="kind" value="retorno" />
+                          <input type="hidden" name="userId" value={row.id} />
+                          <SubmitButton className="btn-ghost px-1 text-[11px]" pendingLabel="…">
+                            já falei
+                          </SubmitButton>
+                        </ActionForm>
+                      </>
+                    ) : (
+                      <span className="text-[11px] text-muted">sem telefone na ficha</span>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

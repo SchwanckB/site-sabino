@@ -55,6 +55,8 @@ export const redisKeys = {
   calendarEvents: () => 'calendar:events',
   classLog: (classId: string) => 'class:log:' + classId,
   academySettings: () => 'settings:academy',
+  /** Com quem o professor já falou sobre cobrança, retorno ou aniversário. */
+  followup: (kind: string) => 'followup:' + kind,
   qrCurrent: (classId: string) => 'qr:current:' + classId,
   /** Caminho inverso: token lido pela câmera -> turma. */
   qrToken: (token: string) => 'qr:token:' + token,

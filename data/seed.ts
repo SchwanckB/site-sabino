@@ -173,6 +173,16 @@ export interface ClassSlot {
   /** Unidade onde a aula acontece. */
   readonly unit: UnitId;
   /**
+   * Quem dá a aula. Texto livre, e opcional.
+   *
+   * Nome e não id de conta: quem ensina nem sempre tem login no sistema, e
+   * exigir conta para registrar o responsável deixaria o campo vazio
+   * justamente nas turmas em que ele importa. A grade da rede tem duas
+   * academias, e saber de quem é a turma vale mais que a integridade
+   * referencial aqui.
+   */
+  readonly teacher?: string;
+  /**
    * Data civil única desta ocorrência — aula personalizada. Ver
    * `utils/attendanceEngine.ts`.
    *

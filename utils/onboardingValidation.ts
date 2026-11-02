@@ -1,4 +1,4 @@
-import { GUARDIAN_REQUIRED_AGE, toUnitId, type UnitId } from '@/types/domain';
+import { GUARDIAN_REQUIRED_AGE, isUnitId, toUnitId, type UnitId } from '@/types/domain';
 
 /**
  * Validação do pré-cadastro — função pura, sem I/O.
@@ -44,7 +44,7 @@ export interface OnboardingInput {
   readonly guardianCpf: string;
   /** Opcional — vazio vira 'nao_informado'. */
   readonly gender: string;
-  /** Academia escolhida. Vazio ou inválido cai na unidade padrão. */
+  /** Academia escolhida. Obrigatória: vazio ou inválido é erro de campo. */
   readonly unit: string;
   readonly consent: boolean;
   /** Já existe documento enviado antes, ou um novo veio no formulário. */
@@ -142,6 +142,19 @@ export function validateOnboarding(
     if (guardianCpf.length > 0 && !isValidCpf(guardianCpf)) {
       fieldErrors['guardianCpf'] = 'CPF do responsável inválido.';
     }
+  }
+
+  /*
+   * Academia é escolha, não padrão silencioso.
+   *
+   * O campo era um `select` já preenchido com Três Cachoeiras, e quem não
+   * mexia nele entrava lá — inclusive os alunos de Terra de Areia, que
+   * apareciam na fila de aprovação da academia errada, com as turmas erradas
+   * para marcar. `toUnitId` continua existindo para ler fichas antigas, mas
+   * no pré-cadastro um valor que não é uma das unidades passa a ser erro.
+   */
+  if (!isUnitId(input.unit)) {
+    fieldErrors['unit'] = 'Escolha em qual academia você vai treinar.';
   }
 
   if (!input.consent) {

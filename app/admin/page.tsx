@@ -1,17 +1,22 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { weekdayShortLabels, type Weekday } from '@/data/seed';
 import { getTodayCheckins, listCheckins } from '@/lib/repositories/attendance';
+import { listFollowups, parabensDadoNoAno, retornoRecente } from '@/lib/repositories/followups';
 import { getPaymentPlans } from '@/lib/repositories/payments';
 import {
   listGraduationDueIds,
   listStudentsByStatus,
 } from '@/lib/repositories/students';
 import { getEffectiveSchedule } from '@/lib/schedule';
+import { siteConfig } from '@/lib/site';
 import { getUnitScope } from '@/lib/unitScope';
 import { STATUS_LABELS, UNIT_SHORT, filterByUnit } from '@/types/domain';
 import { findOpenClasses } from '@/utils/attendanceEngine';
 import { daysBetween, saoPauloDateString, saoPauloParts } from '@/utils/datetime';
+import { whatsappLinkTo } from '@/utils/billingMessage';
+import { buildBirthdayMessage, buildComebackMessage } from '@/utils/contactMessages';
 import { getPaymentSummary } from '@/utils/paymentEngine';
 import { listAgeTransitions, listBirthdays, type PersonLike } from '@/utils/roster';
 import { buildHaystack } from '@/utils/searchText';
@@ -19,7 +24,7 @@ import { buildHaystack } from '@/utils/searchText';
 import { PageHeader } from '@/components/app/PageHeader';
 import { QuickSearch, type SearchEntry } from '@/components/app/QuickSearch';
 
-import { Alertas } from './Alertas';
+import { Alertas, type BirthdayRow } from './Alertas';
 import { Dashboards, type DashboardRow } from './Dashboards';
 
 export const metadata: Metadata = { title: 'Visão geral' };
@@ -59,6 +64,28 @@ export default async function AdminPage() {
   );
   const porAluno = new Map(historicos.map((h) => [h.id, h.entries]));
 
+  const retornos = await listFollowups('retorno');
+
+  /**
+   * Horário das turmas do aluno, em texto curto.
+   *
+   * Entra na mensagem de retorno porque "a aula continua terça e quinta às
+   * 19:30" convida de um jeito que "volte a treinar" não convida — e porque
+   * quem parou há dois meses não lembra mais o horário.
+   */
+  const horarioDaTurma = (classIds: readonly string[]): string => {
+    const minhas = classes
+      .filter((slot) => classIds.includes(slot.id) && slot.onlyOnDate === undefined)
+      .sort((a, b) => a.weekday - b.weekday);
+
+    if (minhas.length === 0) return '';
+
+    return minhas
+      .slice(0, 3)
+      .map((slot) => `${weekdayShortLabels[slot.weekday as Weekday].toLowerCase()} ${slot.startTime}`)
+      .join(' e ');
+  };
+
   const rows: DashboardRow[] = active.map((student) => {
     const plan = plans.get(student.id);
     const summary = plan ? getPaymentSummary(plan, now) : null;
@@ -66,6 +93,15 @@ export default async function AdminPage() {
 
     const checkins30 = entries.filter((e) => daysBetween(hoje, e.date) < 30).length;
     const ultimo = entries[0]?.date ?? null;
+
+    const telefone = student.guardianPhone ?? student.phone;
+    const hint = horarioDaTurma(student.classIds);
+    const comeback = buildComebackMessage({
+      name: student.name,
+      daysAway: ultimo ? daysBetween(hoje, ultimo) : null,
+      academyName: siteConfig.name,
+      ...(hint.length > 0 ? { classHint: hint } : {}),
+    });
 
     return {
       id: student.id,
@@ -80,6 +116,8 @@ export default async function AdminPage() {
       checkinsTotal: entries.length,
       lastCheckinAt: ultimo,
       daysSinceLastCheckin: ultimo ? daysBetween(hoje, ultimo) : null,
+      comebackUrl: telefone.length > 0 ? whatsappLinkTo(telefone, comeback) : null,
+      recentlyContacted: retornoRecente(retornos.get(student.id), hoje),
     };
   });
 
@@ -89,7 +127,39 @@ export default async function AdminPage() {
     .map((student) => ({ id: student.id, name: student.name, birthDate: student.birthDate }));
 
   const { year, month } = saoPauloParts(now);
-  const birthdays = listBirthdays(comNascimento, year, month, now);
+
+  /*
+   * Aniversariantes já com a conversa pronta.
+   *
+   * O telefone segue a convenção do resto do painel — o do responsável vem
+   * primeiro quando existe, porque é o que atende quando o aluno é criança. E
+   * quem já foi parabenizado neste ano sai da fila: a lista do mês inteiro
+   * repetiria o aviso todos os dias até o mês virar.
+   */
+  const parabens = await listFollowups('aniversario');
+  const porId = new Map(active.map((student) => [student.id, student]));
+
+  const birthdays: BirthdayRow[] = listBirthdays(comNascimento, year, month, now).map((item) => {
+    const student = porId.get(item.id);
+    const toGuardian = (student?.guardianPhone ?? '').length > 0;
+    const phone = student?.guardianPhone ?? student?.phone ?? '';
+
+    const message = buildBirthdayMessage({
+      name: item.name,
+      turning: item.turning,
+      academyName: siteConfig.name,
+      toGuardian,
+      ...(student?.guardianName ? { guardianName: student.guardianName } : {}),
+    });
+
+    return {
+      ...item,
+      whatsappUrl: phone.length > 0 ? whatsappLinkTo(phone, message) : null,
+      toGuardian,
+      greeted: parabensDadoNoAno(parabens.get(item.id), hoje),
+    };
+  });
+
   const transitions = listAgeTransitions(
     comNascimento.filter((p) => active.find((s) => s.id === p.id)?.category === 'kids'),
     now,

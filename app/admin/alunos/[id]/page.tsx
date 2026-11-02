@@ -21,7 +21,7 @@ import {
 import { daysBetween, formatBr, saoPauloDateString } from '@/utils/datetime';
 import { formatCents, getPaymentSummary, PLAN_LABELS } from '@/utils/paymentEngine';
 
-import type { ClassOption } from '../../aprovacoes/ApprovalCard';
+import type { ClassOption } from '../../ClassPicker';
 import { DeleteStudentForm } from './DeleteStudentForm';
 import { StudentEditor } from './StudentEditor';
 
@@ -63,6 +63,8 @@ export default async function AlunoPage({
     label: `${slot.title} · ${slot.level}`,
     weekday: `${weekdayLabels[slot.weekday as Weekday]}, ${slot.startTime} às ${slot.endTime}`,
     unit: slot.unit,
+    modality: slot.modality,
+    teacher: slot.teacher ?? '',
   }));
 
   return (

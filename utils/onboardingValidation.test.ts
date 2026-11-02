@@ -15,6 +15,8 @@ const base = (overrides: Partial<OnboardingInput> = {}): OnboardingInput => ({
   guardianCpf: '',
   gender: 'feminino',
   unit: 'tres-cachoeiras',
+  // Mantém o campo explícito: a academia virou escolha obrigatória, e um
+  // cadastro sem ela é erro — ver o teste de "academia" abaixo.
   consent: true,
   hasDocument: true,
   documentRequired: true,
@@ -200,10 +202,36 @@ describe('consentimento e documento', () => {
   });
 });
 
+describe('academia', () => {
+  it('exige a escolha, em vez de cair na unidade padrão', () => {
+    // O campo era um select já marcado em Três Cachoeiras: quem não mexia
+    // nele entrava lá, inclusive o aluno de Terra de Areia.
+    const vazio = validateOnboarding(base({ unit: '' }), now);
+
+    expect(vazio.valid).toBe(false);
+    expect(vazio.fieldErrors['unit']).toContain('academia');
+  });
+
+  it('recusa academia que não existe', () => {
+    const result = validateOnboarding(base({ unit: 'torres' }), now);
+
+    expect(result.valid).toBe(false);
+    expect(result.fieldErrors['unit']).toBeDefined();
+  });
+
+  it('aceita as duas academias da rede', () => {
+    for (const unidade of ['tres-cachoeiras', 'terra-de-areia']) {
+      const result = validateOnboarding(base({ unit: unidade }), now);
+      expect(result.valid).toBe(true);
+      expect(result.normalized.unit).toBe(unidade);
+    }
+  });
+});
+
 describe('acúmulo de erros', () => {
   it('devolve todos os problemas de uma vez', () => {
     const result = validateOnboarding(
-      base({ name: '', phone: '1', cpf: '123', birthDate: '', consent: false }),
+      base({ name: '', phone: '1', cpf: '123', birthDate: '', consent: false, unit: '' }),
       now,
     );
 
@@ -214,6 +242,7 @@ describe('acúmulo de erros', () => {
       'cpf',
       'name',
       'phone',
+      'unit',
     ]);
   });
 });

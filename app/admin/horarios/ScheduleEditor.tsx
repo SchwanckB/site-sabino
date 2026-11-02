@@ -175,6 +175,21 @@ export function ScheduleEditor({
             className={cn(inputClass, 'mt-1')}
           />
         </div>
+
+        <div>
+          <label htmlFor={`teacher-${slot?.id ?? 'novo'}`} className="block text-xs text-muted">
+            Professor da turma
+          </label>
+          <input
+            id={`teacher-${slot?.id ?? 'novo'}`}
+            name="teacher"
+            type="text"
+            maxLength={60}
+            defaultValue={slot?.teacher ?? ''}
+            placeholder="Opcional"
+            className={cn(inputClass, 'mt-1')}
+          />
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-3">
@@ -237,6 +252,9 @@ export function ScheduleEditor({
                           até {slot.endTime} · {slot.level}
                           {scope === 'todas' ? ` · ${UNIT_SHORT[slot.unit]}` : ''}
                         </p>
+                        {slot.teacher ? (
+                          <p className="truncate text-xs text-muted">com {slot.teacher}</p>
+                        ) : null}
 
                         {(marks[slot.id] ?? []).length > 0 ? (
                           <p className="mt-1.5 flex flex-wrap gap-1">

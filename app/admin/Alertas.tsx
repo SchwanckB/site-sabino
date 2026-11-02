@@ -1,7 +1,25 @@
 import Link from 'next/link';
 
+import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
 import { cn } from '@/lib/utils';
 import type { AgeTransition, Birthday } from '@/utils/roster';
+
+import { markFollowupAction } from './actions';
+
+/**
+ * Aniversariante com a conversa a um toque de distância.
+ *
+ * O link do WhatsApp é montado no servidor: a mensagem e a normalização do
+ * telefone são funções puras e testadas, e assim a tela não precisa de
+ * JavaScript para nada além do botão de "já parabenizei".
+ */
+export interface BirthdayRow extends Birthday {
+  /** `null` quando não há telefone utilizável na ficha. */
+  readonly whatsappUrl: string | null;
+  /** `true` quando a mensagem vai para o responsável. */
+  readonly toGuardian: boolean;
+  readonly greeted: boolean;
+}
 
 /**
  * Dois avisos que o sistema sabe e o professor não tem como lembrar sozinho:
@@ -13,7 +31,7 @@ export function Alertas({
   birthdays,
   transitions,
 }: {
-  readonly birthdays: readonly Birthday[];
+  readonly birthdays: readonly BirthdayRow[];
   readonly transitions: readonly AgeTransition[];
 }) {
   if (birthdays.length === 0 && transitions.length === 0) return null;
@@ -35,14 +53,8 @@ export function Alertas({
 
           <ul className="mt-2 divide-y divide-hairline">
             {birthdays.map((item) => (
-              <li key={item.id}>
-                <Link
-                  href={`/admin/alunos/${item.id}`}
-                  className={cn(
-                    'group flex min-h-[44px] items-center gap-3 py-2 text-sm',
-                    item.isPast && 'opacity-55',
-                  )}
-                >
+              <li key={item.id} className={cn('py-2', item.isPast && 'opacity-55')}>
+                <div className="flex min-h-[44px] items-center gap-3 text-sm">
                   <span
                     className={cn(
                       'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold tabular-nums',
@@ -53,14 +65,63 @@ export function Alertas({
                   >
                     {item.day}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-foreground group-hover:text-crimson">
+
+                  <Link
+                    href={`/admin/alunos/${item.id}`}
+                    className="min-w-0 flex-1 truncate text-foreground hover:text-crimson"
+                  >
                     {item.name}
-                  </span>
+                  </Link>
+
                   <span className="shrink-0 text-xs text-muted">
                     {item.isToday ? 'hoje · ' : ''}
                     {item.turning} anos
                   </span>
-                </Link>
+                </div>
+
+                {/*
+                  Parabenizar é das poucas coisas que o aluno comenta no
+                  tatame, e era a que mais dependia da memória do professor:
+                  a lista existia, a conversa não. Agora o texto já vai
+                  escrito, e o que foi feito fica marcado — a lista some do
+                  caminho em vez de repetir o ano inteiro.
+                */}
+                <div className="flex flex-wrap items-center gap-2 pl-11">
+                  {item.greeted ? (
+                    <>
+                      <span className="badge-ok">Parabenizado</span>
+                      <ActionForm action={markFollowupAction}>
+                        <input type="hidden" name="kind" value="aniversario" />
+                        <input type="hidden" name="userId" value={item.id} />
+                        <input type="hidden" name="undo" value="on" />
+                        <SubmitButton className="btn-ghost px-1 text-[11px]" pendingLabel="…">
+                          desmarcar
+                        </SubmitButton>
+                      </ActionForm>
+                    </>
+                  ) : item.whatsappUrl ? (
+                    <>
+                      <a
+                        href={item.whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-ghost px-1 text-[11px] text-emerald-300"
+                      >
+                        Mandar parabéns
+                        {item.toGuardian ? ' ao responsável' : ''}
+                      </a>
+                      <ActionForm action={markFollowupAction}>
+                        <input type="hidden" name="kind" value="aniversario" />
+                        <input type="hidden" name="userId" value={item.id} />
+                        <SubmitButton className="btn-ghost px-1 text-[11px]" pendingLabel="…">
+                          já parabenizei
+                        </SubmitButton>
+                      </ActionForm>
+                    </>
+                  ) : (
+                    <span className="text-[11px] text-muted">sem telefone na ficha</span>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

@@ -21,7 +21,7 @@ import {
   undoDegreeAction,
   updateStudentAction,
 } from '../../actions';
-import type { ClassOption } from '../../aprovacoes/ApprovalCard';
+import { ClassPicker, type ClassOption } from '../../ClassPicker';
 
 const inputClass =
   'w-full min-h-[44px] rounded-xl border border-hairline bg-white/[.04] px-3 py-2 text-sm text-foreground focus:border-crimson focus:outline-none';
@@ -69,32 +69,21 @@ export function StudentEditor({
         <fieldset className="mt-5">
           <legend className="text-sm font-medium">Em quais aulas ele treina</legend>
           <p className="mt-1 text-xs text-muted">
-            Define a janela em que o check-in dele é aceito.
+            Define a janela em que o check-in dele é aceito. Só as turmas de{' '}
+            {UNIT_LABELS[unit]} — trocar a academia na ficha troca esta lista.
           </p>
 
-          {classOptions.length === 0 ? (
-            <p className="mt-3 text-xs text-crimson">Nenhuma turma cadastrada na grade.</p>
-          ) : (
-            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-              {classOptions.map((option) => (
-                <li key={option.id}>
-                  <label className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-xl border border-hairline bg-white/[.03] px-3 py-2 text-sm hover:border-white/20">
-                    <input
-                      type="checkbox"
-                      name="classIds"
-                      value={option.id}
-                      defaultChecked={assignedClassIds.includes(option.id)}
-                      className="h-4 w-4 shrink-0 accent-crimson"
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate text-foreground">{option.label}</span>
-                      <span className="block text-xs text-muted">{option.weekday}</span>
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          )}
+          {/*
+            Esta lista mostrava a grade inteira, das duas academias. Marcar um
+            aluno de Terra de Areia numa turma de Três Cachoeiras era aceito
+            sem reclamação, e o check-in dele simplesmente nunca abria — sem
+            nada na tela explicando por quê.
+          */}
+          <ClassPicker
+            classOptions={classOptions}
+            unit={unit}
+            initialSelected={assignedClassIds}
+          />
         </fieldset>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">

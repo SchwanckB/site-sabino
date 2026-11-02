@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { PageHeader } from '@/components/app/PageHeader';
 
+import { cobrancaFeitaNoMes, listFollowups } from '@/lib/repositories/followups';
 import { getPaymentPlans, listPaymentHistory } from '@/lib/repositories/payments';
 import { getAcademySettings } from '@/lib/repositories/settings';
 import { listStudentsByStatus } from '@/lib/repositories/students';
@@ -11,36 +12,115 @@ import {
   UNIT_LABELS,
   filterByUnit,
   type PaymentMethod,
+  type StudentRecord,
 } from '@/types/domain';
 import { siteConfig } from '@/lib/site';
+import { buildBillingMessage, whatsappLinkTo } from '@/utils/billingMessage';
+import { daysBetween, saoPauloDateString } from '@/utils/datetime';
+import {
+  monthOverMonth,
+  previousMonth,
+  summarizeFinanceMonth,
+  type ChargeItem,
+  type PaidItem,
+} from '@/utils/financeMonth';
 import { getPaymentSummary } from '@/utils/paymentEngine';
 
+import { BillingQueue, type BillingTarget } from './BillingQueue';
 import { FinanceList, type FinanceRow } from './FinanceList';
+import { MonthClose } from './MonthClose';
 
 export const metadata: Metadata = { title: 'Financeiro' };
 export const dynamic = 'force-dynamic';
 
+const MESES = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+] as const;
+
+/** `2026-03` → `Março de 2026`. */
+function monthLabel(month: string): string {
+  const [ano, mes] = month.split('-');
+  const nome = MESES[Number(mes) - 1] ?? month;
+  return `${nome} de ${ano}`;
+}
+
 export default async function FinanceiroPage() {
   const now = new Date();
-  const scope = await getUnitScope();
-  const students = filterByUnit(await listStudentsByStatus('ativo'), scope);
-  const plans = await getPaymentPlans(students.map((student) => student.id));
-  const settings = await getAcademySettings();
+  const hoje = saoPauloDateString(now);
+  const mesAtual = hoje.slice(0, 7);
+  const mesAnterior = previousMonth(mesAtual);
 
-  // Só o último lançamento de cada aluno: é o que o recibo descreve.
-  const ultimos = new Map(
+  const scope = await getUnitScope();
+
+  /*
+   * O caixa do mês inclui quem saiu.
+   *
+   * A lista de cobrança é dos ativos, mas o dinheiro que entrou no mês entrou
+   * — inclusive de quem desistiu em seguida. Somar só os ativos faria a
+   * receita do mês encolher sozinha quando alguém fosse desativado, e a
+   * comparação com o mês anterior passaria a mentir.
+   */
+  const [ativos, inativos, settings, cobrados] = await Promise.all([
+    listStudentsByStatus('ativo'),
+    listStudentsByStatus('inativo'),
+    getAcademySettings(),
+    listFollowups('cobranca'),
+  ]);
+
+  const students = filterByUnit(ativos, scope);
+  const paraCaixa = filterByUnit([...ativos, ...inativos], scope);
+
+  const plans = await getPaymentPlans(students.map((student) => student.id));
+
+  /*
+   * Uma leitura de histórico por aluno, aproveitada para tudo: a forma do
+   * último pagamento (que o recibo descreve) e o caixa dos dois meses. Antes
+   * eram as mesmas N idas ao Redis para pegar só o último lançamento.
+   */
+  const historicos = new Map(
     await Promise.all(
-      students.map(async (student): Promise<[string, string]> => {
-        const historico = await listPaymentHistory(student.id, 1);
-        const metodo = historico[0]?.method ?? '';
-        return [student.id, PAYMENT_METHOD_LABELS[metodo as PaymentMethod] ?? metodo];
-      }),
+      paraCaixa.map(async (student): Promise<[string, Awaited<ReturnType<typeof listPaymentHistory>>]> => [
+        student.id,
+        await listPaymentHistory(student.id, 36),
+      ]),
     ),
   );
+
+  const metodo = (value: string): string =>
+    PAYMENT_METHOD_LABELS[value as PaymentMethod] ?? value;
+
+  const pagamentos: PaidItem[] = [];
+  for (const entries of historicos.values()) {
+    for (const entry of entries) {
+      pagamentos.push({
+        // Caixa: o que vale é o dia em que o dinheiro entrou, no fuso da
+        // academia — `paidAt` é ISO em UTC e viraria o mês na virada do dia.
+        date: saoPauloDateString(new Date(entry.paidAt)),
+        amountCents: entry.amountCents,
+        method: metodo(entry.method),
+      });
+    }
+  }
+
+  const telefoneDe = (student: StudentRecord): string =>
+    student.guardianPhone ?? student.phone;
 
   const rows: FinanceRow[] = students
     .map((student) => {
       const plan = plans.get(student.id);
+      const ultimo = historicos.get(student.id)?.[0];
+      const lastMethod = ultimo ? metodo(ultimo.method) : '';
 
       if (!plan) {
         return {
@@ -58,9 +138,9 @@ export default async function FinanceiroPage() {
           totalOpenCents: 0,
           lastPaidAt: null,
           hasPlan: false,
-          phone: student.guardianPhone ?? student.phone,
+          phone: telefoneDe(student),
           unitLabel: UNIT_LABELS[student.unit],
-          lastMethod: ultimos.get(student.id) ?? '',
+          lastMethod,
         };
       }
 
@@ -81,9 +161,9 @@ export default async function FinanceiroPage() {
         totalOpenCents: summary.totalOpenCents,
         lastPaidAt: summary.lastPaidAt,
         hasPlan: true,
-        phone: student.guardianPhone ?? student.phone,
+        phone: telefoneDe(student),
         unitLabel: UNIT_LABELS[student.unit],
-        lastMethod: ultimos.get(student.id) ?? '',
+        lastMethod,
       };
     })
     // Vencidas primeiro, depois por data de vencimento.
@@ -93,6 +173,45 @@ export default async function FinanceiroPage() {
       const diff = weight(a) - weight(b);
       return diff !== 0 ? diff : a.dueDate.localeCompare(b.dueDate);
     });
+
+  // Previsto do mês: o que cada plano cobra na data que vence.
+  const cobrancasPrevistas: ChargeItem[] = rows
+    .filter((row) => row.hasPlan && row.dueDate.length > 0)
+    .map((row) => ({ dueDate: row.dueDate, amountCents: row.amountCents }));
+
+  const resumoAtual = summarizeFinanceMonth(pagamentos, cobrancasPrevistas, mesAtual);
+  const resumoAnterior = summarizeFinanceMonth(pagamentos, cobrancasPrevistas, mesAnterior);
+
+  const vencidas = rows.filter((row) => row.status === 'vencida');
+  const openCents = vencidas.reduce((soma, row) => soma + row.totalOpenCents, 0);
+
+  // A fila de cobrança carrega o texto pronto, montado aqui no servidor.
+  const targets: BillingTarget[] = vencidas.map((row) => {
+    const message = buildBillingMessage({
+      name: row.name,
+      amountCents: row.amountCents,
+      dueDate: row.dueDate,
+      limitDate: row.limitDate,
+      openInstallments: row.openInstallments,
+      totalOpenCents: row.totalOpenCents,
+      overdue: true,
+      pixKey: settings.pixKey,
+      academyName: siteConfig.name,
+    });
+
+    return {
+      id: row.id,
+      name: row.name,
+      amountCents: row.amountCents,
+      totalOpenCents: row.totalOpenCents,
+      openInstallments: row.openInstallments,
+      dueDate: row.dueDate,
+      daysLate: row.dueDate.length > 0 ? Math.max(0, daysBetween(hoje, row.limitDate)) : 0,
+      unitLabel: row.unitLabel,
+      whatsappUrl: row.phone.length > 0 ? whatsappLinkTo(row.phone, message) : null,
+      charged: cobrancaFeitaNoMes(cobrados.get(row.id), hoje),
+    };
+  });
 
   return (
     <div className="page-stack">
@@ -109,14 +228,26 @@ export default async function FinanceiroPage() {
           </p>
         </div>
       ) : (
-        <div className="mt-8">
+        <>
+          <MonthClose
+            current={resumoAtual}
+            previous={resumoAnterior}
+            variation={monthOverMonth(resumoAtual.receivedCents, resumoAnterior.receivedCents)}
+            openCents={openCents}
+            overdueCount={vencidas.length}
+            monthLabel={monthLabel(mesAtual)}
+            previousLabel={monthLabel(mesAnterior)}
+          />
+
+          <BillingQueue targets={targets} />
+
           <FinanceList
             rows={rows}
             pixKey={settings.pixKey}
             pixOwner={settings.pixOwner}
             academyName={siteConfig.name}
           />
-        </div>
+        </>
       )}
     </div>
   );

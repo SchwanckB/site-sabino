@@ -131,6 +131,10 @@ const cadastroValido = {
   phone: '(51) 99999-8888',
   cpf: '529.982.247-25',
   birthDate: '1995-04-20',
+  // A academia virou escolha obrigatória no pré-cadastro: sem ela a ficha
+  // nem é criada, e era assim que o aluno de Terra de Areia caía em Três
+  // Cachoeiras por omissão.
+  unit: 'tres-cachoeiras',
   consent: 'on',
 };
 

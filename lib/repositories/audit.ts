@@ -31,6 +31,8 @@ export type AuditAction =
   | 'aluno.status'
   /** Exclusão definitiva: ficha, histórico, arquivo e login. */
   | 'aluno.apagado'
+  /** Conta de login apagada pela tela de contas, com ou sem ficha. */
+  | 'conta.apagada'
   | 'pagamento.desfeito'
   | 'graduacao.desfeita'
   | 'presenca.removida'

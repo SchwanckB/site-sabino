@@ -45,7 +45,7 @@ function isTime(value: unknown): value is string {
 function parseClassSlot(value: unknown): ClassSlot | null {
   if (!isRecord(value)) return null;
 
-  const { id, weekday, startTime, endTime, title, modality, level } = value;
+  const { id, weekday, startTime, endTime, title, modality, level, teacher } = value;
 
   if (typeof id !== 'string' || id.length === 0) return null;
   if (!isWeekday(weekday)) return null;
@@ -55,7 +55,18 @@ function parseClassSlot(value: unknown): ClassSlot | null {
   if (typeof level !== 'string') return null;
 
   // Turma gravada antes da segunda unidade existir é de Três Cachoeiras.
-  return { id, weekday, startTime, endTime, title, modality, level, unit: toUnitId(value['unit']) };
+  return {
+    id,
+    weekday,
+    startTime,
+    endTime,
+    title,
+    modality,
+    level,
+    unit: toUnitId(value['unit']),
+    // Turma gravada antes do campo existir simplesmente não tem professor.
+    ...(typeof teacher === 'string' && teacher.length > 0 ? { teacher } : {}),
+  };
 }
 
 interface StoredSchedule {

@@ -13,7 +13,6 @@ import {
 } from '@/lib/documentRules';
 import { cn } from '@/lib/utils';
 import {
-  DEFAULT_UNIT,
   GENDER_LABELS,
   GENDERS,
   GUARDIAN_REQUIRED_AGE,
@@ -109,6 +108,12 @@ export function OnboardingForm({
 
   const sent = state.values;
   const [birthDate, setBirthDate] = useState(defaultBirthDate);
+  /*
+   * Começa vazia de propósito, e não em `DEFAULT_UNIT`: a escolha é do aluno.
+   * O que foi enviado antes é recuperado para quem voltou de um erro de
+   * validação não ter de escolher de novo.
+   */
+  const [unit, setUnit] = useState<string>(sent?.unit ?? '');
   const router = useRouter();
   const isMinor = useIsMinor(birthDate);
 
@@ -205,23 +210,45 @@ export function OnboardingForm({
         />
       </Field>
 
+      {/*
+        Academia em duas opções grandes, sem nenhuma pré-selecionada.
+
+        Era um `select` já marcado em Três Cachoeiras: quem não abria o campo
+        — a maioria — entrava lá por omissão, inclusive os alunos de Terra de
+        Areia. O erro só aparecia na aprovação, com as turmas da academia
+        errada para marcar, e corrigir exigia mexer na ficha depois.
+      */}
       <Field
-        label="Academia"
+        label="Em qual academia você vai treinar?"
         name="unit"
-        hint="Onde você vai treinar. Dá para mudar depois com o professor."
+        error={errors['unit']}
+        hint="Escolha obrigatória: é ela que define a sua grade de horários."
       >
-        <select
-          id="unit"
-          name="unit"
-          defaultValue={sent?.unit || DEFAULT_UNIT}
-          className={inputClass}
-        >
+        <div role="radiogroup" aria-label="Academia" className="grid gap-2 sm:grid-cols-2">
           {UNITS.map((value) => (
-            <option key={value} value={value}>
-              {UNIT_LABELS[value]}
-            </option>
+            <label
+              key={value}
+              className={cn(
+                'flex min-h-[56px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition-colors',
+                unit === value
+                  ? 'border-crimson bg-crimson/[.08] text-foreground'
+                  : 'border-hairline bg-white/[.03] text-muted hover:border-white/25',
+              )}
+            >
+              <input
+                type="radio"
+                name="unit"
+                value={value}
+                checked={unit === value}
+                onChange={() => setUnit(value)}
+                className="h-4 w-4 shrink-0 accent-crimson"
+              />
+              <span className="min-w-0">
+                <span className="block font-medium text-foreground">{UNIT_LABELS[value]}</span>
+              </span>
+            </label>
           ))}
-        </select>
+        </div>
       </Field>
 
       <Field

@@ -3,26 +3,21 @@
 import { useState } from 'react';
 
 import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
+import { ClassPicker, type ClassOption } from '../ClassPicker';
 import { DOCUMENT_KIND_SHORT } from '@/lib/documentRules';
 import { cn } from '@/lib/utils';
 import {
   ADULT_BELTS,
   KIDS_BELTS,
+  STATUS_LABELS,
+  UNIT_LABELS,
   beltLabel,
   type PublicStudent,
-  type UnitId,
 } from '@/types/domain';
 import { formatBr } from '@/utils/datetime';
 import { DEFAULT_GRACE_DAYS } from '@/utils/paymentEngine';
 
 import { approveStudentAction, rejectStudentAction } from '../actions';
-
-export interface ClassOption {
-  readonly id: string;
-  readonly label: string;
-  readonly weekday: string;
-  readonly unit: UnitId;
-}
 
 const inputClass =
   'w-full min-h-[44px] rounded-xl border border-hairline bg-white/[.04] px-3 py-2 text-sm text-foreground focus:border-crimson focus:outline-none';
@@ -47,10 +42,8 @@ export function ApprovalCard({
   const [rejecting, setRejecting] = useState(false);
 
   const belts = student.category === 'kids' ? KIDS_BELTS : ADULT_BELTS;
-  // Só as turmas da academia do aluno: matricular um aluno de Terra de
-  // Areia numa aula de Três Cachoeiras seria erro silencioso na chamada.
-  const turmasDaUnidade = classOptions.filter((option) => option.unit === student.unit);
   const isMinor = student.age < 18;
+
 
   return (
     <li className="panel p-5 sm:p-6">
@@ -62,10 +55,33 @@ export function ApprovalCard({
             cadastro em {formatBr(student.createdAt.slice(0, 10))}
           </p>
         </div>
-        <span className="rounded-full bg-crimson/15 px-2.5 py-1 text-[11px] font-semibold text-crimson">
-          Pendente
+        {/*
+          A tarja mostra a situação real, e não "Pendente" fixo: esta ficha
+          também atende quem foi recusado ou desativado e está voltando.
+        */}
+        <span
+          className={
+            student.status === 'recusado'
+              ? 'badge-late'
+              : student.status === 'inativo'
+                ? 'badge-neutral'
+                : 'badge border-crimson/40 bg-crimson/15 text-crimson'
+          }
+        >
+          {STATUS_LABELS[student.status]}
         </span>
       </div>
+
+      {/*
+        Motivo da recusa à vista. Sem ele o professor reabre a ficha meses
+        depois sem lembrar por que recusou — e decide no escuro.
+      */}
+      {student.status === 'recusado' && student.rejectionReason ? (
+        <p className="notice-late mt-4 text-xs leading-relaxed">
+          <span className="font-semibold text-crimson">Recusado antes:</span>{' '}
+          {student.rejectionReason}
+        </p>
+      ) : null}
 
       <dl className="mt-5 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
         <div>
@@ -151,33 +167,13 @@ export function ApprovalCard({
         <fieldset>
           <legend className="text-sm font-medium text-foreground">Turmas do aluno</legend>
           <p className="mt-1 text-xs text-muted">
-            Marque em quais aulas ele treina. É isso que libera o check-in no horário certo.
+            Abra a modalidade e marque os horários em que ele treina. É isso que libera o
+            check-in no horário certo. Só aparecem as turmas de{' '}
+            <strong className="font-medium text-foreground">{UNIT_LABELS[student.unit]}</strong>,
+            a academia escolhida no cadastro.
           </p>
 
-          {classOptions.length === 0 ? (
-            <p className="mt-3 text-xs text-crimson">
-              Nenhuma turma na grade. Cadastre os horários antes de aprovar.
-            </p>
-          ) : (
-            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-              {turmasDaUnidade.map((option) => (
-                <li key={option.id}>
-                  <label className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-xl border border-hairline bg-white/[.03] px-3 py-2 text-sm transition-colors hover:border-white/20">
-                    <input
-                      type="checkbox"
-                      name="classIds"
-                      value={option.id}
-                      className="h-4 w-4 shrink-0 accent-crimson"
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate text-foreground">{option.label}</span>
-                      <span className="block text-xs text-muted">{option.weekday}</span>
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ClassPicker classOptions={classOptions} unit={student.unit} />
         </fieldset>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">

@@ -24,6 +24,8 @@ export interface ClassInput {
   readonly modality: string;
   readonly level: string;
   readonly unit: string;
+  /** Quem dá a aula. Opcional: a grade existia sem o campo. */
+  readonly teacher?: string;
 }
 
 export type ClassValidation =
@@ -83,6 +85,11 @@ export function validateClass(input: ClassInput): ClassValidation {
       modality: input.modality as ModalityId,
       level: input.level.trim(),
       unit,
+      // Campo em branco não vira string vazia no banco: a turma fica sem
+      // professor, que é diferente de ter um professor chamado "".
+      ...((input.teacher ?? '').trim().length > 0
+        ? { teacher: (input.teacher ?? '').trim().slice(0, 60) }
+        : {}),
     },
   };
 }
