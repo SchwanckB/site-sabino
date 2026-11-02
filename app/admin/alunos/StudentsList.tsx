@@ -27,11 +27,12 @@ export interface StudentRow {
   readonly unit: UnitId;
 }
 
+/** Situação do cadastro no semáforo do painel — ver `globals.css`. */
 const STATUS_STYLE: Readonly<Record<UserStatus, string>> = {
-  ativo: 'bg-emerald-500/15 text-emerald-300',
-  pendente: 'bg-amber-500/15 text-amber-300',
-  recusado: 'bg-crimson/15 text-crimson',
-  inativo: 'bg-white/10 text-muted',
+  ativo: 'badge-ok',
+  pendente: 'badge-warn',
+  recusado: 'badge-late',
+  inativo: 'badge-neutral',
 };
 
 export function StudentsList({
@@ -60,56 +61,67 @@ export function StudentsList({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div role="group" aria-label="Filtrar por situação" className="flex flex-wrap gap-2">
-          {(['ativo', ...USER_STATUSES.filter((s) => s !== 'ativo'), 'todos'] as const).map(
-            (item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setStatus(item)}
-                aria-pressed={status === item}
-                className={cn(
-                  'inline-flex min-h-[44px] items-center rounded-xl border px-4 text-sm font-medium capitalize transition-colors',
-                  status === item
-                    ? 'border-crimson bg-crimson text-foreground'
-                    : 'border-hairline bg-white/[.04] text-muted hover:text-foreground',
-                )}
-              >
-                {item === 'todos' ? 'Todos' : STATUS_LABELS[item]}
-              </button>
-            ),
-          )}
+      {/*
+        Filtro e busca acompanham a rolagem.
+
+        A lista passa de cem alunos. Quem rolava até o meio e queria trocar o
+        filtro tinha de voltar ao topo — e voltar ao topo numa lista longa é o
+        tipo de atrito que faz a pessoa desistir e procurar com Ctrl+F. O
+        deslocamento acompanha a altura do cabeçalho fixo da casca, que tem
+        uma linha a mais no desktop.
+      */}
+      <div className="sticky top-[6.3rem] z-20 -mx-4 bg-ink/95 px-4 py-2 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:top-[6.9rem]">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div role="group" aria-label="Filtrar por situação" className="flex flex-wrap gap-2">
+            {(['ativo', ...USER_STATUSES.filter((s) => s !== 'ativo'), 'todos'] as const).map(
+              (item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setStatus(item)}
+                  aria-pressed={status === item}
+                  className={cn(
+                    'inline-flex min-h-[44px] items-center rounded-xl border px-4 text-sm font-medium capitalize transition-colors',
+                    status === item
+                      ? 'border-crimson bg-crimson text-foreground'
+                      : 'border-hairline bg-white/[.04] text-muted hover:text-foreground',
+                  )}
+                >
+                  {item === 'todos' ? 'Todos' : STATUS_LABELS[item]}
+                </button>
+              ),
+            )}
+          </div>
+
+          <label>
+            <span className="sr-only">Buscar aluno</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar por nome ou e-mail…"
+              className="min-h-[44px] w-full rounded-xl border border-hairline bg-white/[.04] px-4 text-sm text-foreground placeholder:text-muted/70 focus:border-crimson focus:outline-none sm:w-72"
+            />
+          </label>
         </div>
 
-        <label>
-          <span className="sr-only">Buscar aluno</span>
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar por nome ou e-mail…"
-            className="min-h-[44px] w-full rounded-xl border border-hairline bg-white/[.04] px-4 text-sm text-foreground placeholder:text-muted/70 focus:border-crimson focus:outline-none sm:w-72"
-          />
-        </label>
+        <p aria-live="polite" className="mt-2 text-xs text-muted">
+          {visible.length} {visible.length === 1 ? 'aluno' : 'alunos'}
+        </p>
       </div>
 
-      <p aria-live="polite" className="mt-4 text-sm text-muted">
-        {visible.length} {visible.length === 1 ? 'aluno' : 'alunos'}
-      </p>
-
       {visible.length === 0 ? (
-        <div className="surface-card mt-4 px-6 py-14 text-center">
+        <div className="panel mt-3 px-6 py-14 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Nenhum aluno</p>
           <p className="mt-2 text-sm text-muted">Ajuste o filtro ou a busca.</p>
         </div>
       ) : (
-        <ul className="mt-4 space-y-2">
+        <ul className="mt-3 space-y-2">
           {visible.map((row) => (
             <li key={row.id}>
               <Link
                 href={`/admin/alunos/${row.id}`}
-                className="surface-card flex flex-wrap items-center gap-4 p-4 transition-colors hover:border-white/20"
+                className="panel flex flex-wrap items-center gap-4 p-4 transition-colors hover:border-white/20"
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
@@ -121,12 +133,7 @@ export function StudentsList({
                   </p>
                 </div>
 
-                <span
-                  className={cn(
-                    'shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold',
-                    STATUS_STYLE[row.status],
-                  )}
-                >
+                <span className={cn('shrink-0', STATUS_STYLE[row.status])}>
                   {STATUS_LABELS[row.status]}
                 </span>
 

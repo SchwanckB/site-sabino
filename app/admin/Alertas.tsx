@@ -25,7 +25,7 @@ export function Alertas({
       estica a faixa inteira para além da tela. Com min-width zerado a faixa
       volta a seguir o container e o nome é que corta.
     */
-    <div className="mt-3 grid items-start gap-3 lg:grid-cols-2">
+    <div className="grid items-start gap-3 lg:grid-cols-2">
       {birthdays.length > 0 ? (
         <section className="panel panel-pad min-w-0">
           <div className="flex items-baseline justify-between gap-3">
@@ -70,10 +70,8 @@ export function Alertas({
       {transitions.length > 0 ? (
         <section
           className={cn(
-            'min-w-0 rounded-xl border p-4 sm:p-5',
-            transitions.some((t) => t.overdue)
-              ? 'border-crimson/40 bg-crimson/[.07]'
-              : 'border-amber-500/30 bg-amber-500/[.05]',
+            'min-w-0 p-4 sm:p-5',
+            transitions.some((t) => t.overdue) ? 'notice-late' : 'notice-warn',
           )}
         >
           <div className="flex items-baseline justify-between gap-3">

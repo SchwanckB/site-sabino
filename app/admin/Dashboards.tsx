@@ -86,7 +86,7 @@ export function Dashboards({ rows }: { readonly rows: readonly DashboardRow[] })
   const mediaTreinos = filtrados.length === 0 ? 0 : treinosNoMes / filtrados.length;
 
   return (
-    <div>
+    <div className="space-y-3">
       {/*
         Recortes como controle segmentado, não como pílulas soltas: um bloco
         com divisórias internas ocupa menos espaço, deixa claro que as opções
@@ -107,35 +107,33 @@ export function Dashboards({ rows }: { readonly rows: readonly DashboardRow[] })
       </div>
 
       {/* Números ---------------------------------------------------------- */}
-      <div className="mt-3">
-        <StatStrip>
-          <Stat
-            label="Alunos ativos"
-            value={String(filtrados.length)}
-            hint={`${filtrados.filter((r) => r.category === 'kids').length} crianças · ${filtrados.filter((r) => r.category === 'adulto').length} adultos`}
-          />
-          <Stat
-            label="Em dia"
-            value={`${percentualEmDia}%`}
-            hint={`${emDia} de ${filtrados.length}`}
-            tone={percentualEmDia >= 80 ? 'bom' : 'neutro'}
-          />
-          <Stat
-            label="Inadimplentes"
-            value={String(vencidas.length)}
-            hint={totalAberto > 0 ? `${formatCents(totalAberto)} em aberto` : 'nada em aberto'}
-            tone={vencidas.length > 0 ? 'alerta' : 'bom'}
-          />
-          <Stat
-            label="Treinos / 30d"
-            value={String(treinosNoMes)}
-            hint={`média ${mediaTreinos.toFixed(1)} por aluno`}
-          />
-        </StatStrip>
-      </div>
+      <StatStrip>
+        <Stat
+          label="Alunos ativos"
+          value={String(filtrados.length)}
+          hint={`${filtrados.filter((r) => r.category === 'kids').length} crianças · ${filtrados.filter((r) => r.category === 'adulto').length} adultos`}
+        />
+        <Stat
+          label="Em dia"
+          value={`${percentualEmDia}%`}
+          hint={`${emDia} de ${filtrados.length}`}
+          tone={percentualEmDia >= 80 ? 'bom' : 'neutro'}
+        />
+        <Stat
+          label="Inadimplentes"
+          value={String(vencidas.length)}
+          hint={totalAberto > 0 ? `${formatCents(totalAberto)} em aberto` : 'nada em aberto'}
+          tone={vencidas.length > 0 ? 'alerta' : 'bom'}
+        />
+        <Stat
+          label="Treinos / 30d"
+          value={String(treinosNoMes)}
+          hint={`média ${mediaTreinos.toFixed(1)} por aluno`}
+        />
+      </StatStrip>
 
       {emBreve.length > 0 || semPlano.length > 0 ? (
-        <p className="mt-2.5 text-xs text-muted">
+        <p className="text-xs text-muted">
           {emBreve.length > 0 ? (
             <Link href="/admin/financeiro" className="text-amber-300 hover:underline">
               {emBreve.length} vence{emBreve.length === 1 ? '' : 'm'} nos próximos dias
@@ -151,7 +149,7 @@ export function Dashboards({ rows }: { readonly rows: readonly DashboardRow[] })
       ) : null}
 
       {/* Frequência -------------------------------------------------------- */}
-      <div className="mt-3 grid items-start gap-3 lg:grid-cols-2">
+      <div className="grid items-start gap-3 lg:grid-cols-2">
         <section className="panel panel-pad min-w-0">
           <div className="flex items-baseline justify-between gap-3">
             <h3 className="panel-title">Quem mais treina</h3>

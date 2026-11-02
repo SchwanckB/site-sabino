@@ -69,9 +69,9 @@ export default async function AulaPage({
 
   if (!escolhida) {
     return (
-      <div>
+      <div className="page-stack">
         <PageHeader title="Modo aula" />
-        <div className="panel mt-5 px-5 py-10 text-center">
+        <div className="panel px-5 py-10 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Nenhuma aula para abrir</p>
           <p className="mt-2 text-sm text-muted">
             {classes.length === 0
@@ -180,10 +180,10 @@ export default async function AulaPage({
   const emAndamento = abertas.some((slot) => slot.classId === escolhida.id);
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader title="Modo aula" />
 
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate font-display text-xl uppercase tracking-tight text-foreground">
             {escolhida.title}
@@ -208,7 +208,7 @@ export default async function AulaPage({
 
       {doDia.length > 1 ? <SeletorDeTurma turmas={doDia} atual={escolhida.id} scope={scope} /> : null}
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-3 lg:grid-cols-[1fr_20rem]">
         <section className="panel panel-pad min-w-0">
           <ClassRoster classId={escolhida.id} rows={matriculados} guests={convidados} />
         </section>

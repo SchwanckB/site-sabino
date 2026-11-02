@@ -124,7 +124,7 @@ export default async function AdminPage() {
   const presentNow = inClassNow.filter((student) => checkinsHoje.has(student.id)).length;
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Visão geral"
         actions={
@@ -143,15 +143,13 @@ export default async function AdminPage() {
         }
       />
 
-      <div className="mt-5">
-        <QuickSearch entries={buscaveis} />
-      </div>
+      <QuickSearch entries={buscaveis} />
 
       {/*
         A aula de agora é a única coisa desta tela com hora marcada; por isso
         tem destaque próprio, e não mais um cartão igual aos outros.
       */}
-      <section className="panel panel-pad mt-4">
+      <section className="panel panel-pad">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="min-w-0">
             <p className="panel-title">Agora no tatame</p>
@@ -199,16 +197,14 @@ export default async function AdminPage() {
       <Alertas birthdays={birthdays} transitions={transitions} />
 
       {active.length === 0 ? (
-        <div className="surface-card mt-6 px-6 py-16 text-center">
+        <div className="panel px-6 py-16 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Nenhum aluno ativo ainda</p>
           <p className="mt-2 text-sm text-muted">
             Aprove os cadastros em Aprovações e os indicadores aparecem aqui.
           </p>
         </div>
       ) : (
-        <div className="mt-8">
-          <Dashboards rows={rows} />
-        </div>
+        <Dashboards rows={rows} />
       )}
     </div>
   );

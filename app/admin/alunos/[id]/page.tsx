@@ -92,7 +92,7 @@ export default async function AlunoPage({
       </header>
 
       {/* Dados pessoais --------------------------------------------------- */}
-      <section className="surface-card mt-8 p-5 sm:p-6">
+      <section className="panel mt-8 p-5 sm:p-6">
         <h2 className="text-lg normal-case tracking-normal">Dados do cadastro</h2>
 
         <dl className="mt-4 grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
@@ -154,13 +154,13 @@ export default async function AlunoPage({
 
       {/* Resumo rápido ----------------------------------------------------- */}
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <div className="surface-card p-4">
+        <div className="panel p-4">
           <p className="text-xs text-muted">Total de treinos</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums text-crimson">
             {total}
           </p>
         </div>
-        <div className="surface-card p-4">
+        <div className="panel p-4">
           <p className="text-xs text-muted">Últimos 90 dias</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums">{last90}</p>
         </div>
@@ -209,7 +209,7 @@ export default async function AlunoPage({
 
       {/* Históricos --------------------------------------------------------- */}
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <section className="surface-card p-5 sm:p-6">
+        <section className="panel p-5 sm:p-6">
           <h2 className="text-lg normal-case tracking-normal">Graduações</h2>
           {timeline.daysSinceLast !== null ? (
             <p className="mt-1 text-xs text-muted">
@@ -266,7 +266,7 @@ export default async function AlunoPage({
           )}
         </section>
 
-        <section className="surface-card p-5 sm:p-6">
+        <section className="panel p-5 sm:p-6">
           <h2 className="text-lg normal-case tracking-normal">Pagamentos</h2>
           {payments.length === 0 ? (
             <p className="mt-3 text-sm text-muted">Nenhum pagamento registrado.</p>
@@ -290,7 +290,7 @@ export default async function AlunoPage({
           )}
         </section>
 
-        <section className="surface-card p-5 sm:p-6">
+        <section className="panel p-5 sm:p-6">
           <h2 className="text-lg normal-case tracking-normal">Últimas presenças</h2>
           {checkins.length === 0 ? (
             <p className="mt-3 text-sm text-muted">Nenhuma presença registrada.</p>

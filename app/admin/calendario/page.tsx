@@ -75,22 +75,20 @@ export default async function CalendarioPage() {
   const { year, month } = saoPauloParts(now);
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Calendário"
       />
 
-      <div className="mt-8">
-        <CalendarView
-          classes={classes}
-          events={events}
-          graduations={graduations}
-          people={people}
-          today={saoPauloDateString(now)}
-          initialYear={year}
-          initialMonth={month}
-        />
-      </div>
+      <CalendarView
+        classes={classes}
+        events={events}
+        graduations={graduations}
+        people={people}
+        today={saoPauloDateString(now)}
+        initialYear={year}
+        initialMonth={month}
+      />
     </div>
   );
 }

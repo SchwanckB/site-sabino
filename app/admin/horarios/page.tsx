@@ -49,18 +49,40 @@ export default async function HorariosPage() {
     },
   );
 
+  /*
+   * O que cada turma tem de diferente nos próximos dias.
+   *
+   * A exceção morava só na lista de baixo, e a grade de cima seguia dizendo
+   * "quinta, 18:30" como se nada houvesse. O professor que abre esta tela para
+   * conferir o horário de hoje olha a grade, não a lista — a marca tem de
+   * estar onde ele já está olhando.
+   */
+  const marks = overrides.reduce<Record<string, string[]>>((acc, item) => {
+    const texto = item.canceled
+      ? `${item.isToday ? 'Hoje' : item.dateLabel.slice(0, 5)}: cancelada`
+      : `${item.isToday ? 'Hoje' : item.dateLabel.slice(0, 5)}: ${item.startTime}`;
+
+    const atual = acc[item.classId];
+    if (atual) atual.push(texto);
+    else acc[item.classId] = [texto];
+    return acc;
+  }, {});
+
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Horários"
         meta="Esta grade também define a janela de check-in de cada aluno."
       />
 
-      <div className="mt-8">
-        <ScheduleEditor classes={classes} scope={scope} />
-      </div>
+      <ScheduleEditor classes={classes} scope={scope} marks={marks} />
 
-      <div className="mt-12 border-t border-hairline pt-8">
+      {/*
+        Régua antes das exceções: a grade acima é a regra, e o que vem abaixo
+        são as quebras dela. Sem o corte, as duas listas de horário pareciam a
+        mesma coisa continuando.
+      */}
+      <div className="border-t border-hairline pt-6">
         <CustomClassEditor
           classes={classes}
           overrides={overrides}

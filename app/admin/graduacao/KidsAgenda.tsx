@@ -198,17 +198,17 @@ export function KidsAgenda({ rows }: { readonly rows: readonly AgendaRow[] }) {
     <div>
       {/* Resumo ------------------------------------------------------- */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="surface-card p-4">
+        <div className="panel p-4">
           <p className="text-xs text-muted">Liberados agora</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums text-crimson">
             {elegiveis.length}
           </p>
         </div>
-        <div className="surface-card p-4">
+        <div className="panel p-4">
           <p className="text-xs text-muted">Graduam em até 30 dias</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums">{em30dias.length}</p>
         </div>
-        <div className="surface-card p-4">
+        <div className="panel p-4">
           <p className="text-xs text-muted">Crianças no filtro</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums">{visiveis.length}</p>
         </div>
@@ -275,7 +275,7 @@ export function KidsAgenda({ rows }: { readonly rows: readonly AgendaRow[] }) {
         </h3>
 
         {elegiveis.length === 0 ? (
-          <p className="surface-card mt-3 px-5 py-8 text-center text-sm text-muted">
+          <p className="panel mt-3 px-5 py-8 text-center text-sm text-muted">
             Ninguém liberado neste filtro. A lista abaixo mostra quando cada um gradua.
           </p>
         ) : (
@@ -293,7 +293,7 @@ export function KidsAgenda({ rows }: { readonly rows: readonly AgendaRow[] }) {
         </p>
 
         {proximos.length === 0 ? (
-          <p className="surface-card mt-3 px-5 py-8 text-center text-sm text-muted">
+          <p className="panel mt-3 px-5 py-8 text-center text-sm text-muted">
             Nenhuma graduação prevista neste filtro.
           </p>
         ) : (
@@ -311,7 +311,7 @@ export function KidsAgenda({ rows }: { readonly rows: readonly AgendaRow[] }) {
             {parados.map((row) => (
               <li
                 key={row.id}
-                className="surface-card flex flex-wrap items-center justify-between gap-3 p-4"
+                className="panel flex flex-wrap items-center justify-between gap-3 p-4"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-foreground">{row.name}</p>

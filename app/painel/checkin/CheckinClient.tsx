@@ -214,7 +214,7 @@ export function CheckinClient() {
 
       {/* Escolha da aula: só aparece quando há mais de uma no horário. */}
       {phase === 'escolhendo' ? (
-        <div className="surface-card p-6">
+        <div className="panel p-6">
           <h2 className="text-xl leading-none">Qual aula?</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">
             Você tem mais de uma turma neste horário. Toque na que vai treinar.
@@ -278,7 +278,7 @@ export function CheckinClient() {
       ) : null}
 
       {phase === 'enviando' || phase === 'carregando' ? (
-        <div className="surface-card p-8 text-center">
+        <div className="panel p-8 text-center">
           <div
             aria-hidden="true"
             className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-hairline border-t-crimson"
@@ -304,7 +304,7 @@ export function CheckinClient() {
       ) : null}
 
       {phase === 'idle' ? (
-        <div className="surface-card p-8 text-center">
+        <div className="panel p-8 text-center">
           <h2 className="text-2xl leading-none">Registrar presença</h2>
           <p className="mt-3 text-sm leading-relaxed text-muted">
             Aponte a câmera do seu celular para o QR Code da academia — ele abre esta página e

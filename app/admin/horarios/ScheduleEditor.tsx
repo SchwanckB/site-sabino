@@ -27,9 +27,15 @@ const MODALITIES = [
 export function ScheduleEditor({
   classes,
   scope,
+  marks = {},
 }: {
   readonly classes: readonly ClassSlot[];
   readonly scope: UnitScope;
+  /**
+   * Por turma, o que muda nos próximos dias ("Hoje: 18:30", "12/03:
+   * cancelada"). Vem de cima já formatado: esta tela desenha, não decide.
+   */
+  readonly marks?: Readonly<Record<string, readonly string[]>>;
 }) {
   // Turma nova nasce na academia que o painel está mostrando. Em "todas",
   // cai na primeira — o campo fica visível para o professor corrigir.
@@ -47,7 +53,7 @@ export function ScheduleEditor({
   const form = (slot: ClassSlot | null, onClose: () => void) => (
     <ActionForm
       action={saveClassAction}
-      className="surface-card mt-4 p-5"
+      className="panel mt-4 p-5"
       onDone={(result) => {
         if (result.ok) onClose();
       }}
@@ -207,15 +213,15 @@ export function ScheduleEditor({
       {creating ? form(null, () => setCreating(false)) : null}
 
       {byDay.length === 0 ? (
-        <div className="surface-card mt-6 px-6 py-14 text-center">
+        <div className="panel mt-6 px-6 py-14 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Grade vazia</p>
           <p className="mt-2 text-sm text-muted">Adicione a primeira turma.</p>
         </div>
       ) : (
         <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {byDay.map(({ weekday, slots }) => (
-            <li key={weekday} className="surface-card overflow-hidden">
-              <h3 className="border-b border-hairline px-4 py-3 text-sm tracking-[0.16em] text-muted">
+            <li key={weekday} className="panel overflow-hidden">
+              <h3 className="panel-title border-b border-hairline px-4 py-3">
                 {weekdayLabels[weekday]}
               </h3>
               <ul className="divide-y divide-hairline">
@@ -231,6 +237,21 @@ export function ScheduleEditor({
                           até {slot.endTime} · {slot.level}
                           {scope === 'todas' ? ` · ${UNIT_SHORT[slot.unit]}` : ''}
                         </p>
+
+                        {(marks[slot.id] ?? []).length > 0 ? (
+                          <p className="mt-1.5 flex flex-wrap gap-1">
+                            {(marks[slot.id] ?? []).map((mark) => (
+                              <span
+                                key={mark}
+                                className={
+                                  mark.endsWith('cancelada') ? 'badge-late' : 'badge-warn'
+                                }
+                              >
+                                {mark}
+                              </span>
+                            ))}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
 

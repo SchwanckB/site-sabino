@@ -34,14 +34,12 @@ export default async function AlunosPage() {
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Alunos"
       />
 
-      <div className="mt-8">
-        <StudentsList rows={rows} scope={scope} />
-      </div>
+      <StudentsList rows={rows} scope={scope} />
     </div>
   );
 }

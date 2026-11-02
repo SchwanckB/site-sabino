@@ -62,7 +62,7 @@ export function StudentEditor({
   return (
     <div className="space-y-6">
       {/* Turmas, faixa e graus ------------------------------------------ */}
-      <ActionForm action={updateStudentAction} className="surface-card p-5 sm:p-6">
+      <ActionForm action={updateStudentAction} className="panel p-5 sm:p-6">
         <input type="hidden" name="studentId" value={studentId} />
         <h2 className="text-lg normal-case tracking-normal">Turmas e graduação</h2>
 
@@ -214,7 +214,7 @@ export function StudentEditor({
       </ActionForm>
 
       {/* Graduação rápida ----------------------------------------------- */}
-      <div className="surface-card p-5 sm:p-6">
+      <div className="panel p-5 sm:p-6">
         <h2 className="text-lg normal-case tracking-normal">Registrar graduação</h2>
 
         {isKids ? (
@@ -278,7 +278,7 @@ export function StudentEditor({
       {/* Situação --------------------------------------------------------- */}
       <ActionForm
         action={setStatusAction}
-        className="surface-card p-5 sm:p-6"
+        className="panel p-5 sm:p-6"
         confirm="Alterar a situação deste aluno?"
       >
         <input type="hidden" name="studentId" value={studentId} />

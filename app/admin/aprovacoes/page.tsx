@@ -41,13 +41,13 @@ export default async function AprovacoesPage() {
   const ordered = [...pending].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Aprovações"
       />
 
       {ordered.length === 0 ? (
-        <div className="surface-card mt-8 px-6 py-16 text-center">
+        <div className="panel px-6 py-16 text-center">
           <p className="font-display text-lg uppercase tracking-tight">
             Nenhum cadastro na fila
           </p>
@@ -56,7 +56,7 @@ export default async function AprovacoesPage() {
           </p>
         </div>
       ) : (
-        <ul className="mt-8 space-y-5">
+        <ul className="space-y-5">
           {ordered.map((student) => (
             <ApprovalCard
               key={student.id}

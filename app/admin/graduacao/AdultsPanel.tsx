@@ -20,7 +20,7 @@ const BELT_SWATCH: Readonly<Record<AdultBelt, string>> = {
 
 function EmptyState({ title, description }: { readonly title: string; readonly description: string }) {
   return (
-    <div className="surface-card flex flex-col items-center px-6 py-16 text-center">
+    <div className="panel flex flex-col items-center px-6 py-16 text-center">
       <p className="font-display text-lg uppercase tracking-tight">{title}</p>
       <p className="mt-2 max-w-sm text-sm text-muted">{description}</p>
     </div>
@@ -253,7 +253,7 @@ export function AdultsPanel({
           {/* Mobile: a mesma tabela vira lista de cards. */}
           <ul className="mt-4 space-y-3 md:hidden">
             {rows.map((summary) => (
-              <li key={summary.studentId} className="surface-card p-4">
+              <li key={summary.studentId} className="panel p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-foreground">{summary.name}</p>

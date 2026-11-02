@@ -116,7 +116,7 @@ export function PresenceList({
 
   return (
     <div>
-      <div className="surface-card flex flex-wrap items-center justify-between gap-4 p-4">
+      <div className="panel flex flex-wrap items-center justify-between gap-4 p-4">
         <p aria-live="polite" className="text-sm text-muted">
           <span className="font-display text-2xl leading-none text-crimson tabular-nums">
             {presentCount}
@@ -203,7 +203,7 @@ export function PresenceList({
       {/* Modo 2: presença em lote. ------------------------------------- */}
       {selectable.length > 0 ? (
         <ActionForm action={markPresenceBatchAction} className="mt-5">
-          <div className="surface-card flex flex-wrap items-center justify-between gap-4 p-4">
+          <div className="panel flex flex-wrap items-center justify-between gap-4 p-4">
             <label className="flex min-h-[44px] cursor-pointer items-center gap-3 text-sm">
               <input
                 type="checkbox"
@@ -236,7 +236,7 @@ export function PresenceList({
       ) : null}
 
       {visible.length === 0 ? (
-        <div className="surface-card mt-5 px-6 py-14 text-center">
+        <div className="panel mt-5 px-6 py-14 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Nenhum aluno aqui</p>
           <p className="mt-2 text-sm text-muted">
             {filter === 'aula_agora'
@@ -250,7 +250,7 @@ export function PresenceList({
             <li
               key={row.id}
               className={cn(
-                'surface-card flex flex-wrap items-center gap-3 p-3 sm:p-4',
+                'panel flex flex-wrap items-center gap-3 p-3 sm:p-4',
                 row.present && 'border-emerald-500/30 bg-emerald-500/[.05]',
               )}
             >

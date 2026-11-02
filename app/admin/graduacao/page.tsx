@@ -93,20 +93,18 @@ export default async function GraduacaoPage() {
   );
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Graduação"
         meta="Na trilha infantil o grau sai a cada 30 dias. No adulto, a decisão é sua."
       />
 
-      <div className="mt-8">
-        <GraduationTabs
-          kids={<KidsAgenda rows={rows} />}
-          adults={<AdultsPanel adults={adults} />}
-          kidsCount={rows.filter((r) => r.status === 'ELEGIVEL').length}
-          adultsCount={adults.length}
-        />
-      </div>
+      <GraduationTabs
+        kids={<KidsAgenda rows={rows} />}
+        adults={<AdultsPanel adults={adults} />}
+        kidsCount={rows.filter((r) => r.status === 'ELEGIVEL').length}
+        adultsCount={adults.length}
+      />
     </div>
   );
 }

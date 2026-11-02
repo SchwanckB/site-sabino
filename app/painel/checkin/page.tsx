@@ -16,7 +16,7 @@ export default function CheckinPage() {
 
       <Suspense
         fallback={
-          <div className="surface-card mx-auto h-56 max-w-md animate-pulse" />
+          <div className="panel mx-auto h-56 max-w-md animate-pulse" />
         }
       >
         <CheckinClient />

@@ -66,11 +66,11 @@ export default async function RelatoriosPage() {
   );
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader title="Relatórios" meta={UNIT_SCOPE_LABELS[scope]} />
 
       {/* Exportação ------------------------------------------------------- */}
-      <section className="panel panel-pad mt-5">
+      <section className="panel panel-pad">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="panel-title">Baixar planilha</h2>
           <span className="text-[11px] text-muted">sem CPF nem documentos</span>

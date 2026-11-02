@@ -99,7 +99,7 @@ export function CustomClassEditor({
       {creating && selected ? (
         <ActionForm
           action={saveClassOverrideAction}
-          className="surface-card mt-4 p-5"
+          className="panel mt-4 p-5"
           onDone={(result) => {
             if (result.ok) setCreating(false);
           }}
@@ -225,7 +225,7 @@ export function CustomClassEditor({
             <li
               key={item.id}
               className={cn(
-                'surface-card p-4',
+                'panel p-4',
                 item.canceled ? 'border-crimson/40' : null,
               )}
             >
@@ -239,12 +239,12 @@ export function CustomClassEditor({
                   {item.startTime} às {item.endTime}
                 </span>
                 {item.canceled ? (
-                  <span className="rounded-full border border-crimson/50 px-2 py-0.5 text-[11px] font-semibold text-crimson">
+                  <span className="badge-late">
                     Cancelada
                   </span>
                 ) : null}
                 {item.isToday ? (
-                  <span className="rounded-full bg-crimson px-2 py-0.5 text-[11px] font-semibold text-foreground">
+                  <span className="badge border-crimson bg-crimson text-foreground">
                     Hoje
                   </span>
                 ) : null}

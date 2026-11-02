@@ -95,14 +95,14 @@ export default async function FinanceiroPage() {
     });
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Financeiro"
         meta="Marque como pago quando o comprovante chegar; o vencimento avança sozinho."
       />
 
       {students.length === 0 ? (
-        <div className="surface-card mt-8 px-6 py-16 text-center">
+        <div className="panel px-6 py-16 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Nenhum aluno ativo</p>
           <p className="mt-2 text-sm text-muted">
             Aprove cadastros para começar o controle financeiro.

@@ -53,7 +53,7 @@ export function ApprovalCard({
   const isMinor = student.age < 18;
 
   return (
-    <li className="surface-card p-5 sm:p-6">
+    <li className="panel p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 className="text-lg normal-case tracking-normal">{student.name}</h3>

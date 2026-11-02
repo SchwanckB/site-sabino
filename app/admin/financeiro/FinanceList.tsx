@@ -42,10 +42,18 @@ const FILTERS: readonly { id: Filter; label: string }[] = [
   { id: 'sem_plano', label: 'Sem mensalidade' },
 ];
 
+/** Tinta de fundo da linha — ver o semáforo em `globals.css`. */
 const STATUS_STYLE: Readonly<Record<PaymentStatus, string>> = {
   em_dia: 'border-emerald-500/30 bg-emerald-500/[.05]',
   vence_em_breve: 'border-amber-500/30 bg-amber-500/[.05]',
   vencida: 'border-crimson/40 bg-crimson/[.06]',
+};
+
+/** Tarja da situação, igual à do painel do aluno e da lista de alunos. */
+const STATUS_BADGE: Readonly<Record<PaymentStatus, string>> = {
+  em_dia: 'badge-ok',
+  vence_em_breve: 'badge-warn',
+  vencida: 'badge-late',
 };
 
 const STATUS_LABEL: Readonly<Record<PaymentStatus, string>> = {
@@ -116,19 +124,19 @@ export function FinanceList({
   return (
     <div>
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="surface-card p-4">
+        <div className="panel p-4">
           <p className="text-xs text-muted">Inadimplentes</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums text-crimson">
             {overdue.length}
           </p>
         </div>
-        <div className="surface-card p-4">
+        <div className="panel p-4">
           <p className="text-xs text-muted">Total em aberto</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums">
             {formatCents(totalOpen)}
           </p>
         </div>
-        <div className="surface-card p-4">
+        <div className="panel p-4">
           <p className="text-xs text-muted">Alunos com mensalidade</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums">
             {rows.filter((row) => row.hasPlan).length}
@@ -141,7 +149,7 @@ export function FinanceList({
         variável de ambiente, para o professor poder trocá-la sozinho — sem
         acesso ao painel da hospedagem e sem novo deploy.
       */}
-      <details className="surface-card mt-4 overflow-hidden">
+      <details className="panel mt-4 overflow-hidden">
         <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-medium">
           <span>
             Dados de cobrança
@@ -238,7 +246,7 @@ export function FinanceList({
       </div>
 
       {visible.length === 0 ? (
-        <div className="surface-card mt-4 px-6 py-14 text-center">
+        <div className="panel mt-4 px-6 py-14 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Nada por aqui</p>
           <p className="mt-2 text-sm text-muted">
             {filter === 'vencidas'
@@ -272,7 +280,7 @@ export function FinanceList({
                 </div>
 
                 {row.hasPlan ? (
-                  <span className="shrink-0 rounded-full border border-current/30 px-2.5 py-1 text-[11px] font-semibold">
+                  <span className={cn('shrink-0', STATUS_BADGE[row.status])}>
                     {STATUS_LABEL[row.status]}
                   </span>
                 ) : null}

@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 
 import { Icon, type IconName } from '@/components/app/Icon';
 import { LogoutButton } from '@/components/app/LogoutButton';
@@ -23,6 +23,15 @@ export interface NavItem {
   readonly primary?: boolean;
   /** Rótulo curto para a barra inferior, onde cada aba tem ~60px em 320px. */
   readonly short?: string;
+  /**
+   * Seção do menu. Itens vizinhos com o mesmo valor viram um bloco.
+   *
+   * O admin tem quatorze páginas. Chapadas, obrigam a ler a lista inteira
+   * para achar uma — e a lista está em ordem de nada. Em quatro blocos, a
+   * varredura cai de quatorze itens para quatro. O painel do aluno tem cinco
+   * itens e não usa isto: ali o agrupamento só somaria ruído.
+   */
+  readonly group?: string;
 }
 
 export interface PrimaryAction {
@@ -94,6 +103,16 @@ export function AppShell({
   const direita = primaryAction ? atalhos.slice(2, 3) : atalhos.slice(2, 4);
 
   const pendentes = items.reduce((soma, item) => soma + (item.badge ?? 0), 0);
+
+  // Blocos na ordem em que foram declarados — quem monta a lista decide o
+  // agrupamento, e a casca só respeita. Sem `group`, sai um bloco só.
+  const grupos = items.reduce<{ label: string; items: NavItem[] }[]>((acc, item) => {
+    const label = item.group ?? '';
+    const atual = acc[acc.length - 1];
+    if (atual && atual.label === label) atual.items.push(item);
+    else acc.push({ label, items: [item] });
+    return acc;
+  }, []);
 
   return (
     <div className="min-h-dvh bg-ink">
@@ -180,27 +199,38 @@ export function AppShell({
           */}
           <div className="w-full overflow-x-auto px-4 [mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <ul className="flex w-max items-center gap-0.5 py-1 pr-10">
-              {items.map((item) => (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    aria-current={isActive(item.href) ? 'page' : undefined}
-                    className={cn(
-                      'inline-flex min-h-[44px] items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-sm font-medium transition-colors',
-                      isActive(item.href)
-                        ? 'bg-white/[.07] text-foreground'
-                        : 'text-muted hover:text-foreground',
-                    )}
-                  >
-                    <Icon name={item.icon} className="h-4 w-4 opacity-70" />
-                    {item.label}
-                    {item.badge && item.badge > 0 ? (
-                      <span className="rounded-full bg-crimson px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-foreground">
-                        {item.badge}
-                      </span>
-                    ) : null}
-                  </Link>
-                </li>
+              {items.map((item, index) => (
+                <Fragment key={item.href}>
+                  {/*
+                    Régua entre blocos. Na faixa horizontal não cabe rótulo de
+                    seção sem dobrar a altura do cabeçalho — mas o corte
+                    sozinho já agrupa o que o olho varre.
+                  */}
+                  {index > 0 && items[index - 1]?.group !== item.group ? (
+                    <li aria-hidden className="mx-2 h-5 w-px shrink-0 bg-white/[.09]" />
+                  ) : null}
+
+                  <li>
+                    <Link
+                      href={item.href}
+                      aria-current={isActive(item.href) ? 'page' : undefined}
+                      className={cn(
+                        'inline-flex min-h-[44px] items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-sm font-medium transition-colors',
+                        isActive(item.href)
+                          ? 'bg-white/[.07] text-foreground'
+                          : 'text-muted hover:text-foreground',
+                      )}
+                    >
+                      <Icon name={item.icon} className="h-4 w-4 opacity-70" />
+                      {item.label}
+                      {item.badge && item.badge > 0 ? (
+                        <span className="rounded-full bg-crimson px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-foreground">
+                          {item.badge}
+                        </span>
+                      ) : null}
+                    </Link>
+                  </li>
+                </Fragment>
               ))}
             </ul>
           </div>
@@ -320,35 +350,52 @@ export function AppShell({
                 </button>
               </div>
 
-              <ul className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3">
-                {items.map((item) => (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      aria-current={isActive(item.href) ? 'page' : undefined}
-                      className={cn(
-                        'flex min-h-[88px] flex-col justify-between gap-2 rounded-2xl border p-3.5 transition-colors',
-                        isActive(item.href)
-                          ? 'border-crimson/50 bg-crimson/[.1] text-foreground'
-                          : 'border-hairline bg-white/[.04] text-foreground active:border-white/25',
-                      )}
-                    >
-                      <span className="flex items-start justify-between gap-2">
-                        <Icon
-                          name={item.icon}
-                          className={cn('h-6 w-6', isActive(item.href) ? 'text-crimson' : 'text-muted')}
-                        />
-                        {item.badge && item.badge > 0 ? (
-                          <span className="min-w-[20px] rounded-full bg-crimson px-1.5 text-center text-[11px] font-semibold leading-5 text-foreground">
-                            {item.badge}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="text-sm font-medium leading-snug">{item.label}</span>
-                    </Link>
-                  </li>
+              {/*
+                Na folha o rótulo do bloco cabe, e é aqui que ele mais serve:
+                é no celular que o professor procura a página com o polegar.
+              */}
+              <div className="space-y-4 p-4">
+                {grupos.map((grupo) => (
+                  <section key={grupo.label || 'geral'}>
+                    {grupo.label ? (
+                      <h3 className="stat-label px-1 pb-2">{grupo.label}</h3>
+                    ) : null}
+
+                    <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {grupo.items.map((item) => (
+                        <li key={item.href}>
+                          <Link
+                            href={item.href}
+                            aria-current={isActive(item.href) ? 'page' : undefined}
+                            className={cn(
+                              'flex min-h-[88px] flex-col justify-between gap-2 rounded-2xl border p-3.5 transition-colors',
+                              isActive(item.href)
+                                ? 'border-crimson/50 bg-crimson/[.1] text-foreground'
+                                : 'border-hairline bg-white/[.04] text-foreground active:border-white/25',
+                            )}
+                          >
+                            <span className="flex items-start justify-between gap-2">
+                              <Icon
+                                name={item.icon}
+                                className={cn(
+                                  'h-6 w-6',
+                                  isActive(item.href) ? 'text-crimson' : 'text-muted',
+                                )}
+                              />
+                              {item.badge && item.badge > 0 ? (
+                                <span className="min-w-[20px] rounded-full bg-crimson px-1.5 text-center text-[11px] font-semibold leading-5 text-foreground">
+                                  {item.badge}
+                                </span>
+                              ) : null}
+                            </span>
+                            <span className="text-sm font-medium leading-snug">{item.label}</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
                 ))}
-              </ul>
+              </div>
 
               <div className="px-4">
                 <LogoutButton

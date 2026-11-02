@@ -179,7 +179,7 @@ export function CalendarView({
       {creating ? (
         <ActionForm
           action={saveEventAction}
-          className="surface-card mt-4 p-4 sm:p-5"
+          className="panel mt-4 p-4 sm:p-5"
           onDone={(r) => {
             if (r.ok) setCreating(false);
           }}
@@ -342,7 +342,7 @@ export function CalendarView({
       </div>
 
       {/* Detalhe do dia --------------------------------------------------- */}
-      <section className="surface-card mt-5 p-4 sm:p-5">
+      <section className="panel mt-5 p-4 sm:p-5">
         <h3 className="text-base normal-case tracking-normal">
           {formatBr(selected)}
           <span className="ml-2 text-sm font-normal text-muted">

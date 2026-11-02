@@ -70,7 +70,7 @@ export function RankingBoard({
       </div>
 
       {lista.length === 0 ? (
-        <div className="surface-card mt-6 px-6 py-14 text-center">
+        <div className="panel mt-6 px-6 py-14 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Ranking ainda vazio</p>
           <p className="mt-2 text-sm text-muted">
             Assim que as presenças começarem a entrar, o pódio aparece aqui.
@@ -79,7 +79,7 @@ export function RankingBoard({
       ) : (
         <>
           {/* Pódio ---------------------------------------------------------- */}
-          <section aria-label="Pódio" className="surface-card mt-6 p-5 sm:p-6">
+          <section aria-label="Pódio" className="panel mt-6 p-5 sm:p-6">
             <ol className="flex items-end justify-center gap-2 sm:gap-4">
               {podio.map((degrau) => (
                 <li
@@ -164,7 +164,7 @@ export function RankingBoard({
 
           {/* Posição de quem ficou fora do top ------------------------------ */}
           {!estouNoTop ? (
-            <div className="surface-card mt-4 p-5">
+            <div className="panel mt-4 p-5">
               {minha ? (
                 <>
                   <p className="text-xs text-muted">Sua posição</p>

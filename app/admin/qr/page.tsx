@@ -28,7 +28,7 @@ export default async function QrPage() {
   const semGrade = unidades.filter((item) => item.classCount === 0);
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="QR Code de presença"
         meta="Um cartaz por academia, para imprimir e colar na parede."
@@ -70,9 +70,7 @@ export default async function QrPage() {
         </p>
       ) : null}
 
-      <div className="mt-6">
-        <QrScreen unidades={unidades} />
-      </div>
+      <QrScreen unidades={unidades} />
     </div>
   );
 }

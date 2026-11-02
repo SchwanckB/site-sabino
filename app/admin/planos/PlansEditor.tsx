@@ -24,7 +24,7 @@ export function PlansEditor({ plans }: { readonly plans: readonly Plan[] }) {
   const form = (plan: Plan | null, onClose: () => void) => (
     <ActionForm
       action={savePlanAction}
-      className="surface-card mt-4 p-5"
+      className="panel mt-4 p-5"
       onDone={(result) => {
         if (result.ok) onClose();
       }}

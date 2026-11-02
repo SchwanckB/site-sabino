@@ -121,6 +121,17 @@
     @apply p-4 sm:p-5;
   }
 
+  /*
+   * Ritmo vertical de uma tela do painel.
+   *
+   * As telas encadeavam `mt-5`, `mt-4`, `mt-8` e `mt-12` entre secoes irmas —
+   * cada bloco escolhia a propria folga, e o desalinho era daqueles que
+   * incomodam sem que se saiba dizer o porque. Uma medida so, no container.
+   */
+  .page-stack {
+    @apply space-y-4;
+  }
+
   /* Cabecalho interno de bloco: linha de base do painel inteiro. */
   .panel-title {
     @apply font-display text-[13px] font-semibold uppercase tracking-[0.1em] text-muted;
@@ -133,6 +144,56 @@
 
   .stat-label {
     @apply text-[11px] uppercase tracking-[0.08em] text-muted;
+  }
+
+  /*
+   * ---------------------------------------------------------------------
+   * Semaforo de situacao
+   * ---------------------------------------------------------------------
+   * Verde, ambar e vermelho querem dizer sempre a mesma coisa: em dia,
+   * atencao, atrasado. Cada tela definia a sua propria combinacao de borda,
+   * fundo e texto inline — o painel do aluno tinha uma, o financeiro tinha
+   * outra, e "mensalidade vencida" nao tinha a mesma cara nos dois lugares.
+   *
+   * Aqui ficam as tres, e so elas. Tarja para rotulo curto, aviso para o
+   * bloco de texto que ocupa a largura da tela.
+   */
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5
+           text-[11px] font-semibold leading-5 whitespace-nowrap;
+  }
+
+  .badge-ok {
+    @apply badge border-emerald-500/40 bg-emerald-500/[.08] text-emerald-300;
+  }
+
+  .badge-warn {
+    @apply badge border-amber-500/40 bg-amber-500/[.08] text-amber-300;
+  }
+
+  .badge-late {
+    @apply badge border-crimson/50 bg-crimson/[.08] text-crimson;
+  }
+
+  .badge-neutral {
+    @apply badge border-white/[.12] bg-white/[.05] text-muted;
+  }
+
+  /* Bloco de aviso: mesma paleta das tarjas, em area maior. */
+  .notice {
+    @apply rounded-xl border px-4 py-3;
+  }
+
+  .notice-ok {
+    @apply notice border-emerald-500/35 bg-emerald-500/[.07];
+  }
+
+  .notice-warn {
+    @apply notice border-amber-500/40 bg-amber-500/[.07];
+  }
+
+  .notice-late {
+    @apply notice border-crimson/45 bg-crimson/[.09];
   }
 
   /* Tabela densa do desktop. No celular as listas viram cartoes. */

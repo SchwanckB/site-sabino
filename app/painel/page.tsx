@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { BeltDisplay } from '@/components/app/BeltDisplay';
+import { Stat, StatStrip } from '@/components/app/PageHeader';
 import { weekdayLabels, type Weekday } from '@/data/seed';
 import { getSessionUser } from '@/lib/auth';
 import { countCheckins, hasCheckedInToday, listCheckins } from '@/lib/repositories/attendance';
@@ -20,16 +21,23 @@ import {
 import { canceledOn, recurringOnly } from '@/utils/classOverrides';
 import { daysBetween, formatBr, saoPauloDateString, saoPauloParts } from '@/utils/datetime';
 import { occurrencesInMonth } from '@/utils/classReport';
-import { getDegreeColor } from '@/utils/graduationEngine';
+import { KIDS_TOTAL_DEGREES, getDegreeColor } from '@/utils/graduationEngine';
 import { formatCents, getPaymentSummary, PLAN_LABELS } from '@/utils/paymentEngine';
 
 export const metadata: Metadata = { title: 'Meu painel' };
 export const dynamic = 'force-dynamic';
 
+/**
+ * Situação da mensalidade na linguagem do semáforo do painel.
+ *
+ * A cor saiu daqui para `globals.css`: as três situações têm as mesmas três
+ * cores em toda a aplicação, e cada tela mantendo a sua cópia era o caminho
+ * mais curto para "vencida" ser vermelha aqui e âmbar no financeiro.
+ */
 const STATUS_STYLES = {
-  em_dia: { label: 'Em dia', className: 'border-emerald-500/40 bg-emerald-500/[.08] text-emerald-300' },
-  vence_em_breve: { label: 'Vence em breve', className: 'border-amber-500/40 bg-amber-500/[.08] text-amber-300' },
-  vencida: { label: 'Vencida', className: 'border-crimson/50 bg-crimson/[.08] text-crimson' },
+  em_dia: { label: 'Em dia', badge: 'badge-ok' },
+  vence_em_breve: { label: 'Vence em breve', badge: 'badge-warn' },
+  vencida: { label: 'Vencida', badge: 'badge-late' },
 } as const;
 
 export default async function PainelPage() {
@@ -75,78 +83,210 @@ export default async function PainelPage() {
   const payment = plan ? getPaymentSummary(plan, now) : null;
   // Vence em até três dias: merece destaque, não uma linha no meio da ficha.
   const diasAteVencer = payment ? daysBetween(payment.dueDate, today) : null;
-  const avisoMensalidade =
-    payment !== null &&
-    (payment.status === 'vencida' ||
-      (diasAteVencer !== null && diasAteVencer >= 0 && diasAteVencer <= 3));
   const paymentStyle = payment ? STATUS_STYLES[payment.status] : null;
 
   const nextDegreeColor = isKids ? getDegreeColor(student.degree + 1) : null;
 
+  /*
+   * Avisos do dia, num lugar só e em ordem de urgência.
+   *
+   * Cada aviso era um bloco solto no topo, com a própria borda e a própria
+   * cor. Com dois ou três ao mesmo tempo — e eles acontecem juntos: mês
+   * virando, aula cancelada — o aluno abria o painel numa parede de vermelho
+   * e âmbar antes de chegar ao check-in, que é o que ele veio fazer.
+   *
+   * A aula cancelada vem primeiro de propósito: é a única que muda o que ele
+   * vai fazer na próxima hora.
+   */
+  const avisos: {
+    readonly key: string;
+    readonly tone: 'late' | 'warn';
+    readonly title: string;
+    readonly detail: string;
+    readonly href?: string;
+    readonly cta?: string;
+  }[] = [];
+
+  if (canceladasHoje.length > 0) {
+    avisos.push({
+      key: 'canceladas',
+      tone: 'late',
+      title: canceladasHoje.length === 1 ? 'Aula cancelada hoje' : 'Aulas canceladas hoje',
+      detail: canceladasHoje
+        .map((slot) => `${slot.title} · ${slot.startTime} às ${slot.endTime}`)
+        .join(' — '),
+    });
+  }
+
+  if (payment && payment.status === 'vencida') {
+    avisos.push({
+      key: 'vencida',
+      tone: 'late',
+      title: `Mensalidade vencida em ${formatBr(payment.dueDate)}`,
+      detail: `${formatCents(payment.amountCents)} · pode pagar até ${formatBr(payment.limitDate)}`,
+      href: '#mensalidade',
+      cta: 'Ver detalhes',
+    });
+  } else if (payment && diasAteVencer !== null && diasAteVencer >= 0 && diasAteVencer <= 3) {
+    avisos.push({
+      key: 'vence',
+      tone: 'warn',
+      title:
+        diasAteVencer === 0
+          ? 'Sua mensalidade vence hoje'
+          : `Sua mensalidade vence em ${diasAteVencer} ${diasAteVencer === 1 ? 'dia' : 'dias'}`,
+      detail: `${formatCents(payment.amountCents)} · pode pagar até ${formatBr(payment.limitDate)}`,
+      href: '#mensalidade',
+      cta: 'Ver detalhes',
+    });
+  }
+
+  const emAula = nextClass !== null && nextClass.minutesUntilStart === 0;
+  const ultimoTreino = checkins[0] ?? null;
+  const checkinDeHoje = ultimoTreino?.date === today ? ultimoTreino : null;
+
   return (
-    <div className="space-y-3">
+    <div className="page-stack">
       <header>
         <p className="eyebrow">Olá, {student.name.split(' ')[0]}</p>
         <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Meu painel</h1>
       </header>
 
-      {/*
-        Mensalidade perto do vencimento sobe para o topo. No meio da ficha o
-        aluno só a vê quando já está atrasada — e aí a conversa é outra.
-      */}
-      {avisoMensalidade && payment ? (
-        <div
-          role="status"
-          className={cn(
-            'flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4',
-            payment.status === 'vencida'
-              ? 'border-crimson/45 bg-crimson/[.09]'
-              : 'border-amber-500/40 bg-amber-500/[.07]',
-          )}
-        >
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground">
-              {payment.status === 'vencida'
-                ? `Mensalidade vencida em ${formatBr(payment.dueDate)}`
-                : diasAteVencer === 0
-                  ? 'Sua mensalidade vence hoje'
-                  : `Sua mensalidade vence em ${diasAteVencer} ${diasAteVencer === 1 ? 'dia' : 'dias'}`}
-            </p>
-            <p className="mt-0.5 text-xs text-muted">
-              {formatCents(payment.amountCents)} · pode pagar até {formatBr(payment.limitDate)}
-            </p>
-          </div>
-          <Link href="#mensalidade" className="btn-secondary shrink-0 text-xs">
-            Ver detalhes
-          </Link>
+      {avisos.length > 0 ? (
+        <div role="status" className="space-y-2">
+          {avisos.map((aviso) => (
+            <div
+              key={aviso.key}
+              className={cn(
+                'flex flex-wrap items-center justify-between gap-x-4 gap-y-2',
+                aviso.tone === 'late' ? 'notice-late' : 'notice-warn',
+              )}
+            >
+              <div className="min-w-0">
+                <p
+                  className={cn(
+                    'text-sm font-semibold',
+                    aviso.tone === 'late' ? 'text-crimson' : 'text-amber-300',
+                  )}
+                >
+                  {aviso.title}
+                </p>
+                <p className="mt-0.5 text-xs leading-relaxed text-muted">{aviso.detail}</p>
+              </div>
+              {aviso.href ? (
+                <Link href={aviso.href} className="btn-secondary shrink-0 text-xs">
+                  {aviso.cta}
+                </Link>
+              ) : null}
+            </div>
+          ))}
         </div>
       ) : null}
 
-      {/* Check-in em destaque: é a ação do dia. ------------------------- */}
+      {/*
+        Check-in em destaque: é a ação do dia, e o painel existe para ela.
+        Quando a aula do aluno está acontecendo agora, o bloco acende em
+        vermelho — é o único momento em que o check-in tem hora marcada.
+      */}
       <section
         className={cn(
           'panel panel-pad flex flex-wrap items-center justify-between gap-4',
-          checkedInToday && 'border-emerald-500/30 bg-emerald-500/[.05]',
+          checkedInToday
+            ? 'border-emerald-500/30 bg-emerald-500/[.05]'
+            : emAula
+              ? 'border-crimson/40 bg-crimson/[.06]'
+              : null,
         )}
       >
         <div className="min-w-0">
           <h2 className="panel-title">
-            {checkedInToday ? 'Presença registrada hoje' : 'Registrar presença'}
+            {checkedInToday
+              ? 'Presença registrada hoje'
+              : emAula
+                ? 'Sua aula está acontecendo agora'
+                : 'Registrar presença'}
           </h2>
           <p className="mt-1 text-sm text-muted">
             {checkedInToday
               ? 'Bom treino! Volte amanhã para o próximo check-in.'
-              : 'Leia o QR Code da recepção quando chegar no tatame.'}
+              : emAula && nextClass
+                ? `${nextClass.title} começou às ${nextClass.startTime}. Leia o QR da recepção.`
+                : 'Leia o QR Code da recepção quando chegar no tatame.'}
           </p>
         </div>
-        {!checkedInToday ? (
+
+        {checkedInToday ? (
+          checkinDeHoje ? (
+            <span className="badge-ok shrink-0">
+              Check-in às {checkinDeHoje.at.slice(11, 16)}
+            </span>
+          ) : null
+        ) : (
           <Link href="/painel/checkin" className="btn-primary shrink-0">
             Fazer check-in
           </Link>
-        ) : null}
+        )}
       </section>
 
+      {/*
+        Frequência numa faixa só. Eram quatro números empilhados dentro de um
+        cartão, lidos de cima para baixo; aqui o olho pega a sequência inteira
+        de uma vez, e a meta do mês ganha a barra que a fração não dá.
+      */}
+      <StatStrip>
+        <Stat label="Total de treinos" value={String(total)} tone="destaque" />
+        <Stat
+          label="Este mês"
+          value={aulasNoMes > 0 ? `${thisMonth}/${aulasNoMes}` : String(thisMonth)}
+          {...(aulasNoMes > 0
+            ? { progress: { value: thisMonth, max: aulasNoMes }, hint: 'da sua grade no mês' }
+            : {})}
+        />
+        <Stat label="Últimos 90 dias" value={String(last90)} />
+        <Stat
+          label="Último treino"
+          value={ultimoTreino ? formatBr(ultimoTreino.date).slice(0, 5) : '--'}
+          {...(ultimoTreino ? { hint: `às ${ultimoTreino.at.slice(11, 16)}` } : {})}
+        />
+      </StatStrip>
+
       <div className="grid gap-3 lg:grid-cols-3">
+        {/* Próxima aula ------------------------------------------------- */}
+        <section className="panel panel-pad">
+          <h2 className="panel-title">Próxima aula</h2>
+
+          {nextClass ? (
+            <>
+              <p className="mt-4 font-display text-2xl uppercase leading-tight tracking-tight">
+                {nextClass.title}
+              </p>
+              <p className="mt-1 text-sm text-muted">{nextClass.level}</p>
+              <p className="mt-4 text-sm text-foreground">
+                {nextClass.daysUntil === 0
+                  ? 'Hoje'
+                  : nextClass.daysUntil === 1
+                    ? 'Amanhã'
+                    : weekdayLabels[nextClass.weekday as Weekday]}{' '}
+                às {nextClass.startTime}
+              </p>
+              {nextClass.minutesUntilStart > 0 ? (
+                <p className="mt-1 text-xs text-muted">
+                  Começa em {formatMinutes(nextClass.minutesUntilStart)}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-emerald-300">Acontecendo agora</p>
+              )}
+              {nextClass.custom ? (
+                <p className="badge-warn mt-3">Horário especial só neste dia</p>
+              ) : null}
+            </>
+          ) : (
+            <p className="mt-4 text-sm text-muted">
+              Nenhuma turma atribuída ainda. A recepção define suas aulas na matrícula.
+            </p>
+          )}
+        </section>
+
         {/* Graduação ---------------------------------------------------- */}
         <section className="panel panel-pad lg:col-span-2">
           <h2 className="panel-title">Sua graduação</h2>
@@ -164,8 +304,28 @@ export default async function PainelPage() {
               </p>
               <p className="mt-1 text-sm text-muted">
                 {student.degree} {student.degree === 1 ? 'grau' : 'graus'}
-                {isKids ? ' de 12' : ''}
+                {isKids ? ` de ${KIDS_TOTAL_DEGREES}` : ''}
               </p>
+
+              {/*
+                Escada de graus da trilha infantil, desenhada. São doze degraus
+                até a próxima faixa: "4 graus de 12" é uma conta, e a criança
+                que acompanha a própria evolução não deveria precisar fazer.
+              */}
+              {isKids ? (
+                <div className="mt-2.5 flex gap-1" aria-hidden>
+                  {Array.from({ length: KIDS_TOTAL_DEGREES }, (_, index) => (
+                    <span
+                      key={index}
+                      className={cn(
+                        'h-1.5 flex-1 rounded-full',
+                        index < student.degree ? 'bg-crimson' : 'bg-white/[.09]',
+                      )}
+                    />
+                  ))}
+                </div>
+              ) : null}
+
               {nextDegreeColor ? (
                 <p className="mt-2 text-xs text-muted">
                   Próximo grau: tarja {nextDegreeColor}
@@ -203,20 +363,28 @@ export default async function PainelPage() {
           // fixo cubra o título ao pular para cá.
           style={{ scrollMarginTop: 80 }}
           className={cn(
-            'rounded-2xl border p-5 backdrop-blur-md sm:p-6',
-            paymentStyle ? paymentStyle.className : 'border-hairline bg-white/[.04]',
+            'panel panel-pad',
+            payment?.status === 'vencida'
+              ? 'border-crimson/40'
+              : payment?.status === 'vence_em_breve'
+                ? 'border-amber-500/35'
+                : null,
           )}
         >
           <h2 className="panel-title">Mensalidade</h2>
 
           {payment && plan ? (
             <>
-              <p className="mt-4 font-display text-3xl leading-none text-foreground">
-                {formatCents(payment.amountCents)}
-              </p>
-              <p className="mt-1 text-sm">{paymentStyle?.label}</p>
+              <div className="mt-3.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <p className="font-display text-3xl leading-none tabular-nums text-foreground">
+                  {formatCents(payment.amountCents)}
+                </p>
+                {paymentStyle ? (
+                  <span className={paymentStyle.badge}>{paymentStyle.label}</span>
+                ) : null}
+              </div>
 
-              <dl className="mt-5 space-y-2 border-t border-white/10 pt-4 text-sm text-foreground">
+              <dl className="mt-4 space-y-2 border-t border-hairline pt-4 text-sm text-foreground">
                 <div className="flex justify-between gap-3">
                   <dt className="text-muted">Plano</dt>
                   {/*
@@ -267,101 +435,10 @@ export default async function PainelPage() {
         </section>
       </div>
 
-      {/*
-        Aula cancelada hoje: o aviso tem de aparecer antes de tudo. Sem ele o
-        aluno só descobriria na porta da academia — a tela diria apenas que a
-        próxima aula é semana que vem, e ninguém lê isso como "hoje não tem".
-      */}
-      {canceladasHoje.length > 0 ? (
-        <div className="mb-3 rounded-xl border border-crimson/50 bg-crimson/[.08] px-4 py-3">
-          <p className="text-sm font-semibold text-crimson">
-            {canceladasHoje.length === 1 ? 'Aula cancelada hoje' : 'Aulas canceladas hoje'}
-          </p>
-          <ul className="mt-1 space-y-0.5">
-            {canceladasHoje.map((slot) => (
-              <li key={slot.id} className="text-sm text-foreground">
-                {slot.title} · {slot.startTime} às {slot.endTime}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
       <div className="grid gap-3 lg:grid-cols-3">
-        {/* Próxima aula ------------------------------------------------- */}
-        <section className="panel panel-pad">
-          <h2 className="panel-title">Próxima aula</h2>
-
-          {nextClass ? (
-            <>
-              <p className="mt-4 font-display text-2xl uppercase leading-tight tracking-tight">
-                {nextClass.title}
-              </p>
-              <p className="mt-1 text-sm text-muted">{nextClass.level}</p>
-              <p className="mt-4 text-sm text-foreground">
-                {nextClass.daysUntil === 0
-                  ? 'Hoje'
-                  : nextClass.daysUntil === 1
-                    ? 'Amanhã'
-                    : weekdayLabels[nextClass.weekday as Weekday]}{' '}
-                às {nextClass.startTime}
-              </p>
-              {nextClass.custom ? (
-                <p className="mt-2 inline-flex rounded-lg border border-amber-500/40 bg-amber-500/[.08] px-2 py-1 text-xs text-amber-300">
-                  Horário especial só neste dia
-                </p>
-              ) : null}
-              {nextClass.minutesUntilStart > 0 ? (
-                <p className="mt-1 text-xs text-muted">
-                  Começa em {formatMinutes(nextClass.minutesUntilStart)}
-                </p>
-              ) : (
-                <p className="mt-1 text-xs text-emerald-300">Acontecendo agora</p>
-              )}
-            </>
-          ) : (
-            <p className="mt-4 text-sm text-muted">
-              Nenhuma turma atribuída ainda. A recepção define suas aulas na matrícula.
-            </p>
-          )}
-        </section>
-
-        {/* Frequência --------------------------------------------------- */}
-        <section
-          id="frequencia"
-          style={{ scrollMarginTop: 80 }}
-          className="panel panel-pad"
-        >
-          <h2 className="panel-title">Sua frequência</h2>
-
-          <dl className="mt-5 space-y-4">
-            <div>
-              <dt className="text-xs text-muted">Total de treinos</dt>
-              <dd className="font-display text-3xl leading-none tabular-nums text-crimson">
-                {total}
-              </dd>
-            </div>
-            <div className="grid grid-cols-2 gap-4 border-t border-hairline pt-4">
-              <div>
-                <dt className="text-xs text-muted">Este mês</dt>
-                <dd className="mt-1 font-display text-xl tabular-nums">
-                  {thisMonth}
-                  {aulasNoMes > 0 ? (
-                    <span className="text-base text-muted">/{aulasNoMes}</span>
-                  ) : null}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted">Últimos 90 dias</dt>
-                <dd className="mt-1 font-display text-xl tabular-nums">{last90}</dd>
-              </div>
-            </div>
-          </dl>
-        </section>
-
         {/* Minhas aulas ------------------------------------------------- */}
         <section className="panel panel-pad">
-          <h2 className="panel-title">Minhas aulas</h2>
+          <h2 className="panel-title">Minhas aulas na semana</h2>
 
           {myDays.length === 0 ? (
             <p className="mt-4 text-sm text-muted">Nenhuma turma atribuída.</p>
@@ -387,34 +464,43 @@ export default async function PainelPage() {
             </ul>
           )}
         </section>
+
+        {/* Últimos treinos ---------------------------------------------- */}
+        <section
+          id="frequencia"
+          // Destino de "Meus treinos" na barra inferior. A margem evita que o
+          // cabeçalho fixo cubra o título ao pular para cá.
+          style={{ scrollMarginTop: 80 }}
+          className="panel panel-pad lg:col-span-2"
+        >
+          <h2 className="panel-title">Últimos treinos</h2>
+
+          {checkins.length === 0 ? (
+            <p className="mt-4 text-sm text-muted">
+              Nenhuma presença registrada ainda. O primeiro check-in aparece aqui.
+            </p>
+          ) : (
+            <ul className="mt-3 divide-y divide-hairline">
+              {checkins.slice(0, 10).map((entry) => (
+                <li
+                  key={entry.at}
+                  className="flex flex-wrap items-center justify-between gap-2 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm text-foreground">{entry.classTitle ?? 'Treino'}</p>
+                    <p className="text-xs tabular-nums text-muted">
+                      {formatBr(entry.date)} às {entry.at.slice(11, 16)}
+                    </p>
+                  </div>
+                  <span className="badge-neutral shrink-0">
+                    {CHECKIN_SOURCE_LABELS[entry.source]}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
-
-      {/* Últimos treinos ------------------------------------------------ */}
-      <section className="panel panel-pad">
-        <h2 className="panel-title">Últimos treinos</h2>
-
-        {checkins.length === 0 ? (
-          <p className="mt-4 text-sm text-muted">
-            Nenhuma presença registrada ainda. O primeiro check-in aparece aqui.
-          </p>
-        ) : (
-          <ul className="mt-4 divide-y divide-hairline">
-            {checkins.slice(0, 10).map((entry) => (
-              <li key={entry.at} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                <div className="min-w-0">
-                  <p className="text-sm text-foreground">{entry.classTitle ?? 'Treino'}</p>
-                  <p className="text-xs text-muted">
-                    {formatBr(entry.date)} às {entry.at.slice(11, 16)}
-                  </p>
-                </div>
-                <span className="shrink-0 rounded-full border border-hairline px-2.5 py-1 text-[11px] text-muted">
-                  {CHECKIN_SOURCE_LABELS[entry.source]}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </div>
   );
 }

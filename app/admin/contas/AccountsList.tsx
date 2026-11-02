@@ -32,11 +32,12 @@ const FILTERS: readonly { id: Filter; label: string }[] = [
   { id: 'sem_ficha', label: 'Não preencheram a ficha' },
 ];
 
+/** Situação do cadastro no semáforo do painel — ver `globals.css`. */
 const STATUS_STYLE: Readonly<Record<UserStatus, string>> = {
-  ativo: 'bg-emerald-500/15 text-emerald-300',
-  pendente: 'bg-amber-500/15 text-amber-300',
-  recusado: 'bg-crimson/15 text-crimson',
-  inativo: 'bg-white/10 text-muted',
+  ativo: 'badge-ok',
+  pendente: 'badge-warn',
+  recusado: 'badge-late',
+  inativo: 'badge-neutral',
 };
 
 export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] }) {
@@ -65,17 +66,17 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
   return (
     <div>
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="surface-card p-4">
+        <div className="panel p-4">
           <p className="text-xs text-muted">Contas criadas</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums">{rows.length}</p>
         </div>
-        <div className="surface-card p-4">
+        <div className="panel p-4">
           <p className="text-xs text-muted">Professores</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums text-crimson">
             {admins}
           </p>
         </div>
-        <div className="surface-card p-4">
+        <div className="panel p-4">
           <p className="text-xs text-muted">Sem ficha preenchida</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums">{orphans}</p>
         </div>
@@ -118,7 +119,7 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
       </p>
 
       {visible.length === 0 ? (
-        <div className="surface-card mt-4 px-6 py-14 text-center">
+        <div className="panel mt-4 px-6 py-14 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Nenhuma conta</p>
           <p className="mt-2 text-sm text-muted">Ajuste o filtro ou a busca.</p>
         </div>

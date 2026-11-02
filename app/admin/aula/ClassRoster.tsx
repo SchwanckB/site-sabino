@@ -221,7 +221,7 @@ function RosterItem({
         guardada numa ficha que ninguém abre no meio do treino.
       */}
       {row.note.length > 0 ? (
-        <p className="mt-2 rounded-lg border border-amber-500/35 bg-amber-500/[.08] px-2.5 py-1.5 text-xs leading-relaxed text-amber-100">
+        <p className="notice-warn mt-2 px-2.5 py-1.5 text-xs leading-relaxed text-amber-100">
           {row.note}
         </p>
       ) : null}
@@ -239,12 +239,7 @@ function Tag({
   return (
     <span
       className={cn(
-        'rounded-full px-2 py-0.5 text-[11px] font-medium',
-        tone === 'alerta'
-          ? 'bg-crimson/15 text-crimson'
-          : tone === 'bom'
-            ? 'bg-emerald-500/15 text-emerald-300'
-            : 'bg-white/[.08] text-muted',
+        tone === 'alerta' ? 'badge-late' : tone === 'bom' ? 'badge-ok' : 'badge-neutral',
       )}
     >
       {children}

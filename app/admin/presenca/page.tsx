@@ -73,13 +73,13 @@ export default async function PresencaPage() {
   const todayLabel = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Presença"
       />
 
       {students.length === 0 ? (
-        <div className="surface-card mt-8 px-6 py-16 text-center">
+        <div className="panel px-6 py-16 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Nenhum aluno ativo</p>
           <p className="mt-2 text-sm text-muted">
             Aprove os cadastros em Aprovações para que eles apareçam na chamada.

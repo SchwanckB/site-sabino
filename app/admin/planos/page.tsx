@@ -14,7 +14,7 @@ export default async function PlanosPage() {
   const temExemplo = plans.some((plan) => plan.isExample);
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title="Planos"
       />
@@ -29,9 +29,7 @@ export default async function PlanosPage() {
         </p>
       ) : null}
 
-      <div className="mt-8">
-        <PlansEditor plans={plans} />
-      </div>
+      <PlansEditor plans={plans} />
     </div>
   );
 }
