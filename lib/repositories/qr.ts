@@ -18,7 +18,9 @@ import { UNITS, isUnitId, type UnitId } from '@/types/domain';
  * **O código não é segredo.** Ele fica colado na parede; qualquer aluno pode
  * fotografá-lo. Quem impede o check-in de casa são outras três travas:
  *
- *   1. **janela de horário** — só vale enquanto a aula está acontecendo;
+ *   1. **janela de horário** — vale de uma hora antes do início até quinze
+ *      minutos depois do fim, e no dia da aula personalizada é o horário
+ *      personalizado que manda;
  *   2. **matrícula na turma** — o aluno só marca presença em turma dele;
  *   3. **uma presença por dia**, garantida por `SET NX` atômico.
  *

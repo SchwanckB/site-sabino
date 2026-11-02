@@ -9,7 +9,7 @@ import { countCheckins, hasCheckedInToday, listCheckins } from '@/lib/repositori
 import { listGraduationHistory } from '@/lib/repositories/graduation';
 import { getPaymentPlan } from '@/lib/repositories/payments';
 import { getStudent } from '@/lib/repositories/students';
-import { getSchedule } from '@/lib/schedule';
+import { getEffectiveSchedule } from '@/lib/schedule';
 import { cn } from '@/lib/utils';
 import { CHECKIN_SOURCE_LABELS, beltLabel } from '@/types/domain';
 import {
@@ -17,6 +17,7 @@ import {
   formatMinutes,
   groupAssignedByWeekday,
 } from '@/utils/attendanceEngine';
+import { recurringOnly } from '@/utils/classOverrides';
 import { daysBetween, formatBr, saoPauloDateString, saoPauloParts } from '@/utils/datetime';
 import { occurrencesInMonth } from '@/utils/classReport';
 import { getDegreeColor } from '@/utils/graduationEngine';
@@ -41,7 +42,7 @@ export default async function PainelPage() {
   const now = new Date();
 
   const [schedule, plan, checkins, total, checkedInToday, graduations] = await Promise.all([
-    getSchedule(),
+    getEffectiveSchedule(now),
     getPaymentPlan(student.id),
     listCheckins(student.id, 120),
     countCheckins(student.id),
@@ -59,8 +60,11 @@ export default async function PainelPage() {
 
   // Meta do mês: quantas vezes as turmas do aluno acontecem no mês corrente.
   // Não é número inventado — é a grade dele. "8 de 12" diz mais do que "8".
+  //
+  // Conta só as turmas recorrentes: uma aula personalizada é a mesma turma em
+  // outro horário, não um treino a mais no mês.
   const { year, month } = saoPauloParts(now);
-  const aulasNoMes = schedule.classes
+  const aulasNoMes = recurringOnly(schedule.classes)
     .filter((slot) => student.classIds.includes(slot.id))
     .reduce(
       (soma, slot) => soma + occurrencesInMonth(slot.weekday, year, month),
@@ -281,6 +285,11 @@ export default async function PainelPage() {
                     : weekdayLabels[nextClass.weekday as Weekday]}{' '}
                 às {nextClass.startTime}
               </p>
+              {nextClass.custom ? (
+                <p className="mt-2 inline-flex rounded-lg border border-amber-500/40 bg-amber-500/[.08] px-2 py-1 text-xs text-amber-300">
+                  Horário especial só neste dia
+                </p>
+              ) : null}
               {nextClass.minutesUntilStart > 0 ? (
                 <p className="mt-1 text-xs text-muted">
                   Começa em {formatMinutes(nextClass.minutesUntilStart)}

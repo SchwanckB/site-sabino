@@ -171,6 +171,21 @@ export function addDays(isoDate: string, days: number): string {
   return `${result.getUTCFullYear()}-${String(result.getUTCMonth() + 1).padStart(2, '0')}-${String(result.getUTCDate()).padStart(2, '0')}`;
 }
 
+/**
+ * Dia da semana de uma data civil (`2026-03-02` → 1, segunda).
+ *
+ * Trabalha em UTC de propósito: a data civil já vem resolvida no fuso da
+ * academia, e converter de novo arriscaria descer um dia na virada.
+ */
+export function weekdayOf(isoDate: string): number {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!match) {
+    throw new RangeError(`Data inválida: ${isoDate}`);
+  }
+  const [, year, month, day] = match;
+  return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))).getUTCDay();
+}
+
 /** Diferença em dias de calendário entre duas datas civis (`a - b`). */
 export function daysBetween(a: string, b: string): number {
   const toDay = (iso: string): number => {

@@ -7,7 +7,7 @@ import { consumeRateLimit, rateLimitMessage } from '@/lib/rateLimit';
 import { recordCheckin } from '@/lib/repositories/attendance';
 import { validateQrToken } from '@/lib/repositories/qr';
 import { getStudent } from '@/lib/repositories/students';
-import { getScheduleFresh } from '@/lib/schedule';
+import { getEffectiveScheduleFresh } from '@/lib/schedule';
 import type { CheckinResult } from '@/types/domain';
 import { findOpenClasses } from '@/utils/attendanceEngine';
 
@@ -19,10 +19,11 @@ import { findOpenClasses } from '@/utils/attendanceEngine';
  * acontecendo naquele momento. Quando só há uma, a tela registra sozinha e
  * ele não escolhe nada.
  *
- * A grade é lida sem cache. `getSchedule()` guarda por uma hora para a
- * landing, e aqui ela não é conteúdo: é a regra que decide se a presença
- * entra. Uma grade de uma hora atrás recusaria o aluno da turma que o
- * professor acabou de criar — ou aceitaria na que ele acabou de apagar.
+ * A grade é lida sem cache, e já com as aulas personalizadas do dia
+ * aplicadas. `getSchedule()` guarda por uma hora para a landing, e aqui ela
+ * não é conteúdo: é a regra que decide se a presença entra. Uma grade de uma
+ * hora atrás recusaria o aluno da turma que o professor acabou de criar — ou
+ * da aula que ele remarcou para mais cedo cinco minutos antes do treino.
  *
  * A ordem das checagens importa: o código é resolvido **antes** de qualquer
  * gravação, e a regra "uma presença por dia" é garantida pelo `SET NX` dentro
@@ -53,9 +54,9 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
   /*
    * Teto de leituras por aluno.
    *
-   * Esta função chama `getScheduleFresh()`, que ignora o cache de propósito — é
-   * a regra que decide se a presença entra, e uma grade de uma hora atrás
-   * recusaria a turma que o professor acabou de criar. O preço é que cada
+   * Esta função chama `getEffectiveScheduleFresh()`, que ignora o cache de
+   * propósito — é a regra que decide se a presença entra, e uma grade de uma
+   * hora atrás recusaria a turma que o professor acabou de criar. O preço é que cada
    * tentativa custa uma leitura real no Redis, o que faz dela um amplificador
    * de carga se chamada em laço. Trinta tentativas em cinco minutos cobrem o
    * aluno que escaneia errado várias vezes na porta da academia.
@@ -83,8 +84,9 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
     };
   }
 
-  const schedule = await getScheduleFresh();
-  const abertas = findOpenClasses(schedule.classes, student.classIds, new Date());
+  const now = new Date();
+  const schedule = await getEffectiveScheduleFresh(now);
+  const abertas = findOpenClasses(schedule.classes, student.classIds, now);
 
   return {
     ok: true,
@@ -131,7 +133,7 @@ export async function checkinAction(token: string, classId: string): Promise<Che
   }
 
   const now = new Date();
-  const schedule = await getScheduleFresh();
+  const schedule = await getEffectiveScheduleFresh(now);
 
   /*
    * A turma escolhida é reconferida contra as que estão abertas agora.

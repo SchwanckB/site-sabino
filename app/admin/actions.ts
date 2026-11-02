@@ -10,6 +10,7 @@ import { recordCheckin, undoCheckin } from '@/lib/repositories/attendance';
 import { recordAudit, type AuditAction } from '@/lib/repositories/audit';
 import { deleteDocument } from '@/lib/repositories/documents';
 import { removeEvent, upsertEvent } from '@/lib/repositories/calendar';
+import { removeClassOverride, upsertClassOverride } from '@/lib/repositories/classOverrides';
 import { saveClassLog } from '@/lib/repositories/classLog';
 import { registerDegree, promoteBelt, undoLastDegree } from '@/lib/repositories/graduation';
 import {
@@ -30,7 +31,7 @@ import {
   setStudentStatus,
   updateStudent,
 } from '@/lib/repositories/students';
-import { getSchedule } from '@/lib/schedule';
+import { getEffectiveSchedule, getSchedule } from '@/lib/schedule';
 import { setUnitScope } from '@/lib/unitScope';
 import {
   GENDERS,
@@ -44,7 +45,7 @@ import {
   type UserStatus,
 } from '@/types/domain';
 import { findOpenClasses } from '@/utils/attendanceEngine';
-import { saoPauloDateString } from '@/utils/datetime';
+import { formatBr, saoPauloDateString } from '@/utils/datetime';
 import { KIDS_TOTAL_DEGREES } from '@/utils/graduationEngine';
 import { DEFAULT_GRACE_DAYS, parseCentsInput, type PlanId } from '@/utils/paymentEngine';
 
@@ -499,7 +500,7 @@ export async function markPresenceAction(form: FormData): Promise<ActionResult> 
   const now = new Date();
   const [student, schedule] = await Promise.all([
     getStudent(text(form, 'studentId')),
-    getSchedule(),
+    getEffectiveSchedule(now),
   ]);
 
   const outcome = await markPresent(student, admin.id, 'manual', schedule, now);
@@ -526,7 +527,7 @@ export async function markPresenceBatchAction(form: FormData): Promise<ActionRes
   }
 
   const now = new Date();
-  const [students, schedule] = await Promise.all([getStudents(ids), getSchedule()]);
+  const [students, schedule] = await Promise.all([getStudents(ids), getEffectiveSchedule(now)]);
   const byId = new Map(students.map((student) => [student.id, student]));
 
   let registered = 0;
@@ -675,6 +676,52 @@ export async function deleteClassAction(form: FormData): Promise<ActionResult> {
   revalidateTag(CACHE_TAGS.schedule);
   revalidatePath('/');
   return { ok: true, message: 'Turma removida.' };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Aulas personalizadas                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Marca a turma em outro horário, num dia só.
+ *
+ * Não invalida `CACHE_TAGS.schedule` nem a landing page de propósito: a grade
+ * anunciada no site não muda, e as exceções são lidas sem cache por quem
+ * decide presença. O que precisa se refazer é só o painel.
+ */
+export async function saveClassOverrideAction(form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const result = await upsertClassOverride(
+    {
+      classId: text(form, 'classId'),
+      date: text(form, 'date'),
+      startTime: text(form, 'startTime'),
+      endTime: text(form, 'endTime'),
+      note: text(form, 'note'),
+    },
+    new Date(),
+  );
+
+  if (!result.ok) return { ok: false, message: result.error };
+
+  refreshAdmin();
+  return {
+    ok: true,
+    message: `Aula personalizada salva: ${formatBr(result.override.date)}, ${result.override.startTime} às ${result.override.endTime}. O check-in abre uma hora antes.`,
+  };
+}
+
+export async function deleteClassOverrideAction(form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const id = text(form, 'id');
+  if (id.length === 0) return { ok: false, message: 'Aula personalizada inválida.' };
+
+  await removeClassOverride(id, new Date());
+
+  refreshAdmin();
+  return { ok: true, message: 'Aula personalizada removida. A turma volta ao horário normal.' };
 }
 
 export async function resetScheduleAction(): Promise<ActionResult> {

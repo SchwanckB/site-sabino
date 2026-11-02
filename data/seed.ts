@@ -172,6 +172,16 @@ export interface ClassSlot {
   readonly level: string;
   /** Unidade onde a aula acontece. */
   readonly unit: UnitId;
+  /**
+   * Data civil única desta ocorrência — aula personalizada. Ver
+   * `utils/attendanceEngine.ts`.
+   *
+   * A grade gravada nunca tem este campo: ele é preenchido na memória, ao
+   * mesclar as exceções do dia (`utils/classOverrides.ts`).
+   */
+  readonly onlyOnDate?: string;
+  /** Datas civis em que esta turma foi remarcada para outro horário. */
+  readonly skipDates?: readonly string[];
 }
 
 export interface Schedule {

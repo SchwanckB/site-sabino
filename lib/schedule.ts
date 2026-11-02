@@ -7,7 +7,9 @@ import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS, PUBLIC_REVALIDATE_SECONDS } from '@/lib/cacheTags';
 import { seedSchedule, type ClassSlot, type ModalityId, type Schedule, type Weekday } from '@/data/seed';
 import { getRedis, redisKeys } from '@/lib/redis';
+import { listUpcomingClassOverrides } from '@/lib/repositories/classOverrides';
 import { toUnitId } from '@/types/domain';
+import { applyClassOverrides } from '@/utils/classOverrides';
 
 /**
  * Leitura da grade de horarios para a landing page.
@@ -159,4 +161,45 @@ export async function getSchedule(): Promise<Schedule> {
     console.error('[schedule] falha ao ler schedule:classes, usando o seed', error);
     return seedSchedule;
   }
+}
+
+/**
+ * Grade como ela vai acontecer de verdade: a da academia, com as aulas
+ * personalizadas já no lugar.
+ *
+ * **É esta a leitura de tudo que decide presença** — check-in do aluno,
+ * chamada, tela da aula, dashboard. `getSchedule()` continua existindo para
+ * quem anuncia a grade (landing page) ou edita a grade (painel de horários):
+ * ali o horário normal é o que importa, e a exceção de hoje seria mentira.
+ *
+ * As exceções são lidas **sem cache**, mesmo quando a grade vem cacheada. O
+ * professor abre a aula personalizada minutos antes do treino; uma janela de
+ * uma hora de cache deixaria o aluno na porta sem conseguir marcar.
+ */
+async function merge(schedule: Schedule, now: Date): Promise<Schedule> {
+  try {
+    const overrides = await listUpcomingClassOverrides(now);
+    if (overrides.length === 0) return schedule;
+
+    return {
+      ...schedule,
+      classes: sortClasses(applyClassOverrides(schedule.classes, overrides)),
+    };
+  } catch (error) {
+    // Exceção ilegível não derruba o treino: todo mundo cai no horário normal.
+    console.error('[schedule] falha ao aplicar as aulas personalizadas', error);
+    return schedule;
+  }
+}
+
+export async function getEffectiveSchedule(now: Date): Promise<Schedule> {
+  return merge(await getSchedule(), now);
+}
+
+/**
+ * Versão sem cache nenhum, nem da grade. Para a server action do check-in,
+ * que precisa enxergar a turma criada há um minuto.
+ */
+export async function getEffectiveScheduleFresh(now: Date): Promise<Schedule> {
+  return merge(await getScheduleFresh(), now);
 }

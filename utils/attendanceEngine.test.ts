@@ -33,11 +33,11 @@ describe('findOpenClasses', () => {
   const meusIds = ['seg-1930-mma', 'qua-1930-mma'];
 
   it('não abre nada muito antes da aula', () => {
-    expect(findOpenClasses(grade, meusIds, sp(SEGUNDA, '18:30'))).toEqual([]);
+    expect(findOpenClasses(grade, meusIds, sp(SEGUNDA, '18:00'))).toEqual([]);
   });
 
-  it('abre exatamente 30 minutos antes do início', () => {
-    const aberto = findOpenClasses(grade, meusIds, sp(SEGUNDA, '19:00'));
+  it('abre exatamente uma hora antes do início', () => {
+    const aberto = findOpenClasses(grade, meusIds, sp(SEGUNDA, '18:30'));
 
     expect(aberto).toHaveLength(1);
     expect(aberto[0]?.classId).toBe('seg-1930-mma');
@@ -64,8 +64,23 @@ describe('findOpenClasses', () => {
   });
 
   it('ignora turmas que não são do aluno', () => {
-    // 18:40 seria a janela do Kids, mas o aluno não está matriculado nele.
-    expect(findOpenClasses(grade, meusIds, sp(SEGUNDA, '18:40'))).toEqual([]);
+    // 17:45 já é a janela do Kids das 18:30, mas o aluno não está matriculado
+    // nele — e ainda não alcança a janela do MMA, que abre às 18:30.
+    expect(findOpenClasses(grade, meusIds, sp(SEGUNDA, '17:45'))).toEqual([]);
+  });
+
+  it('põe a aula em andamento na frente da que ainda vai começar', () => {
+    // 19:00: o Kids está rolando e o MMA abre a janela no mesmo minuto. Pela
+    // distância em minutos os dois empatam (-30 e +30).
+    const aberto = findOpenClasses(
+      grade,
+      ['seg-1830-kids', 'seg-1930-mma'],
+      sp(SEGUNDA, '19:00'),
+    );
+
+    expect(aberto).toHaveLength(2);
+    expect(aberto[0]?.classId).toBe('seg-1830-kids');
+    expect(aberto[0]?.inProgress).toBe(true);
   });
 
   it('não abre nada em dia sem aula do aluno', () => {

@@ -49,6 +49,8 @@ export const redisKeys = {
   paymentsHistory: (userId: string) => `payments:history:${userId}`,
   paymentsDue: () => 'payments:due',
   scheduleClasses: () => 'schedule:classes',
+  /** Aulas personalizadas: a turma em outro horário, numa data só. */
+  scheduleOverrides: () => 'schedule:overrides',
   landingPlans: () => 'landing:plans',
   calendarEvents: () => 'calendar:events',
   classLog: (classId: string) => 'class:log:' + classId,

@@ -10,10 +10,29 @@
  * aprovação do cadastro.
  */
 
-import { saoPauloMinutesOfDay, saoPauloParts, timeToMinutes } from './datetime';
+import {
+  addDays,
+  daysBetween,
+  saoPauloDateString,
+  saoPauloMinutesOfDay,
+  saoPauloParts,
+  timeToMinutes,
+  weekdayOf,
+} from './datetime';
 
-/** Quanto antes do início a presença já é aceita. */
-export const CHECKIN_EARLY_MINUTES = 30;
+/**
+ * Quanto antes do início a presença já é aceita.
+ *
+ * Uma hora, e não meia: o aluno chega cedo, troca de roupa e aquece, e o
+ * professor não quer fila no cartaz no meio do treino. Com trinta minutos,
+ * quem chegava antes lia "nenhuma das suas turmas está acontecendo agora" e
+ * desistia de marcar.
+ *
+ * O preço é conhecido: a janela de horário é uma das três travas que seguram
+ * o check-in de casa (ver `lib/repositories/qr.ts`), e ela fica mais larga.
+ * Continuam de pé a matrícula na turma e a presença única por dia.
+ */
+export const CHECKIN_EARLY_MINUTES = 60;
 
 /** Quanto depois do fim a presença ainda é aceita (aluno atrasado). */
 export const CHECKIN_LATE_MINUTES = 15;
@@ -31,6 +50,47 @@ export interface ScheduledClass {
   readonly endTime: string;
   readonly title: string;
   readonly level: string;
+  /**
+   * Data civil única em que esta aula acontece (`YYYY-MM-DD`) — aula
+   * personalizada. Ausente na turma recorrente da grade.
+   *
+   * Uma aula com data **não se repete na semana seguinte**: passou o dia,
+   * passou a aula. É isso que diferencia "hoje o MMA é 18:30" de uma mudança
+   * de horário na grade.
+   */
+  readonly onlyOnDate?: string;
+  /**
+   * Datas civis em que esta turma recorrente **não** acontece, porque foi
+   * remarcada para outro horário naquele dia.
+   *
+   * Sem isso, o aluno veria a aula duas vezes no dia da exceção: no horário
+   * normal e no personalizado — e poderia bater presença no horário que a
+   * turma não vai ter.
+   */
+  readonly skipDates?: readonly string[];
+}
+
+/**
+ * `true` se a aula acontece nesta data civil.
+ *
+ * O dia da semana sozinho não responde mais: desde a aula personalizada, a
+ * grade carrega tanto ocorrências de data única quanto turmas recorrentes com
+ * dias furados.
+ */
+function occursOn(item: ScheduledClass, date: string, weekday: number): boolean {
+  if (item.onlyOnDate !== undefined) return item.onlyOnDate === date;
+  if (item.weekday !== weekday) return false;
+  return !(item.skipDates ?? []).includes(date);
+}
+
+/**
+ * `true` se a aula acontece nesta data civil (`YYYY-MM-DD`).
+ *
+ * Para as telas que listam "as aulas de hoje": filtrar por dia da semana ali
+ * mostraria a turma remarcada duas vezes, no horário normal e no novo.
+ */
+export function occursOnDate(item: ScheduledClass, date: string): boolean {
+  return occursOn(item, date, weekdayOf(date));
 }
 
 export interface OpenClass {
@@ -56,6 +116,11 @@ export interface UpcomingClass {
   readonly minutesUntilStart: number;
   /** Dias de calendário até a aula: 0 = hoje, 1 = amanhã. */
   readonly daysUntil: number;
+  /**
+   * `true` quando é uma aula personalizada — a turma em horário diferente do
+   * normal, só nesse dia. A tela avisa: o aluno decorou o outro horário.
+   */
+  readonly custom: boolean;
 }
 
 function assigned(
@@ -80,10 +145,11 @@ export function findOpenClasses(
   now: Date,
 ): OpenClass[] {
   const { weekday } = saoPauloParts(now);
+  const today = saoPauloDateString(now);
   const nowMinutes = saoPauloMinutesOfDay(now);
 
   return assigned(classes, assignedIds)
-    .filter((item) => item.weekday === weekday)
+    .filter((item) => occursOn(item, today, weekday))
     .map((item) => {
       const start = timeToMinutes(item.startTime);
       const end = timeToMinutes(item.endTime);
@@ -103,7 +169,14 @@ export function findOpenClasses(
       minutesUntilStart: start - nowMinutes,
       inProgress: nowMinutes >= start && nowMinutes <= end,
     }))
-    .sort((a, b) => Math.abs(a.minutesUntilStart) - Math.abs(b.minutesUntilStart));
+    .sort((a, b) => {
+      // A aula que está rolando vem antes da que começa daqui a uma hora. Com
+      // a janela de sessenta minutos e turmas encostadas na grade (18:30,
+      // 19:30, 20:30), as duas aparecem juntas na tela do aluno — e só a
+      // distância em minutos empatava as duas às 19:00.
+      if (a.inProgress !== b.inProgress) return a.inProgress ? -1 : 1;
+      return Math.abs(a.minutesUntilStart) - Math.abs(b.minutesUntilStart);
+    });
 }
 
 /**
@@ -119,6 +192,7 @@ export function findNextClass(
   if (mine.length === 0) return null;
 
   const { weekday } = saoPauloParts(now);
+  const today = saoPauloDateString(now);
   const nowMinutes = saoPauloMinutesOfDay(now);
 
   let best: UpcomingClass | null = null;
@@ -128,12 +202,30 @@ export function findNextClass(
     const start = timeToMinutes(item.startTime);
     const end = timeToMinutes(item.endTime);
 
-    // Dias até a próxima ocorrência deste dia da semana.
-    let daysUntil = (item.weekday - weekday + DAYS_PER_WEEK) % DAYS_PER_WEEK;
+    let daysUntil: number;
 
-    // Hoje, mas já terminou: só volta na semana que vem.
-    if (daysUntil === 0 && nowMinutes > end) {
-      daysUntil = DAYS_PER_WEEK;
+    if (item.onlyOnDate !== undefined) {
+      // Aula personalizada não dá a volta na semana: passou o dia, acabou.
+      daysUntil = daysBetween(item.onlyOnDate, today);
+      if (daysUntil < 0) continue;
+      if (daysUntil === 0 && nowMinutes > end) continue;
+    } else {
+      // Dias até a próxima ocorrência deste dia da semana.
+      daysUntil = (item.weekday - weekday + DAYS_PER_WEEK) % DAYS_PER_WEEK;
+
+      // Hoje, mas já terminou: só volta na semana que vem.
+      if (daysUntil === 0 && nowMinutes > end) {
+        daysUntil = DAYS_PER_WEEK;
+      }
+
+      // Pula a semana em que a turma foi remarcada: quem pergunta pela próxima
+      // aula quer o dia e a hora em que ela vai acontecer de verdade — a
+      // ocorrência daquele dia já está na lista como aula personalizada.
+      const skip = item.skipDates ?? [];
+      for (let guard = 0; guard <= DAYS_PER_WEEK; guard += 1) {
+        if (!skip.includes(addDays(today, daysUntil))) break;
+        daysUntil += DAYS_PER_WEEK;
+      }
     }
 
     const offset = daysUntil * MINUTES_PER_DAY + start - nowMinutes;
@@ -149,6 +241,7 @@ export function findNextClass(
         endTime: item.endTime,
         minutesUntilStart: Math.max(0, offset),
         daysUntil,
+        custom: item.onlyOnDate !== undefined,
       };
     }
   }
@@ -174,7 +267,13 @@ export function formatMinutes(minutes: number): string {
   return `${hours}h${String(rest).padStart(2, '0')}`;
 }
 
-/** Turmas do aluno agrupadas por dia da semana, para o painel. */
+/**
+ * Turmas do aluno agrupadas por dia da semana, para o painel.
+ *
+ * Aula personalizada fica de fora: esta é a rotina semanal do aluno, e uma
+ * ocorrência de um dia só apareceria como se fosse treino de toda semana. O
+ * aluno vê a exceção na próxima aula e na hora do check-in.
+ */
 export function groupAssignedByWeekday(
   classes: readonly ScheduledClass[],
   assignedIds: readonly string[],
@@ -182,6 +281,7 @@ export function groupAssignedByWeekday(
   const byDay = new Map<number, ScheduledClass[]>();
 
   for (const item of assigned(classes, assignedIds)) {
+    if (item.onlyOnDate !== undefined) continue;
     const bucket = byDay.get(item.weekday);
     if (bucket) bucket.push(item);
     else byDay.set(item.weekday, [item]);

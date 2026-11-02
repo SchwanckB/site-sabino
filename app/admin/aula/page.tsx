@@ -6,12 +6,13 @@ import { countCheckins, getTodayCheckins } from '@/lib/repositories/attendance';
 import { listClassLog } from '@/lib/repositories/classLog';
 import { getPaymentPlans } from '@/lib/repositories/payments';
 import { listStudentsByStatus } from '@/lib/repositories/students';
-import { getSchedule } from '@/lib/schedule';
+import { getEffectiveSchedule } from '@/lib/schedule';
 import { getUnitScope } from '@/lib/unitScope';
 import { cn } from '@/lib/utils';
 import { UNIT_SHORT, filterByUnit } from '@/types/domain';
-import { findOpenClasses } from '@/utils/attendanceEngine';
-import { saoPauloDateString, saoPauloParts } from '@/utils/datetime';
+import { findOpenClasses, occursOnDate } from '@/utils/attendanceEngine';
+import { recurringOnly } from '@/utils/classOverrides';
+import { saoPauloDateString } from '@/utils/datetime';
 import { getKidsGraduationStatus } from '@/utils/graduationEngine';
 import { getPaymentSummary } from '@/utils/paymentEngine';
 import { buildHaystack } from '@/utils/searchText';
@@ -37,28 +38,34 @@ export default async function AulaPage({
   const hoje = saoPauloDateString(now);
   const scope = await getUnitScope();
 
-  const [schedule, todos] = await Promise.all([getSchedule(), listStudentsByStatus('ativo')]);
+  const [schedule, todos] = await Promise.all([getEffectiveSchedule(now), listStudentsByStatus('ativo')]);
 
   const students = filterByUnit(todos, scope);
   const classes = filterByUnit(schedule.classes, scope);
 
   // A aula em andamento é o padrão: é o motivo de a tela existir.
   const abertas = findOpenClasses(classes, classes.map((slot) => slot.id), now);
-  const { turma } = await searchParams;
-  const escolhida =
-    classes.find((slot) => slot.id === turma) ??
-    classes.find((slot) => slot.id === abertas[0]?.classId) ??
-    null;
 
-  const { weekday } = saoPauloParts(now);
+  // As aulas de hoje, e não as turmas de hoje: a que foi remarcada aparece no
+  // horário novo, uma vez só.
   const doDia = classes
-    .filter((slot) => slot.weekday === weekday)
+    .filter((slot) => occursOnDate(slot, hoje))
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-  // Grade inteira, para quando não há aula no dia de hoje.
-  const outrasTurmas = [...classes].sort(
+  // Grade inteira, para quando não há aula no dia de hoje. Sem as ocorrências
+  // personalizadas: nesta lista elas repetiriam a própria turma.
+  const outrasTurmas = recurringOnly(classes).sort(
     (a, b) => a.weekday - b.weekday || a.startTime.localeCompare(b.startTime),
   );
+
+  // A turma escolhida vem primeiro da lista de hoje, para a aula remarcada
+  // abrir com o horário de hoje e não com o da grade.
+  const { turma } = await searchParams;
+  const escolhida =
+    doDia.find((slot) => slot.id === turma) ??
+    outrasTurmas.find((slot) => slot.id === turma) ??
+    doDia.find((slot) => slot.id === abertas[0]?.classId) ??
+    null;
 
   if (!escolhida) {
     return (
@@ -71,6 +78,20 @@ export default async function AulaPage({
               ? 'Cadastre a grade desta academia em Horários.'
               : 'Escolha uma turma na lista de hoje ou volte no horário do treino.'}
           </p>
+          {/*
+            O treino que sai do horário é justo quando esta tela aparece vazia.
+            Mandar o professor procurar onde se marca isso, no meio da aula,
+            seria o pior momento possível.
+          */}
+          {classes.length > 0 ? (
+            <p className="mt-2 text-sm text-muted">
+              Vai treinar em outro horário hoje?{' '}
+              <Link href="/admin/horarios" className="text-crimson underline">
+                Marque uma aula personalizada
+              </Link>
+              .
+            </p>
+          ) : null}
         {/*
           Sábado, domingo ou feriado: não há aula hoje, mas o professor pode
           querer rever o diário ou lançar uma presença atrasada. Mandar ele

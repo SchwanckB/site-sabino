@@ -7,7 +7,7 @@ import {
   listGraduationDueIds,
   listStudentsByStatus,
 } from '@/lib/repositories/students';
-import { getSchedule } from '@/lib/schedule';
+import { getEffectiveSchedule } from '@/lib/schedule';
 import { getUnitScope } from '@/lib/unitScope';
 import { STATUS_LABELS, UNIT_SHORT, filterByUnit } from '@/types/domain';
 import { findOpenClasses } from '@/utils/attendanceEngine';
@@ -34,7 +34,7 @@ export default async function AdminPage() {
   const [pendentes, todosAtivos, schedule, dueIds] = await Promise.all([
     listStudentsByStatus('pendente'),
     listStudentsByStatus('ativo'),
-    getSchedule(),
+    getEffectiveSchedule(now),
     listGraduationDueIds(now),
   ]);
 

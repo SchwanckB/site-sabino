@@ -6,9 +6,10 @@ import { getTodayCheckins } from '@/lib/repositories/attendance';
 import { listStudentsByStatus } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
 import { filterByUnit } from '@/types/domain';
-import { getSchedule } from '@/lib/schedule';
+import { getEffectiveSchedule } from '@/lib/schedule';
 import { weekdayShortLabels, type Weekday } from '@/data/seed';
 import { findOpenClasses } from '@/utils/attendanceEngine';
+import { recurringOnly } from '@/utils/classOverrides';
 import { saoPauloParts } from '@/utils/datetime';
 
 import { PresenceList, type PresenceRow, type TurmaResumo } from './PresenceList';
@@ -23,7 +24,7 @@ export default async function PresencaPage() {
 
   const [todos, schedule] = await Promise.all([
     listStudentsByStatus('ativo'),
-    getSchedule(),
+    getEffectiveSchedule(now),
   ]);
 
   // A chamada é sempre de uma academia: lista e grade seguem o recorte.
@@ -55,10 +56,14 @@ export default async function PresencaPage() {
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
   // Turmas da academia, com marca de qual está acontecendo agora.
+  //
+  // A lista é das turmas recorrentes: a aula personalizada é a mesma turma, e
+  // entraria aqui duas vezes. A marca de "agora" chega nela do mesmo jeito,
+  // porque a ocorrência personalizada carrega o id da turma.
   const abertas = new Set(
     findOpenClasses(classes, classes.map((slot) => slot.id), now).map((slot) => slot.classId),
   );
-  const turmas: TurmaResumo[] = classes.map((slot) => ({
+  const turmas: TurmaResumo[] = recurringOnly(classes).map((slot) => ({
     id: slot.id,
     label: `${weekdayShortLabels[slot.weekday as Weekday]} ${slot.startTime} · ${slot.title}`,
     openNow: abertas.has(slot.id),
