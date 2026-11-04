@@ -52,21 +52,37 @@ describe('findOpenClasses', () => {
     expect(aberto[0]?.minutesUntilStart).toBe(-15);
   });
 
-  it('aceita o aluno atrasado até 15 minutos depois do fim', () => {
-    expect(findOpenClasses(grade, meusIds, sp(SEGUNDA, '20:45'))).toHaveLength(1);
-    expect(findOpenClasses(grade, meusIds, sp(SEGUNDA, '20:46'))).toEqual([]);
+  /*
+   * O caso que alargou esta janela: o aluno que escaneia depois de trocar de
+   * roupa. Com quinze minutos ele perdia a presença de uma aula que treinou
+   * inteira.
+   */
+  it('aceita o aluno que marca no fim do treino, até uma hora depois', () => {
+    // MMA das 19:30 às 20:30 — meia hora depois de acabar ainda entra.
+    expect(findOpenClasses(grade, meusIds, sp(SEGUNDA, '21:00'))).toHaveLength(1);
+    expect(findOpenClasses(grade, meusIds, sp(SEGUNDA, '21:30'))).toHaveLength(1);
+    expect(findOpenClasses(grade, meusIds, sp(SEGUNDA, '21:31'))).toEqual([]);
   });
 
-  it('respeita a janela de atraso declarada', () => {
+  it('a janela é simétrica: uma hora de cada lado', () => {
     const limite = findOpenClasses(grade, meusIds, sp(SEGUNDA, '20:30'));
     expect(limite[0]?.classId).toBe('seg-1930-mma');
-    expect(CHECKIN_LATE_MINUTES).toBe(15);
+    expect(CHECKIN_LATE_MINUTES).toBe(60);
+    expect(CHECKIN_LATE_MINUTES).toBe(CHECKIN_EARLY_MINUTES);
   });
 
   it('ignora turmas que não são do aluno', () => {
     // 17:45 já é a janela do Kids das 18:30, mas o aluno não está matriculado
     // nele — e ainda não alcança a janela do MMA, que abre às 18:30.
     expect(findOpenClasses(grade, meusIds, sp(SEGUNDA, '17:45'))).toEqual([]);
+  });
+
+  /*
+   * A trava que a janela larga NÃO afrouxa: ela decide "quando", nunca "qual
+   * turma". Uma hora depois do fim continua valendo só para turma do aluno.
+   */
+  it('a tolerância do fim não abre turma de outro aluno', () => {
+    expect(findOpenClasses(grade, ['seg-1830-kids'], sp(SEGUNDA, '21:00'))).toEqual([]);
   });
 
   it('põe a aula em andamento na frente da que ainda vai começar', () => {

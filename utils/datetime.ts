@@ -130,6 +130,30 @@ export function timeToMinutes(time: string): number {
   return Number(hours) * 60 + Number(minutes);
 }
 
+/**
+ * Faixa de instantes do dia civil de São Paulo, em epoch ms.
+ *
+ * O histórico de presença é um sorted set pontuado por `Date.getTime()`, e
+ * "as presenças de hoje" é uma consulta por faixa nele. Calcular essa faixa
+ * com `new Date(...)` do fuso do servidor erraria por três horas na Vercel,
+ * que roda em UTC — e o erro apareceria só na primeira e na última hora do
+ * dia, que é quando a turma das 6h e a das 20:30 acontecem.
+ *
+ * `end` é exclusivo: meia-noite pertence ao dia seguinte.
+ */
+export function saoPauloDayRange(now: Date): { readonly start: number; readonly end: number } {
+  // O offset de São Paulo é de horas inteiras, então minuto, segundo e
+  // milissegundo são os mesmos em UTC — dá para voltar ao começo do dia
+  // subtraindo o que já passou, sem reconstruir a data.
+  const decorrido =
+    saoPauloMinutesOfDay(now) * 60_000 +
+    now.getUTCSeconds() * 1000 +
+    now.getUTCMilliseconds();
+
+  const start = now.getTime() - decorrido;
+  return { start, end: start + 24 * 60 * 60 * 1000 };
+}
+
 /** Segundos até a próxima meia-noite de São Paulo — TTL da trava de check-in. */
 export function secondsUntilSaoPauloMidnight(now: Date): number {
   // Segundos são iguais em qualquer fuso de offset inteiro, como o de São Paulo.

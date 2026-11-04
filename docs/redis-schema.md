@@ -89,18 +89,30 @@ usado em caminho quente.
 
 ## 2. Check-in
 
-### `checkin:{userId}:{YYYY-MM-DD}` - String com TTL
+### `checkin:{userId}:{YYYY-MM-DD}:{classId}` - String com TTL
 
-Garante **1 check-in por aluno por dia**. A atomicidade vem do proprio
-`SET ... NX`: se a chave ja existe, o comando devolve `null` e o check-in e
-recusado. Nao existe janela de corrida entre "ler" e "gravar".
+Garante **1 check-in por aluno, por dia, por turma**. Presenca se da por aula
+realizada: quem treina a das 19:30 e fica para a das 20:30 tem duas presencas,
+e o que nao pode e a mesma aula contar duas vezes.
 
-- Valor: ISO UTC do instante do check-in
+A atomicidade vem do proprio `SET ... NX`: se a chave ja existe, o comando
+devolve `null` e o check-in e recusado. Nao existe janela de corrida entre
+"ler" e "gravar".
+
+> **Mudou.** A chave ja foi `checkin:{userId}:{YYYY-MM-DD}`, uma por dia. Com
+> ela, o aluno de duas aulas seguidas contava uma presenca so, e a chamada de
+> **qualquer** turma aberta mostrava esse aluno marcado - inclusive a de outro
+> dia da semana, porque a pergunta que a chave sabia responder era "veio hoje?"
+> e nao "veio nesta aula?". As chaves antigas expiram sozinhas (TTL de um dia),
+> entao nao ha migracao.
+
+- Valor: a entrada de check-in em JSON
+- Turma: `sem-turma` quando a presenca foi lancada sem turma resolvida
 - Data da chave: dia civil em Sao Paulo (nao UTC - senao o treino das 22h cairia no dia seguinte)
 - **TTL:** segundos ate a proxima meia-noite de Sao Paulo + 1h de folga
 
 ```ts
-const key = `checkin:${userId}:${saoPauloDate(now)}`;
+const key = `checkin:${userId}:${saoPauloDate(now)}:${classId ?? 'sem-turma'}`;
 const stored = await redis.set(key, now.toISOString(), {
   nx: true,
   ex: secondsUntilSaoPauloMidnight(now) + 3600,
@@ -309,15 +321,15 @@ consistencia entre as chaves importa.**
 
 ### 8.1 Check-in: lock + ranking + historico
 
-A trava do dia **precisa** ficar fora da transacao, porque e o retorno dela que
-decide se o resto roda.
+A trava da aula **precisa** ficar fora da transacao, porque e o retorno dela
+que decide se o resto roda.
 
 ```ts
 const day = saoPauloDate(now);              // "2025-03-10"
 const month = day.slice(0, 7);              // "2025-03"
-const lockKey = `checkin:${userId}:${day}`;
+const lockKey = `checkin:${userId}:${day}:${classId ?? 'sem-turma'}`;
 
-// 1. Trava atomica: so o primeiro SET do dia passa.
+// 1. Trava atomica: so o primeiro SET daquela aula passa.
 const acquired = await redis.set(lockKey, now.toISOString(), {
   nx: true,
   ex: secondsUntilSaoPauloMidnight(now) + 3600,

@@ -221,7 +221,7 @@ export function CheckinClient() {
         <div className="panel p-6">
           <h2 className="text-xl leading-none">Qual aula?</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            Você tem mais de uma turma neste horário. Toque na que vai treinar.
+            Você tem mais de uma turma neste horário. Toque na que treinou.
           </p>
 
           <ul className="mt-5 space-y-2">
@@ -240,6 +240,19 @@ export function CheckinClient() {
                     {option.level ? (
                       <span className="block truncate text-xs text-muted">{option.level}</span>
                     ) : null}
+                    {/*
+                      "acontecendo agora" / "terminou às 20:30": é o que separa
+                      a aula que o aluno acabou de fazer da seguinte, que já
+                      começou. O horário sozinho são dois números parecidos.
+                    */}
+                    <span
+                      className={cn(
+                        'mt-0.5 block truncate text-xs',
+                        option.hint === 'acontecendo agora' ? 'text-emerald-300' : 'text-muted/80',
+                      )}
+                    >
+                      {option.hint}
+                    </span>
                   </span>
                   <span className="shrink-0 font-display text-sm tabular-nums text-muted">
                     {option.time}

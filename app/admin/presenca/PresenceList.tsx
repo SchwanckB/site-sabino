@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
@@ -18,6 +19,16 @@ export interface PresenceRow {
   readonly present: boolean;
   readonly presentAt: string | null;
   readonly presentSource: CheckinSource | null;
+  /** Turma a que a presença ficou vinculada. */
+  readonly presentClass: string | null;
+  /**
+   * Presença de hoje em **outra** turma.
+   *
+   * Não marca esta chamada — presença é por aula realizada. Serve para o
+   * professor não achar que o sistema perdeu o check-in de quem ele viu
+   * entrando na academia mais cedo.
+   */
+  readonly elsewhere: string | null;
   /** Turmas em que o aluno está matriculado, para o resumo por turma. */
   readonly classIds: readonly string[];
 }
@@ -25,7 +36,14 @@ export interface PresenceRow {
 export interface TurmaResumo {
   readonly id: string;
   readonly label: string;
+  readonly weekdayLabel: string;
+  readonly startTime: string;
+  readonly title: string;
   readonly openNow: boolean;
+  /** `false` quando a turma é de outro dia da semana. */
+  readonly happensToday: boolean;
+  readonly total: number;
+  readonly presentes: number;
 }
 
 type Filter = 'aula_agora' | 'todos' | 'faltantes';
@@ -37,23 +55,33 @@ const FILTERS: readonly { id: Filter; label: string }[] = [
 ];
 
 /**
- * Lista de presença com os dois modos manuais.
+ * Chamada.
  *
- * O padrão é "com aula agora": durante o treino, a recepção vê só quem deveria
- * estar no tatame naquele horário, em vez da academia inteira.
+ * Dois modos. Sem turma escolhida é a visão da academia: todo mundo ativo, e
+ * "presente" significa qualquer presença de hoje. Escolhendo uma turma nos
+ * cartões de cima, vira a chamada **dela** — só os matriculados, e o check
+ * verde é a presença naquela aula.
+ *
+ * O segundo modo é o que resolve o treino já encerrado: a turma vai no
+ * formulário, então a presença fica vinculada a ela mesmo horas depois, sem
+ * depender do relógio. E é o que conserta o engano de ver a marca de uma aula
+ * aparecer na chamada de outra.
  */
 export function PresenceList({
   rows,
   todayLabel,
   turmas,
+  selected,
 }: {
   readonly rows: readonly PresenceRow[];
   readonly todayLabel: string;
   readonly turmas: readonly TurmaResumo[];
+  /** Turma aberta para chamada, ou `null` na visão geral. */
+  readonly selected: TurmaResumo | null;
 }) {
-  const [filter, setFilter] = useState<Filter>('aula_agora');
+  const [filter, setFilter] = useState<Filter>(selected ? 'todos' : 'aula_agora');
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [selecionados, setSelecionados] = useState<ReadonlySet<string>>(new Set());
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -66,12 +94,12 @@ export function PresenceList({
     });
   }, [rows, filter, search]);
 
-  const selectable = visible.filter((row) => !row.present);
-  const allSelected = selectable.length > 0 && selectable.every((row) => selected.has(row.id));
+  const marcaveis = visible.filter((row) => !row.present);
+  const todosMarcados = marcaveis.length > 0 && marcaveis.every((row) => selecionados.has(row.id));
 
   const toggle = (id: string): void => {
-    setSelected((current) => {
-      const next = new Set(current);
+    setSelecionados((atual) => {
+      const next = new Set(atual);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
@@ -79,40 +107,18 @@ export function PresenceList({
   };
 
   const toggleAll = (): void => {
-    setSelected((current) => {
-      if (allSelected) {
-        const next = new Set(current);
-        for (const row of selectable) next.delete(row.id);
-        return next;
-      }
-      const next = new Set(current);
-      for (const row of selectable) next.add(row.id);
+    setSelecionados((atual) => {
+      const next = new Set(atual);
+      if (todosMarcados) for (const row of marcaveis) next.delete(row.id);
+      else for (const row of marcaveis) next.add(row.id);
       return next;
     });
   };
 
   const presentCount = rows.filter((row) => row.present).length;
 
-  // Fechamento por turma: "kids teve 8 de 12". Sem isso o professor conta a
-  // lista na mão no fim da aula para saber se valeu a pena abrir o tatame.
-  const resumo = useMemo(
-    () =>
-      turmas
-        .map((turma) => {
-          const matriculados = rows.filter((row) => row.classIds.includes(turma.id));
-          return {
-            ...turma,
-            total: matriculados.length,
-            presentes: matriculados.filter((row) => row.present).length,
-          };
-        })
-        .filter((turma) => turma.total > 0)
-        .sort((a, b) => {
-          if (a.openNow !== b.openNow) return a.openNow ? -1 : 1;
-          return a.label.localeCompare(b.label, 'pt-BR');
-        }),
-    [turmas, rows],
-  );
+  const deHoje = turmas.filter((turma) => turma.happensToday);
+  const deOutroDia = turmas.filter((turma) => !turma.happensToday);
 
   return (
     <div>
@@ -121,7 +127,11 @@ export function PresenceList({
           <span className="font-display text-2xl leading-none text-crimson tabular-nums">
             {presentCount}
           </span>{' '}
-          {presentCount === 1 ? 'presença hoje' : 'presenças hoje'}{' '}
+          {selected
+            ? `de ${rows.length} na chamada`
+            : presentCount === 1
+              ? 'presença hoje'
+              : 'presenças hoje'}{' '}
           <span className="text-xs">({todayLabel})</span>
         </p>
 
@@ -138,44 +148,71 @@ export function PresenceList({
       </div>
 
       {/*
-        Fechamento da aula, por turma. A pergunta do fim do treino é "quantos
-        vieram da kids hoje?", e até aqui ela só se respondia contando a lista
-        na mão.
+        Os cartões de turma eram só leitura — mostravam "kids 8/12" e o
+        professor não tinha onde clicar para fazer a chamada daquela aula.
+        Agora cada um abre a chamada da turma.
       */}
-      {resumo.length > 0 ? (
-        <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {resumo.map((turma) => {
-            const proporcao = turma.total === 0 ? 0 : turma.presentes / turma.total;
-            return (
-              <li
-                key={turma.id}
-                className={cn(
-                  'min-w-0 rounded-xl border p-3',
-                  turma.openNow
-                    ? 'border-crimson/40 bg-crimson/[.07]'
-                    : 'border-hairline bg-white/[.03]',
-                )}
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="min-w-0 truncate text-xs text-muted">{turma.label}</p>
-                  <p className="shrink-0 text-sm tabular-nums text-foreground">
-                    {turma.presentes}
-                    <span className="text-muted">/{turma.total}</span>
-                  </p>
-                </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[.07]">
-                  <div
-                    className={cn(
-                      'h-full rounded-full transition-all',
-                      proporcao >= 0.6 ? 'bg-emerald-400' : 'bg-crimson',
-                    )}
-                    style={{ width: `${Math.round(proporcao * 100)}%` }}
-                  />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+      {turmas.length > 0 ? (
+        <div className="mt-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="panel-title">
+              {selected ? 'Trocar de turma' : 'Escolha a turma para fazer a chamada'}
+            </p>
+            {selected ? (
+              <Link href="/admin/presenca" className="btn-ghost text-xs">
+                Ver a academia toda
+              </Link>
+            ) : null}
+          </div>
+
+          <TurmaGrid turmas={deHoje} selected={selected} />
+
+          {deOutroDia.length > 0 ? (
+            <details className="mt-3 group">
+              <summary className="cursor-pointer list-none text-xs text-muted hover:text-foreground">
+                + {deOutroDia.length} turma{deOutroDia.length === 1 ? '' : 's'} de outro dia da
+                semana
+              </summary>
+              <div className="mt-2">
+                <TurmaGrid turmas={deOutroDia} selected={selected} />
+              </div>
+            </details>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Chamada da turma escolhida ------------------------------------- */}
+      {selected ? (
+        <div
+          className={cn(
+            'mt-4 rounded-xl border p-4',
+            selected.happensToday
+              ? 'border-crimson/40 bg-crimson/[.06]'
+              : 'border-amber-500/40 bg-amber-500/[.06]',
+          )}
+        >
+          <p className="font-display text-lg uppercase leading-tight tracking-tight">
+            Chamada · {selected.weekdayLabel} {selected.startTime} · {selected.title}
+          </p>
+
+          {selected.happensToday ? (
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              A presença entra vinculada a esta turma, mesmo depois do horário do treino.
+            </p>
+          ) : (
+            /*
+              Marcar numa turma de outro dia grava com a data de HOJE. É
+              legítimo (a turma pode ter treinado fora do dia dela), mas o
+              relatório de frequência vai contar essa aula num dia em que ela
+              não acontece — e isso tem de estar escrito antes do clique.
+            */
+            <p className="mt-2 text-xs leading-relaxed text-amber-300">
+              Esta turma não acontece hoje. A presença será gravada com a data de{' '}
+              <strong>hoje</strong> vinculada a ela. Se o treino foi mesmo em outro dia, prefira
+              abrir a turma de hoje.
+            </p>
+          )}
+        </div>
       ) : null}
 
       <div role="group" aria-label="Filtrar lista" className="mt-4 flex flex-wrap gap-2">
@@ -200,36 +237,42 @@ export function PresenceList({
         })}
       </div>
 
-      {/* Modo 2: presença em lote. ------------------------------------- */}
-      {selectable.length > 0 ? (
+      {/* Presença em lote ---------------------------------------------- */}
+      {marcaveis.length > 0 ? (
         <ActionForm action={markPresenceBatchAction} className="mt-5">
+          {/* A turma vai junto: é ela que tira a presença da dependência do relógio. */}
+          {selected ? <input type="hidden" name="classId" value={selected.id} /> : null}
+
           <div className="panel flex flex-wrap items-center justify-between gap-4 p-4">
             <label className="flex min-h-[44px] cursor-pointer items-center gap-3 text-sm">
               <input
                 type="checkbox"
-                checked={allSelected}
+                checked={todosMarcados}
                 onChange={toggleAll}
                 className="h-5 w-5 accent-crimson"
               />
               <span className="text-foreground">
-                Selecionar todos os visíveis ({selectable.length})
+                Selecionar todos os visíveis ({marcaveis.length})
               </span>
             </label>
 
             <div className="flex items-center gap-3">
               <span aria-live="polite" className="text-sm tabular-nums text-muted">
-                {selected.size} selecionado{selected.size === 1 ? '' : 's'}
+                {selecionados.size} selecionado{selecionados.size === 1 ? '' : 's'}
               </span>
               <SubmitButton
-                className={cn('btn-primary', selected.size === 0 && 'pointer-events-none opacity-50')}
+                className={cn(
+                  'btn-primary',
+                  selecionados.size === 0 && 'pointer-events-none opacity-50',
+                )}
                 pendingLabel="Marcando…"
               >
-                Marcar presença em lote
+                {selected ? 'Marcar presença na turma' : 'Marcar presença em lote'}
               </SubmitButton>
             </div>
           </div>
 
-          {[...selected].map((id) => (
+          {[...selecionados].map((id) => (
             <input key={id} type="hidden" name="studentIds" value={id} />
           ))}
         </ActionForm>
@@ -259,7 +302,7 @@ export function PresenceList({
                   <span className="sr-only">Selecionar {row.name}</span>
                   <input
                     type="checkbox"
-                    checked={selected.has(row.id)}
+                    checked={selecionados.has(row.id)}
                     onChange={() => toggle(row.id)}
                     className="h-5 w-5 accent-crimson"
                   />
@@ -280,21 +323,25 @@ export function PresenceList({
                 <p className="truncate text-xs text-muted">
                   {beltLabel(row.belt)}
                   {row.degree > 0 ? ` ${row.degree}º` : ''}
-                  {row.inClassNow ? ` · ${row.inClassNow}` : ''}
+                  {!selected && row.inClassNow ? ` · ${row.inClassNow}` : ''}
                   {row.present && row.presentSource
-                    ? ` · presente às ${row.presentAt} (${CHECKIN_SOURCE_LABELS[row.presentSource]})`
+                    ? ` · presente às ${row.presentAt}${
+                        !selected && row.presentClass ? ` em ${row.presentClass}` : ''
+                      } (${CHECKIN_SOURCE_LABELS[row.presentSource]})`
                     : ''}
+                  {row.elsewhere ? ` · ${row.elsewhere}` : ''}
                 </p>
               </div>
 
-              {/* Modo 1: presença individual. --------------------------- */}
               {row.present ? (
                 <ActionForm
                   action={undoPresenceAction}
                   className="shrink-0"
-                  confirm={`Remover a presença de ${row.name} hoje?`}
+                  confirm={`Remover a presença de ${row.name}?`}
                 >
                   <input type="hidden" name="studentId" value={row.id} />
+                  {/* Qual presença some: o aluno pode ter outra em outra turma. */}
+                  {selected ? <input type="hidden" name="classId" value={selected.id} /> : null}
                   <SubmitButton className="btn-ghost text-xs" pendingLabel="…">
                     Desfazer
                   </SubmitButton>
@@ -302,6 +349,7 @@ export function PresenceList({
               ) : (
                 <ActionForm action={markPresenceAction} className="shrink-0">
                   <input type="hidden" name="studentId" value={row.id} />
+                  {selected ? <input type="hidden" name="classId" value={selected.id} /> : null}
                   <SubmitButton className="btn-secondary text-xs" pendingLabel="…">
                     Marcar presente
                   </SubmitButton>
@@ -312,5 +360,64 @@ export function PresenceList({
         </ul>
       )}
     </div>
+  );
+}
+
+/** Os cartões de turma, com o fechamento de cada uma. */
+function TurmaGrid({
+  turmas,
+  selected,
+}: {
+  readonly turmas: readonly TurmaResumo[];
+  readonly selected: TurmaResumo | null;
+}) {
+  if (turmas.length === 0) {
+    return <p className="mt-2 text-sm text-muted">Nenhuma turma com aluno matriculado hoje.</p>;
+  }
+
+  return (
+    <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {turmas.map((turma) => {
+        const proporcao = turma.total === 0 ? 0 : turma.presentes / turma.total;
+        const ativa = selected?.id === turma.id;
+
+        return (
+          <li key={turma.id} className="min-w-0">
+            <Link
+              href={ativa ? '/admin/presenca' : `/admin/presenca?turma=${turma.id}`}
+              aria-current={ativa ? 'true' : undefined}
+              className={cn(
+                'block min-w-0 rounded-xl border p-3 transition-colors',
+                ativa
+                  ? 'border-crimson bg-crimson/20'
+                  : turma.openNow
+                    ? 'border-crimson/40 bg-crimson/[.07] hover:border-crimson/70'
+                    : 'border-hairline bg-white/[.03] hover:border-white/25',
+              )}
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="min-w-0 truncate text-xs text-muted">{turma.label}</p>
+                <p className="shrink-0 text-sm tabular-nums text-foreground">
+                  {turma.presentes}
+                  <span className="text-muted">/{turma.total}</span>
+                </p>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[.07]">
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-all',
+                    proporcao >= 0.6 ? 'bg-emerald-400' : 'bg-crimson',
+                  )}
+                  style={{ width: `${Math.round(proporcao * 100)}%` }}
+                />
+              </div>
+              {turma.openNow ? (
+                <p className="mt-1.5 text-[11px] text-crimson">acontecendo agora</p>
+              ) : null}
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

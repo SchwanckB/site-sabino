@@ -92,9 +92,14 @@ describe('check-in da turma da manhã', () => {
     expect(aberto[0]?.inProgress).toBe(true);
   });
 
-  it('aceita o atrasado até 7h15, e nada depois', () => {
-    expect(findOpenClasses(manha, meusIds, sp(TERCA, '07:15'))).toHaveLength(1);
-    expect(findOpenClasses(manha, meusIds, sp(TERCA, '07:16'))).toEqual([]);
+  /*
+   * Na turma da manhã a tolerância do fim é o que mais serve: quem treina às
+   * 6h sai correndo para o trabalho e lembra do cartaz já no estacionamento.
+   */
+  it('aceita quem marca depois do treino, até 8h, e nada depois', () => {
+    expect(findOpenClasses(manha, meusIds, sp(TERCA, '07:30'))).toHaveLength(1);
+    expect(findOpenClasses(manha, meusIds, sp(TERCA, '08:00'))).toHaveLength(1);
+    expect(findOpenClasses(manha, meusIds, sp(TERCA, '08:01'))).toEqual([]);
   });
 
   it('a aula da terça não abre a janela na quarta', () => {

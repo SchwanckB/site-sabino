@@ -29,13 +29,34 @@ import {
  * desistia de marcar.
  *
  * O preço é conhecido: a janela de horário é uma das três travas que seguram
- * o check-in de casa (ver `lib/repositories/qr.ts`), e ela fica mais larga.
- * Continuam de pé a matrícula na turma e a presença única por dia.
+ * o check-in de casa (ver `lib/repositories/qr.ts`), e ela fica mais larga —
+ * dos dois lados, desde que {@link CHECKIN_LATE_MINUTES} também subiu para uma
+ * hora. Continuam de pé a matrícula na turma e a presença única por dia, que
+ * são as travas que de fato sustentam o número.
  */
 export const CHECKIN_EARLY_MINUTES = 60;
 
-/** Quanto depois do fim a presença ainda é aceita (aluno atrasado). */
-export const CHECKIN_LATE_MINUTES = 15;
+/**
+ * Quanto depois do fim a presença ainda é aceita.
+ *
+ * Uma hora, simétrica à abertura. Eram quinze minutos, e o caso que derrubou
+ * esse número é concreto: aula das 20:30 às 21:30, o aluno escaneia o cartaz
+ * às 21:54 e lê "nenhuma das suas turmas está acontecendo agora". Ele estava
+ * na academia e havia treinado a aula inteira — perdeu a presença por nove
+ * minutos, porque depois do treino ainda se troca de roupa e se conversa
+ * antes de lembrar do QR. O check-in do fim da aula é o hábito real, e a
+ * janela tem de caber nele.
+ *
+ * Simétrica de propósito: "abre uma hora antes, fecha uma hora depois" é
+ * regra que o professor repete de cabeça quando o aluno pergunta. Quinze de
+ * um lado e sessenta do outro não se lembra, e o que não se lembra vira
+ * reclamação na recepção.
+ *
+ * O custo em ambiguidade é pequeno. Com as turmas encostadas de hora em hora,
+ * quem está em duas já via a tela de escolha por causa da janela de abertura;
+ * a aula em andamento aparece sempre primeiro na lista.
+ */
+export const CHECKIN_LATE_MINUTES = 60;
 
 const MINUTES_PER_DAY = 24 * 60;
 const DAYS_PER_WEEK = 7;

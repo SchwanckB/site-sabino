@@ -6,7 +6,7 @@ import { BeltDisplay } from '@/components/app/BeltDisplay';
 import { Stat, StatStrip } from '@/components/app/PageHeader';
 import { weekdayLabels, type Weekday } from '@/data/seed';
 import { getSessionUser } from '@/lib/auth';
-import { countCheckins, hasCheckedInToday, listCheckins } from '@/lib/repositories/attendance';
+import { countCheckins, getTodayCheckins, listCheckins } from '@/lib/repositories/attendance';
 import { listGraduationHistory } from '@/lib/repositories/graduation';
 import { getPaymentPlan } from '@/lib/repositories/payments';
 import { getStudent } from '@/lib/repositories/students';
@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { CHECKIN_SOURCE_LABELS, beltLabel } from '@/types/domain';
 import {
   findNextClass,
+  findOpenClasses,
   formatMinutes,
   groupAssignedByWeekday,
 } from '@/utils/attendanceEngine';
@@ -55,18 +56,37 @@ export default async function PainelPage() {
 
   const now = new Date();
 
-  const [schedule, plan, checkins, total, checkedInToday, graduations] = await Promise.all([
+  const [schedule, plan, checkins, total, hojeMap, graduations] = await Promise.all([
     getEffectiveSchedule(now),
     getPaymentPlan(student.id),
     listCheckins(student.id, 120),
     countCheckins(student.id),
-    hasCheckedInToday(student.id, now),
+    getTodayCheckins([student.id], now),
     listGraduationHistory(student.id, 5),
   ]);
 
   const isKids = student.category === 'kids';
   const nextClass = findNextClass(schedule.classes, student.classIds, now);
   const myDays = groupAssignedByWeekday(schedule.classes, student.classIds);
+
+  /*
+   * As presenças de hoje — no plural, desde que presença é por aula realizada.
+   *
+   * Quem treina a das 19:30 e fica para a das 20:30 marca duas vezes. Antes o
+   * painel perguntava só "já bateu hoje?" e, tendo batido, escondia o botão de
+   * check-in até o dia seguinte — o segundo treino do dia ficava sem registro
+   * e o aluno não tinha como reclamar, porque a tela dizia "presença
+   * registrada".
+   */
+  const presencasHoje = hojeMap.get(student.id) ?? [];
+  const checkedInToday = presencasHoje.length > 0;
+  const marcadas = new Set(presencasHoje.map((entry) => entry.classId));
+
+  // Aulas abertas agora em que ele ainda não bateu: é isso que decide se o
+  // botão de check-in aparece, não o fato de já ter vindo hoje.
+  const faltaMarcar = findOpenClasses(schedule.classes, student.classIds, now).filter(
+    (slot) => !marcadas.has(slot.classId),
+  );
 
   const today = saoPauloDateString(now);
   const canceladasHoje = canceledOn(schedule.classes, student.classIds, today);
@@ -149,7 +169,6 @@ export default async function PainelPage() {
 
   const emAula = nextClass !== null && nextClass.minutesUntilStart === 0;
   const ultimoTreino = checkins[0] ?? null;
-  const checkinDeHoje = ultimoTreino?.date === today ? ultimoTreino : null;
 
   return (
     <div className="page-stack">
@@ -197,41 +216,55 @@ export default async function PainelPage() {
       <section
         className={cn(
           'panel panel-pad flex flex-wrap items-center justify-between gap-4',
-          checkedInToday
-            ? 'border-emerald-500/30 bg-emerald-500/[.05]'
-            : emAula
-              ? 'border-crimson/40 bg-crimson/[.06]'
+          faltaMarcar.length > 0
+            ? 'border-crimson/40 bg-crimson/[.06]'
+            : checkedInToday
+              ? 'border-emerald-500/30 bg-emerald-500/[.05]'
               : null,
         )}
       >
         <div className="min-w-0">
           <h2 className="panel-title">
-            {checkedInToday
-              ? 'Presença registrada hoje'
-              : emAula
-                ? 'Sua aula está acontecendo agora'
+            {faltaMarcar.length > 0
+              ? checkedInToday
+                ? 'Você tem outra aula agora'
+                : emAula
+                  ? 'Sua aula está acontecendo agora'
+                  : 'Registrar presença'
+              : checkedInToday
+                ? presencasHoje.length === 1
+                  ? 'Presença registrada hoje'
+                  : `${presencasHoje.length} presenças registradas hoje`
                 : 'Registrar presença'}
           </h2>
           <p className="mt-1 text-sm text-muted">
-            {checkedInToday
-              ? 'Bom treino! Volte amanhã para o próximo check-in.'
-              : emAula && nextClass
-                ? `${nextClass.title} começou às ${nextClass.startTime}. Leia o QR da recepção.`
+            {faltaMarcar.length > 0
+              ? `${faltaMarcar[0]?.title ?? 'Sua turma'} · ${faltaMarcar[0]?.startTime ?? ''}. Leia o QR da recepção.`
+              : checkedInToday
+                ? 'Bom treino!'
                 : 'Leia o QR Code da recepção quando chegar no tatame.'}
           </p>
+
+          {/*
+            Cada aula marcada hoje, com a hora. Quem treina duas seguidas
+            precisa ver as duas — era aqui que o segundo treino sumia.
+          */}
+          {presencasHoje.length > 0 ? (
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {presencasHoje.map((entry) => (
+                <li key={entry.at} className="badge-ok">
+                  {entry.classTitle ?? 'Treino'} · {saoPauloTimeString(entry.at)}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
 
-        {checkedInToday ? (
-          checkinDeHoje ? (
-            <span className="badge-ok shrink-0">
-              Check-in às {saoPauloTimeString(checkinDeHoje.at)}
-            </span>
-          ) : null
-        ) : (
+        {faltaMarcar.length > 0 || !checkedInToday ? (
           <Link href="/painel/checkin" className="btn-primary shrink-0">
-            Fazer check-in
+            {checkedInToday ? 'Marcar a próxima' : 'Fazer check-in'}
           </Link>
-        )}
+        ) : null}
       </section>
 
       {/*

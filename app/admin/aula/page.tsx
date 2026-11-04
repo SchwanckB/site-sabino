@@ -3,7 +3,11 @@ import Link from 'next/link';
 
 import { weekdayLabels, weekdayShortLabels, type Weekday } from '@/data/seed';
 import { requirePermission } from '@/lib/auth';
-import { countCheckins, getTodayCheckins } from '@/lib/repositories/attendance';
+import {
+  checkinInClass,
+  countCheckins,
+  getTodayCheckins,
+} from '@/lib/repositories/attendance';
 import { listClassLog } from '@/lib/repositories/classLog';
 import { getPaymentPlans } from '@/lib/repositories/payments';
 import { listStudentsByStatus } from '@/lib/repositories/students';
@@ -132,7 +136,22 @@ export default async function AulaPage({
   );
 
   const toRow = (student: (typeof students)[number], guest: boolean): RosterRow => {
-    const entry = checkins.get(student.id) ?? null;
+    /*
+     * A presença **desta aula**, não a do dia.
+     *
+     * Antes era `checkins.get(student.id)`: bastava o aluno ter batido
+     * presença em qualquer turma para a chamada desta aparecer marcada — e,
+     * abrindo uma turma de outro dia da semana, ela já vinha preenchida com a
+     * presença de hoje. Presença é por aula realizada.
+     */
+    const entry = checkinInClass(checkins, student.id, escolhida.id);
+
+    // A presença que o aluno tem hoje em OUTRA turma: não marca a chamada,
+    // mas explica por que ele está na academia sem check nesta lista.
+    const noutra = (checkins.get(student.id) ?? []).find(
+      (item) => item.classId !== escolhida.id,
+    );
+
     const plan = plans.get(student.id);
     const summary = plan ? getPaymentSummary(plan, now) : null;
 
@@ -159,6 +178,10 @@ export default async function AulaPage({
       degree: student.degree,
       present: entry !== null,
       presentAt: entry ? saoPauloTimeString(entry.at) : null,
+      elsewhere:
+        entry === null && noutra
+          ? `já marcou às ${saoPauloTimeString(noutra.at)}${noutra.classTitle ? ` em ${noutra.classTitle}` : ''}`
+          : null,
       note: student.notes,
       isNew: (totais.get(student.id) ?? 0) <= AULAS_DE_NOVATO,
       dueGraduation: podeGraduar,

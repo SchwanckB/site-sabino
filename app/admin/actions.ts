@@ -850,7 +850,13 @@ export async function bulkRaiseAction(form: FormData): Promise<ActionResult> {
  * aluno já tem presença hoje" — acreditava, não insistia, e a presença nunca
  * entrava. Mensagem tranquilizadora em cima de falha é pior que erro cru.
  */
-type PresenceOutcome = 'ok' | 'ja_registrado' | 'nao_encontrado' | 'inativo' | 'sem_banco';
+type PresenceOutcome =
+  | 'ok'
+  | 'ja_registrado'
+  | 'nao_encontrado'
+  | 'inativo'
+  | 'sem_banco'
+  | 'turma_invalida';
 
 async function markPresent(
   student: Awaited<ReturnType<typeof getStudent>>,
@@ -858,20 +864,37 @@ async function markPresent(
   source: 'manual' | 'lote',
   schedule: Awaited<ReturnType<typeof getSchedule>>,
   now: Date,
+  /**
+   * Turma escolhida na tela. Quando vem, manda — e é o caminho preferido.
+   *
+   * Sem ela a aula é inferida pelo relógio, e fora da janela a presença
+   * ficava com `classId: null`: um registro que conta no total e no ranking
+   * mas some do relatório de frequência, porque lá o casamento é por turma.
+   * Chamada feita depois do horário caía sempre nesse buraco.
+   */
+  chosenClassId?: string | null,
 ): Promise<PresenceOutcome> {
   if (!student) return 'nao_encontrado';
   if (student.status !== 'ativo') return 'inativo';
 
-  // A aula é inferida pelo horário: se houver turma do aluno acontecendo
-  // agora, a presença fica vinculada a ela.
-  const open = findOpenClasses(schedule.classes, student.classIds, now);
-  const current = open[0] ?? null;
+  const escolhida =
+    chosenClassId && chosenClassId.length > 0
+      ? (schedule.classes.find((slot) => slot.id === chosenClassId) ?? null)
+      : null;
+
+  if (chosenClassId && chosenClassId.length > 0 && !escolhida) return 'turma_invalida';
+
+  // Sem turma escolhida, a aula sai do horário: se houver turma do aluno na
+  // janela agora, a presença fica vinculada a ela.
+  const inferida = escolhida
+    ? null
+    : (findOpenClasses(schedule.classes, student.classIds, now)[0] ?? null);
 
   const result = await recordCheckin(
     {
       student,
-      classId: current?.classId ?? null,
-      classTitle: current?.title ?? null,
+      classId: escolhida?.id ?? inferida?.classId ?? null,
+      classTitle: escolhida?.title ?? inferida?.title ?? null,
       source,
       registeredBy: adminId,
     },
@@ -887,7 +910,9 @@ function presenceMessage(outcome: PresenceOutcome): ActionResult {
     case 'ok':
       return { ok: true, message: 'Presença registrada.' };
     case 'ja_registrado':
-      return { ok: false, message: 'Este aluno já tem presença hoje.' };
+      return { ok: false, message: 'Este aluno já tem presença nesta aula hoje.' };
+    case 'turma_invalida':
+      return { ok: false, message: 'Turma não encontrada na grade.' };
     case 'inativo':
       return { ok: false, message: 'Aluno não está ativo.' };
     case 'sem_banco':
@@ -912,7 +937,14 @@ export async function markPresenceAction(form: FormData): Promise<ActionResult> 
     getEffectiveSchedule(now),
   ]);
 
-  const outcome = await markPresent(student, admin.id, 'manual', schedule, now);
+  const outcome = await markPresent(
+    student,
+    admin.id,
+    'manual',
+    schedule,
+    now,
+    text(form, 'classId') || null,
+  );
 
   refreshAdmin();
   return presenceMessage(outcome);
@@ -925,7 +957,12 @@ export async function markPresenceAction(form: FormData): Promise<ActionResult> 
  * disparava um `getStudent` e um `getSchedule` próprios, em série: marcar a
  * chamada de uma turma de trinta custava mais de sessenta idas ao Redis, uma
  * esperando a outra. A gravação em si continua sequencial — é ela que carrega a
- * trava de "uma presença por dia".
+ * trava de "uma presença por aula".
+ *
+ * `classId` é o jeito certo de chamar: a tela de Presença manda a turma que o
+ * professor abriu, e a presença fica vinculada a ela mesmo horas depois do
+ * treino. Sem ele, a aula sai do relógio e a chamada tardia vira presença sem
+ * turma — que some do relatório de frequência.
  */
 export async function markPresenceBatchAction(form: FormData): Promise<ActionResult> {
   const auth = await authorize('aula');
@@ -937,6 +974,8 @@ export async function markPresenceBatchAction(form: FormData): Promise<ActionRes
     return { ok: false, message: 'Selecione pelo menos um aluno.' };
   }
 
+  const classId = text(form, 'classId') || null;
+
   const now = new Date();
   const [students, schedule] = await Promise.all([getStudents(ids), getEffectiveSchedule(now)]);
   const byId = new Map(students.map((student) => [student.id, student]));
@@ -947,7 +986,14 @@ export async function markPresenceBatchAction(form: FormData): Promise<ActionRes
   let semBanco = 0;
 
   for (const id of ids) {
-    const outcome = await markPresent(byId.get(id) ?? null, admin.id, 'lote', schedule, now);
+    const outcome = await markPresent(
+      byId.get(id) ?? null,
+      admin.id,
+      'lote',
+      schedule,
+      now,
+      classId,
+    );
     if (outcome === 'ok') registered += 1;
     else if (outcome === 'ja_registrado') already += 1;
     else if (outcome === 'sem_banco') semBanco += 1;
@@ -967,7 +1013,7 @@ export async function markPresenceBatchAction(form: FormData): Promise<ActionRes
   }
 
   const parts = [`${registered} presença${registered === 1 ? '' : 's'} registrada${registered === 1 ? '' : 's'}`];
-  if (already > 0) parts.push(`${already} já tinha presença hoje`);
+  if (already > 0) parts.push(`${already} já tinha presença nesta aula`);
   if (semBanco > 0) parts.push(`${semBanco} falhou no banco e precisa ser remarcado`);
   if (skipped > 0) parts.push(`${skipped} ignorado${skipped === 1 ? '' : 's'}`);
 
@@ -984,16 +1030,31 @@ export async function undoPresenceAction(form: FormData): Promise<ActionResult> 
 
   const now = new Date();
   const date = text(form, 'date') || saoPauloDateString(now);
-  const removed = await undoCheckin(student, date, now);
+
+  /*
+   * Qual presença daquele dia some.
+   *
+   * Desde que a presença é por aula realizada, o aluno pode ter duas no mesmo
+   * dia — e desfazer sem dizer qual apagaria a errada. O formulário manda o
+   * `classId` da linha em que o professor clicou; vazio significa a presença
+   * que ficou sem turma resolvida.
+   */
+  const classId = text(form, 'classId') || null;
+  const removed = await undoCheckin(student, date, classId, now);
 
   if (removed) {
-    await audit(admin, 'presenca.removida', student, `presença do dia ${date}`);
+    await audit(
+      admin,
+      'presenca.removida',
+      student,
+      `presença do dia ${date}${classId ? ` na turma ${classId}` : ' (sem turma)'}`,
+    );
   }
 
   refreshAdmin();
   return removed
     ? { ok: true, message: 'Presença removida.' }
-    : { ok: false, message: 'Não havia presença neste dia.' };
+    : { ok: false, message: 'Não havia presença nesta aula.' };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1352,7 +1413,7 @@ export async function saveClassOverrideAction(form: FormData): Promise<ActionRes
     ok: true,
     message: canceled
       ? `Aula cancelada em ${formatBr(date)}. O check-in não vai abrir, e o aluno é avisado no painel.`
-      : `Aula personalizada salva: ${formatBr(date)}, ${inicio} às ${fim}. O check-in abre uma hora antes.`,
+      : `Aula personalizada salva: ${formatBr(date)}, ${inicio} às ${fim}. O check-in abre uma hora antes e fecha uma hora depois.`,
   };
 }
 
@@ -1623,7 +1684,7 @@ export async function markPresenceInClassAction(form: FormData): Promise<ActionR
 
   if (!result.ok) {
     return result.reason === 'ja_registrado'
-      ? { ok: false, message: `${student.name} já tem presença hoje.` }
+      ? { ok: false, message: `${student.name} já tem presença nesta aula.` }
       : { ok: false, message: 'Banco de dados não configurado.' };
   }
 

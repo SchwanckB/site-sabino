@@ -319,7 +319,7 @@ describe('presença e ranking', () => {
     expect(ranking).toEqual([{ userId: 'user_a', score: 1, position: 1 }]);
   });
 
-  it('recusa o segundo check-in no mesmo dia', async () => {
+  it('recusa o segundo check-in na MESMA aula', async () => {
     const aluno = await alunoAtivo('user_a');
     const entrada = {
       student: aluno,
@@ -480,7 +480,7 @@ describe('presença e ranking', () => {
       DURANTE_MMA,
     );
 
-    const removido = await attendance.undoCheckin(aluno, '2026-03-02', DURANTE_MMA);
+    const removido = await attendance.undoCheckin(aluno, '2026-03-02', 'seg-1930-mma', DURANTE_MMA);
 
     expect(removido).toBe(true);
     expect(await attendance.hasCheckedInToday('user_a', DURANTE_MMA)).toBe(false);
@@ -518,7 +518,8 @@ describe('presença e ranking', () => {
 
     const hoje = await attendance.getTodayCheckins(['user_a', 'user_b'], DURANTE_MMA);
     expect(hoje.size).toBe(2);
-    expect(hoje.get('user_a')?.source).toBe('lote');
+    expect(hoje.get('user_a')?.[0]?.source).toBe('lote');
+    expect(hoje.get('user_a')?.[0]?.classId).toBe('seg-1930-mma');
   });
 
   it('guarda o histórico com a aula e a origem', async () => {

@@ -186,8 +186,15 @@ describe('check-in no dia da aula personalizada', () => {
 
   it('não aceita presença no horário normal do dia remarcado', () => {
     // 20:00 estaria no meio do MMA das 19:30 — que hoje não vai acontecer.
-    // A única janela que sobra é a da aula personalizada, encerrada às 19:45.
-    expect(findOpenClasses(efetiva, meusIds, sp(SEGUNDA, '20:00'))).toEqual([]);
+    // A janela aberta aqui é a da aula ANTECIPADA (18:30 às 19:30, com
+    // tolerância até 20:30), e a presença se liga a ela.
+    const depois = findOpenClasses(efetiva, meusIds, sp(SEGUNDA, '20:00'));
+    expect(depois).toHaveLength(1);
+    expect(depois[0]?.startTime).toBe('18:30');
+
+    // 21:00 é a prova do furo: a aula antecipada fechou às 20:30, e a janela
+    // do horário normal iria até 21:30 se ele não tivesse sido remarcado.
+    expect(findOpenClasses(efetiva, meusIds, sp(SEGUNDA, '21:00'))).toEqual([]);
   });
 
   it('não duplica a turma na janela compartilhada', () => {

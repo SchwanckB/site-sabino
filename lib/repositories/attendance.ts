@@ -5,6 +5,7 @@ import { asInteger, asString } from '@/lib/repositories/parse';
 import type { CheckinEntry, CheckinSource, StudentRecord } from '@/types/domain';
 import {
   saoPauloDateString,
+  saoPauloDayRange,
   saoPauloMonthString,
   secondsUntilSaoPauloMidnight,
 } from '@/utils/datetime';
@@ -12,10 +13,20 @@ import {
 /**
  * Presença e ranking.
  *
- * A regra "1 check-in por aluno por dia" não é verificada com um `GET` seguido
- * de `SET` — isso abriria uma janela de corrida entre dois cliques. A trava é o
- * próprio `SET NX`: só o primeiro do dia grava, e o retorno `null` já significa
- * "já registrou". O histórico e os quatro rankings vêm depois, em transação.
+ * A regra é **uma presença por aluno, por dia, por turma**: presença se dá por
+ * aula realizada, então quem treina a das 19:30 e fica para a das 20:30 tem
+ * duas. O que não pode é a mesma aula contar duas vezes.
+ *
+ * Já foi uma por dia, e isso produzia dois defeitos de uma vez: o aluno de
+ * duas aulas seguidas contava uma só, e a tela da chamada marcava como
+ * presente em **qualquer** turma aberta — inclusive numa de outro dia da
+ * semana, já que a pergunta que ela sabia responder era "veio hoje?" e não
+ * "veio nesta aula?".
+ *
+ * A trava não é um `GET` seguido de `SET` — isso abriria uma janela de corrida
+ * entre dois cliques. É o próprio `SET NX`: só o primeiro grava naquela turma,
+ * e o retorno `null` já significa "já registrou". O histórico e os quatro
+ * rankings vêm depois, em transação.
  */
 
 export interface RecordCheckinInput {
@@ -55,9 +66,9 @@ export async function recordCheckin(
     registeredBy: input.registeredBy,
   };
 
-  // Trava atômica do dia: se já existe, nada mais acontece.
+  // Trava atômica da aula: se já existe, nada mais acontece.
   const acquired = await redis.set(
-    redisKeys.checkinLock(student.id, date),
+    redisKeys.checkinLock(student.id, date, input.classId),
     JSON.stringify(entry),
     { nx: true, ex: secondsUntilSaoPauloMidnight(now) + 3600 },
   );
@@ -84,24 +95,32 @@ export async function recordCheckin(
   return { ok: true, entry };
 }
 
-/** Desfaz a presença do dia — para quando o admin marca o aluno errado. */
+/**
+ * Desfaz uma presença — para quando o admin marca o aluno errado.
+ *
+ * `classId` diz **qual** presença daquele dia some. Sem ele, o aluno que
+ * treinou duas aulas perderia a errada: a busca pegava a primeira entrada da
+ * data, que é a mais recente, e não a que o professor clicou.
+ */
 export async function undoCheckin(
   student: StudentRecord,
   date: string,
+  classId: string | null,
   now: Date,
 ): Promise<boolean> {
   const redis = getRedis();
   if (!redis) return false;
 
-  const stored = await redis.get<unknown>(redisKeys.checkinLock(student.id, date));
+  const stored = await redis.get<unknown>(redisKeys.checkinLock(student.id, date, classId));
   if (stored === null) return false;
 
   const month = date.slice(0, 7);
   const entries = await listCheckins(student.id, 60);
-  const target = entries.find((entry) => entry.date === date);
+  const alvo = classId && classId.length > 0 ? classId : null;
+  const target = entries.find((entry) => entry.date === date && entry.classId === alvo);
 
   const tx = redis.multi();
-  tx.del(redisKeys.checkinLock(student.id, date));
+  tx.del(redisKeys.checkinLock(student.id, date, classId));
   if (target) {
     tx.zrem(redisKeys.checkins(student.id), JSON.stringify(target));
   }
@@ -115,42 +134,74 @@ export async function undoCheckin(
   return true;
 }
 
-/** Presença de hoje de vários alunos — alimenta a tela de presença em lote. */
+/**
+ * Presenças de hoje, **todas elas**, por aluno.
+ *
+ * Devolve lista e não entrada única: com a trava por turma o mesmo aluno pode
+ * ter duas no dia, e as telas de chamada precisam saber de qual turma é cada
+ * uma. Era aqui que nascia o "marquei uma aula e apareceu marcada na outra" —
+ * a tela recebia "tem presença hoje" e pintava o check em qualquer turma
+ * aberta.
+ *
+ * A leitura vem do histórico por faixa de instante, e não das travas: estas
+ * agora estão espalhadas numa chave por turma, e varrê-las custaria um `GET`
+ * por aluno **vezes** turma. Aqui continua um comando por aluno.
+ */
 export async function getTodayCheckins(
   userIds: readonly string[],
   now: Date,
-): Promise<Map<string, CheckinEntry>> {
+): Promise<Map<string, CheckinEntry[]>> {
   const redis = getRedis();
-  const present = new Map<string, CheckinEntry>();
+  const present = new Map<string, CheckinEntry[]>();
   if (!redis || userIds.length === 0) return present;
 
-  const date = saoPauloDateString(now);
+  const { start, end } = saoPauloDayRange(now);
+
   const pipeline = redis.pipeline();
   for (const id of userIds) {
-    pipeline.get(redisKeys.checkinLock(id, date));
+    // `end - 1`: meia-noite cheia já é presença do dia seguinte.
+    pipeline.zrange(redisKeys.checkins(id), start, end - 1, { byScore: true });
   }
 
-  const rows = await pipeline.exec();
+  const rows = await pipeline.exec<unknown[][]>();
 
   rows.forEach((row, index) => {
     const id = userIds[index];
-    if (!id || row === null || row === undefined) return;
+    if (!id || !Array.isArray(row) || row.length === 0) return;
 
-    const parsed = typeof row === 'string' ? safeParse(row) : row;
-    if (parsed && typeof parsed === 'object') {
-      present.set(id, toEntry(parsed as Record<string, unknown>));
+    const entries: CheckinEntry[] = [];
+    for (const item of row) {
+      const parsed = typeof item === 'string' ? safeParse(item) : item;
+      if (parsed && typeof parsed === 'object') {
+        entries.push(toEntry(parsed as Record<string, unknown>));
+      }
     }
+
+    if (entries.length > 0) present.set(id, entries);
   });
 
   return present;
 }
 
-export async function hasCheckedInToday(userId: string, now: Date): Promise<boolean> {
-  const redis = getRedis();
-  if (!redis) return false;
+/**
+ * A presença de um aluno **numa turma**, entre as de hoje.
+ *
+ * Existe para que nenhuma tela volte a perguntar "ele veio hoje?" quando a
+ * pergunta é "ele veio nesta aula?". As duas têm respostas diferentes desde
+ * que a presença passou a ser por aula realizada.
+ */
+export function checkinInClass(
+  todays: ReadonlyMap<string, readonly CheckinEntry[]>,
+  userId: string,
+  classId: string,
+): CheckinEntry | null {
+  return todays.get(userId)?.find((entry) => entry.classId === classId) ?? null;
+}
 
-  const value = await redis.get(redisKeys.checkinLock(userId, saoPauloDateString(now)));
-  return value !== null && value !== undefined;
+/** `true` se o aluno tem ao menos uma presença hoje, em qualquer turma. */
+export async function hasCheckedInToday(userId: string, now: Date): Promise<boolean> {
+  const todays = await getTodayCheckins([userId], now);
+  return (todays.get(userId)?.length ?? 0) > 0;
 }
 
 /** Histórico de presenças, da mais recente para a mais antiga. */

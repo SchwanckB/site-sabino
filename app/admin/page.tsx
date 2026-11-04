@@ -4,7 +4,11 @@ import Link from 'next/link';
 import { weekdayShortLabels, type Weekday } from '@/data/seed';
 import { requireStaff } from '@/lib/auth';
 import { can } from '@/lib/roles';
-import { getTodayCheckins, listCheckins } from '@/lib/repositories/attendance';
+import {
+  checkinInClass,
+  getTodayCheckins,
+  listCheckins,
+} from '@/lib/repositories/attendance';
 import { listFollowups, parabensDadoNoAno, retornoRecente } from '@/lib/repositories/followups';
 import { getPaymentPlans } from '@/lib/repositories/payments';
 import {
@@ -205,10 +209,21 @@ export default async function AdminPage() {
       ]),
     }));
 
-  const inClassNow = active.filter(
-    (student) => findOpenClasses(classes, student.classIds, now).length > 0,
-  );
-  const presentNow = inClassNow.filter((student) => checkinsHoje.has(student.id)).length;
+  /*
+   * Quem está com aula aberta agora, e quem desses já marcou **nessa** aula.
+   *
+   * Antes bastava ter presença no dia (`checkinsHoje.has`). Numa academia com
+   * turmas de hora em hora isso contava como presente na aula das 20:30 quem
+   * tinha batido na das 19:30 — a barra enchia sozinha, sem ninguém novo
+   * entrar no tatame.
+   */
+  const inClassNow = active
+    .map((student) => ({ student, abertas: findOpenClasses(classes, student.classIds, now) }))
+    .filter(({ abertas }) => abertas.length > 0);
+
+  const presentNow = inClassNow.filter(({ student, abertas }) =>
+    abertas.some((slot) => checkinInClass(checkinsHoje, student.id, slot.classId) !== null),
+  ).length;
 
   return (
     <div className="page-stack">

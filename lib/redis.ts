@@ -37,7 +37,20 @@ export function getRedis(): Redis | null {
 export const redisKeys = {
   user: (clerkId: string) => `user:${clerkId}`,
   usersByStatus: (status: string) => `users:by-status:${status}`,
-  checkinLock: (userId: string, isoDate: string) => `checkin:${userId}:${isoDate}`,
+  /**
+   * Trava de presença: **um aluno, um dia, uma turma**.
+   *
+   * Já foi `checkin:${userId}:${isoDate}`, uma por dia. Com ela, quem treinava
+   * duas aulas seguidas contava uma presença só — e a chamada marcava o aluno
+   * como presente em qualquer turma aberta naquele dia, inclusive numa de
+   * outro dia da semana. Presença é por aula realizada, e a trava precisa ter
+   * a mesma granularidade.
+   *
+   * Turma vazia vira `sem-turma`: presença lançada sem turma resolvida ainda
+   * precisa de trava, senão o mesmo clique repetido duplicaria.
+   */
+  checkinLock: (userId: string, isoDate: string, classId: string | null) =>
+    `checkin:${userId}:${isoDate}:${classId && classId.length > 0 ? classId : 'sem-turma'}`,
   checkins: (userId: string) => `checkins:${userId}`,
   rankAll: () => 'rank:all',
   rankMonth: (yearMonth: string) => `rank:month:${yearMonth}`,

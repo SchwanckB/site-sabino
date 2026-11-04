@@ -379,12 +379,24 @@ describe('o aluno bate presença no horário personalizado', () => {
     agora(SEGUNDA, '10:00');
     await marcarMaisCedo(SEGUNDA);
 
-    // 20:00 cairia no meio do MMA das 19:30 — que hoje não acontece.
+    /*
+     * 20:00 cairia no meio do MMA das 19:30 — que hoje não acontece. O que
+     * está aberto é a tolerância da aula antecipada das 18:30, e é nela que a
+     * presença entra: o aluno treinou às 18:30 e está marcando depois.
+     */
     agora(SEGUNDA, '20:00');
     const token = qr.getCurrentQrToken('tres-cachoeiras').token;
 
     const opcoes = await painel.listCheckinOptions(token);
-    expect(opcoes.ok === true && opcoes.classes).toEqual([]);
+    expect(opcoes.ok === true && opcoes.classes.map((item) => item.time)).toEqual(['18:30']);
+
+    /*
+     * 21:00 é a prova de que o horário normal foi mesmo furado: a janela da
+     * aula antecipada fechou às 20:30, e a das 19:30 iria até 21:30.
+     */
+    agora(SEGUNDA, '21:00');
+    const tarde = await painel.listCheckinOptions(token);
+    expect(tarde.ok === true && tarde.classes).toEqual([]);
 
     const result = await painel.checkinAction(token, 'seg-1930-mma');
     expect(result.ok).toBe(false);

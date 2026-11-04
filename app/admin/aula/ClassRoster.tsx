@@ -17,6 +17,14 @@ export interface RosterRow {
   readonly degree: number;
   readonly present: boolean;
   readonly presentAt: string | null;
+  /**
+   * Presença que o aluno tem hoje em **outra** turma, em texto curto.
+   *
+   * Não marca esta chamada — presença é por aula realizada, e a desta aula
+   * ainda não existe. Serve para o professor não achar que o sistema perdeu o
+   * check-in de quem ele viu entrando na academia mais cedo.
+   */
+  readonly elsewhere: string | null;
   /** Observação da ficha: lesão, restrição, combinado. Vazia na maioria. */
   readonly note: string;
   /** Está nas primeiras aulas — merece olhar do professor. */
@@ -184,12 +192,15 @@ function RosterItem({
             {beltLabel(row.belt)}
             {row.degree > 0 ? ` ${row.degree}º` : ''}
             {row.present && row.presentAt ? ` · presente ${row.presentAt}` : ''}
+            {row.elsewhere ? ` · ${row.elsewhere}` : ''}
           </p>
         </div>
 
         {row.present ? (
           <ActionForm action={undoPresenceAction} confirm={`Desfazer a presença de ${row.name}?`}>
             <input type="hidden" name="studentId" value={row.id} />
+            {/* Qual presença do dia some: o aluno pode ter outra em outra turma. */}
+            <input type="hidden" name="classId" value={classId} />
             <SubmitButton className="btn-ghost text-xs" pendingLabel="…">
               Desfazer
             </SubmitButton>

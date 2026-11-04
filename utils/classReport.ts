@@ -61,8 +61,20 @@ export function buildClassReport(
     .map((slot) => {
       const matriculados = students.filter((student) => student.classIds.includes(slot.id));
 
-      // Só presenças daquela turma. Check-in antigo sem `classId` fica de fora
-      // de propósito: atribuí-lo a uma turma pelo horário seria chute.
+      /*
+       * Só presenças daquela turma. Check-in antigo sem `classId` fica de fora
+       * de propósito: atribuí-lo a uma turma pelo horário seria chute.
+       *
+       * **Não** confere o dia da semana da presença contra o da turma, e isso
+       * é deliberado: a aula personalizada remarca a turma para outra data, e
+       * presença legítima dela cai num dia da semana diferente. Filtrar por
+       * dia faria a chamada remarcada sumir do relatório em silêncio, que é
+       * pior do que o problema que resolveria.
+       *
+       * Quem evita o lançamento em turma que não acontece hoje é o aviso na
+       * tela de Presença, antes do clique — decisão do professor, não regra
+       * escondida aqui.
+       */
       const daTurma = checkins.filter((entry) => entry.classId === slot.id);
 
       const recentes = daTurma.filter((entry) => {

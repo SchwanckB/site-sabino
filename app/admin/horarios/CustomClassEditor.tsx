@@ -203,7 +203,7 @@ export function CustomClassEditor({
             {selected.startTime} às {selected.endTime}.{' '}
             {canceling
               ? 'Neste dia a turma não vai acontecer: o check-in não abre, e quem é matriculado nela vê o aviso no painel.'
-              : 'O check-in abre uma hora antes do início que você salvar e fecha 15 minutos depois do fim.'}
+              : 'O check-in abre uma hora antes do início que você salvar e fecha uma hora depois do fim.'}
           </p>
 
           <div className="mt-4 flex flex-wrap gap-3">

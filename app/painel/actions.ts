@@ -10,7 +10,12 @@ import { validateQrToken } from '@/lib/repositories/qr';
 import { getStudent } from '@/lib/repositories/students';
 import { getEffectiveScheduleFresh } from '@/lib/schedule';
 import type { CheckinResult } from '@/types/domain';
-import { findNextClass, findOpenClasses, type ScheduledClass } from '@/utils/attendanceEngine';
+import {
+  findNextClass,
+  findOpenClasses,
+  formatMinutes,
+  type ScheduledClass,
+} from '@/utils/attendanceEngine';
 
 /**
  * Check-in do aluno.
@@ -37,6 +42,17 @@ export interface OpenClassOption {
   readonly title: string;
   readonly level: string;
   readonly time: string;
+  /**
+   * Em que pé a aula está: `acontecendo agora`, `começa em 20min`,
+   * `terminou às 20:30`.
+   *
+   * Com a janela de uma hora dos dois lados, a aula que acabou e a que está
+   * rolando aparecem juntas na escolha — é o caso do aluno que marca no fim
+   * do treino enquanto a turma seguinte já começou. Só o horário de início
+   * não resolve: os dois são números parecidos numa lista, e errar aqui
+   * joga a presença na turma errada.
+   */
+  readonly hint: string;
 }
 
 export type CheckinOptions =
@@ -80,6 +96,17 @@ function proximaAulaEmTexto(
         : weekdayLabels[proxima.weekday as Weekday].toLowerCase();
 
   return `${dia} às ${proxima.startTime}`;
+}
+
+/** Texto curto do estado da aula, para a tela de escolha. */
+function estadoDaAula(slot: {
+  readonly inProgress: boolean;
+  readonly minutesUntilStart: number;
+  readonly endTime: string;
+}): string {
+  if (slot.inProgress) return 'acontecendo agora';
+  if (slot.minutesUntilStart > 0) return `começa em ${formatMinutes(slot.minutesUntilStart)}`;
+  return `terminou às ${slot.endTime}`;
 }
 
 /**
@@ -135,6 +162,7 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
       title: slot.title,
       level: slot.level ?? '',
       time: slot.startTime,
+      hint: estadoDaAula(slot),
     })),
     nextClass:
       abertas.length === 0
