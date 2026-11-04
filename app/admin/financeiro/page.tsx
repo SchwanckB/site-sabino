@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { PageHeader } from '@/components/app/PageHeader';
 
+import { requirePermission } from '@/lib/auth';
 import { cobrancaFeitaNoMes, listFollowups } from '@/lib/repositories/followups';
 import { getPaymentPlans, listPaymentHistory } from '@/lib/repositories/payments';
 import { getAcademySettings } from '@/lib/repositories/settings';
@@ -64,6 +65,8 @@ function monthLabel(month: string): string {
 }
 
 export default async function FinanceiroPage() {
+  await requirePermission('dinheiro');
+
   const now = new Date();
   const hoje = saoPauloDateString(now);
   const mesAtual = hoje.slice(0, 7);

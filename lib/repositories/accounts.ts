@@ -2,10 +2,10 @@ import 'server-only';
 
 import { clerkClient } from '@clerk/nextjs/server';
 
-import { isAdminEmail } from '@/lib/auth';
+import { isGestaoEmail } from '@/lib/auth';
 import { isClerkConfigured } from '@/lib/env';
 import { getStudents } from '@/lib/repositories/students';
-import type { Role } from '@/lib/auth';
+import { ROLE_LABELS, normalizeRole, type Role } from '@/lib/roles';
 import type { UserStatus } from '@/types/domain';
 
 /**
@@ -25,15 +25,15 @@ export interface Account {
   readonly imageUrl: string | null;
   readonly role: Role;
   /**
-   * `true` quando o papel de ADMIN vem de `ADMIN_EMAILS`. Nesse caso ele não
-   * pode ser removido pela interface — só editando a variável de ambiente.
+   * `true` quando a gestão vem de `ADMIN_EMAILS`. Nesse caso ela não pode ser
+   * removida pela interface — só editando a variável de ambiente.
    */
   readonly roleFromEnv: boolean;
   /**
    * O papel está gravado em `publicMetadata` no Clerk.
    *
-   * Quem é ADMIN só por `ADMIN_EMAILS` perde o acesso se a variável mudar no
-   * painel da hospedagem. Distinguir os dois casos é o que permite oferecer
+   * Quem tem gestão só por `ADMIN_EMAILS` perde o acesso se a variável mudar
+   * no painel da hospedagem. Distinguir os dois casos é o que permite oferecer
    * "fixar na conta" para quem ainda depende do ambiente.
    */
   readonly rolePersisted: boolean;
@@ -80,9 +80,9 @@ export async function listAccounts(): Promise<Account[]> {
 
   return users.map((user) => {
     const email = user.primaryEmailAddress?.emailAddress ?? '';
-    const metadataRole = user.publicMetadata?.['role'];
-    const fromEnv = email.length > 0 && isAdminEmail(email);
-    const role: Role = metadataRole === 'ADMIN' || fromEnv ? 'ADMIN' : 'ALUNO';
+    const stored = normalizeRole(user.publicMetadata?.['role']);
+    const fromEnv = email.length > 0 && isGestaoEmail(email);
+    const role: Role = fromEnv ? 'GESTAO' : (stored ?? 'ALUNO');
 
     return {
       id: user.id,
@@ -91,7 +91,7 @@ export async function listAccounts(): Promise<Account[]> {
       imageUrl: user.imageUrl ?? null,
       role,
       roleFromEnv: fromEnv,
-      rolePersisted: metadataRole === 'ADMIN',
+      rolePersisted: stored !== null && stored !== 'ALUNO',
       enrollmentStatus: byId.get(user.id)?.status ?? null,
       createdAt: new Date(user.createdAt).toISOString(),
       lastSignInAt: user.lastSignInAt ? new Date(user.lastSignInAt).toISOString() : null,
@@ -130,13 +130,6 @@ export type RoleChangeResult =
   | { readonly ok: false; readonly message: string };
 
 /**
- * Promove a professor (ADMIN) ou devolve a aluno.
- *
- * O papel vive em `publicMetadata.role` no Clerk, lido a cada requisição por
- * `getSessionUser()` — a mudança vale no próximo carregamento de página, sem
- * precisar de novo deploy.
- */
-/**
  * Apaga a conta de login. **Não tem desfazer.**
  *
  * Devolve `false` quando a conta já não existe, o que não é erro: o objetivo é
@@ -159,6 +152,13 @@ export async function deleteAccount(targetUserId: string): Promise<boolean> {
   }
 }
 
+/**
+ * Grava a permissão da conta: gestão, professor ou aluno.
+ *
+ * O papel vive em `publicMetadata.role` no Clerk, lido a cada requisição por
+ * `getSessionUser()` — a mudança vale no próximo carregamento de página, sem
+ * precisar de novo deploy.
+ */
 export async function setAccountRole(
   targetUserId: string,
   role: Role,
@@ -177,13 +177,13 @@ export async function setAccountRole(
     return { ok: false, message: 'Conta não encontrada.' };
   }
 
-  // Rebaixar não adianta se o ADMIN vem da variável de ambiente: o próximo
+  // Rebaixar não adianta se a gestão vem da variável de ambiente: o próximo
   // login recalcularia o papel a partir dela. Melhor recusar e explicar.
-  if (role === 'ALUNO' && email.length > 0 && isAdminEmail(email)) {
+  if (role !== 'GESTAO' && email.length > 0 && isGestaoEmail(email)) {
     return {
       ok: false,
       message:
-        'Este e-mail está em ADMIN_EMAILS e continuaria como professor. Remova-o da variável de ambiente na Vercel primeiro.',
+        'Este e-mail está em ADMIN_EMAILS e continuaria com a gestão. Remova-o da variável de ambiente na Vercel primeiro.',
     };
   }
 
@@ -199,8 +199,8 @@ export async function setAccountRole(
   return {
     ok: true,
     message:
-      role === 'ADMIN'
-        ? 'Conta promovida a professor. O acesso ao painel vale no próximo carregamento.'
-        : 'Conta voltou a ser de aluno.',
+      role === 'ALUNO'
+        ? 'Conta voltou a ser de aluno.'
+        : `Conta agora é ${ROLE_LABELS[role].toLowerCase()}. O acesso vale no próximo carregamento de página.`,
   };
 }

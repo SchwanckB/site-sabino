@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { weekdayLabels, type Weekday } from '@/data/seed';
 import { requireUser } from '@/lib/auth';
 import { consumeRateLimit, rateLimitMessage } from '@/lib/rateLimit';
 import { recordCheckin } from '@/lib/repositories/attendance';
@@ -9,7 +10,7 @@ import { validateQrToken } from '@/lib/repositories/qr';
 import { getStudent } from '@/lib/repositories/students';
 import { getEffectiveScheduleFresh } from '@/lib/schedule';
 import type { CheckinResult } from '@/types/domain';
-import { findOpenClasses } from '@/utils/attendanceEngine';
+import { findNextClass, findOpenClasses, type ScheduledClass } from '@/utils/attendanceEngine';
 
 /**
  * Check-in do aluno.
@@ -40,7 +41,46 @@ export interface OpenClassOption {
 
 export type CheckinOptions =
   | { readonly ok: false; readonly message: string }
-  | { readonly ok: true; readonly classes: readonly OpenClassOption[] };
+  | {
+      readonly ok: true;
+      readonly classes: readonly OpenClassOption[];
+      /**
+       * Quando é a próxima aula dele, em texto curto. `null` se ele não tem
+       * turma nenhuma atribuída.
+       *
+       * Serve ao caso de `classes` vazio: sem isto a tela só dizia que não
+       * havia aula agora, e o aluno ficava sem saber se errou o dia, o horário
+       * ou o cartaz.
+       */
+      readonly nextClass: string | null;
+    };
+
+/**
+ * `terça às 06:00`, `hoje às 19:30`, `amanhã às 20:30`.
+ *
+ * A janela de check-in nunca é explicada ao aluno — ela abre uma hora antes do
+ * início e isso é mecânica interna (ver `CHECKIN_EARLY_MINUTES`). O que ele
+ * precisa saber quando a tentativa falha é concreto: qual é a próxima aula
+ * dele. "O check-in vale no horário do treino" ensinava uma regra e não
+ * respondia à pergunta que o aluno tem na porta da academia.
+ */
+function proximaAulaEmTexto(
+  classes: readonly ScheduledClass[],
+  assignedIds: readonly string[],
+  now: Date,
+): string | null {
+  const proxima = findNextClass(classes, assignedIds, now);
+  if (!proxima) return null;
+
+  const dia =
+    proxima.daysUntil === 0
+      ? 'hoje'
+      : proxima.daysUntil === 1
+        ? 'amanhã'
+        : weekdayLabels[proxima.weekday as Weekday].toLowerCase();
+
+  return `${dia} às ${proxima.startTime}`;
+}
 
 /**
  * Turmas do aluno abertas agora, na academia do cartaz lido.
@@ -96,6 +136,10 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
       level: slot.level ?? '',
       time: slot.startTime,
     })),
+    nextClass:
+      abertas.length === 0
+        ? proximaAulaEmTexto(schedule.classes, student.classIds, now)
+        : null,
   };
 }
 
@@ -146,13 +190,21 @@ export async function checkinAction(token: string, classId: string): Promise<Che
   const escolhida = abertas.find((slot) => slot.classId === classId) ?? null;
 
   if (!escolhida) {
+    if (abertas.length > 0) {
+      return {
+        ok: false,
+        reason: 'sem_aula_agora',
+        message: 'Escolha uma das turmas que estão acontecendo agora.',
+      };
+    }
+
+    const proxima = proximaAulaEmTexto(schedule.classes, student.classIds, now);
     return {
       ok: false,
       reason: 'sem_aula_agora',
-      message:
-        abertas.length === 0
-          ? 'Nenhuma das suas turmas está acontecendo agora. O check-in vale no horário do treino.'
-          : 'Escolha uma das turmas que estão acontecendo agora.',
+      message: proxima
+        ? `Nenhuma das suas turmas está acontecendo agora. A próxima é ${proxima}.`
+        : 'Você ainda não está em nenhuma turma. Fale com a recepção.',
     };
   }
 

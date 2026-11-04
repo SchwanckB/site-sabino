@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { PageHeader } from '@/components/app/PageHeader';
 
+import { requirePermission } from '@/lib/auth';
 import { listAllStudents } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
 import { filterByUnit } from '@/types/domain';
@@ -13,6 +14,8 @@ export const metadata: Metadata = { title: 'Alunos' };
 export const dynamic = 'force-dynamic';
 
 export default async function AlunosPage() {
+  await requirePermission('alunos');
+
   const now = new Date();
   const scope = await getUnitScope();
   const students = filterByUnit(await listAllStudents(), scope);

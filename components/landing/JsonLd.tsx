@@ -48,6 +48,12 @@ export function JsonLd() {
         opens: openingHours.trainingWindow.start,
         closes: openingHours.trainingWindow.end,
       },
+      {
+        '@type': 'OpeningHoursSpecification',
+        dayOfWeek: [...openingHours.morningWindow.days],
+        opens: openingHours.morningWindow.start,
+        closes: openingHours.morningWindow.end,
+      },
     ],
     sport: ['Brazilian Jiu-Jitsu', 'Mixed Martial Arts'],
     knowsLanguage: 'pt-BR',

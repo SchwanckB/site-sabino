@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { can, isStaff, type Permission } from '@/lib/roles';
+
 import { UpstashMock } from './upstashMock';
 
 /**
@@ -14,20 +16,32 @@ import { UpstashMock } from './upstashMock';
 const mock = new UpstashMock();
 
 const sessao = { id: 'user_aluno', email: 'aluno@teste.com', name: 'Aluno', role: 'ALUNO' as const, imageUrl: null };
-const admin = { id: 'user_admin', email: 'admin@teste.com', name: 'Professor', role: 'ADMIN' as const, imageUrl: null };
+const admin = { id: 'user_admin', email: 'admin@teste.com', name: 'Gestão', role: 'GESTAO' as const, imageUrl: null };
+const professor = { id: 'user_prof', email: 'prof@teste.com', name: 'Professor', role: 'PROFESSOR' as const, imageUrl: null };
 
-let atual: typeof sessao | typeof admin = sessao;
+let atual: typeof sessao | typeof admin | typeof professor = sessao;
 let blobLigado = false;
 
 // Clerk e Vercel Blob não existem no teste; o resto é real.
 vi.mock('@/lib/auth', () => ({
   requireUser: async () => atual,
-  requireAdmin: async () => {
-    if (atual.role !== 'ADMIN') throw new Error('NEXT_REDIRECT');
+  requireStaff: async () => {
+    if (!isStaff(atual.role)) throw new Error('NEXT_REDIRECT');
     return atual;
   },
+  requirePermission: async (permission: Permission) => {
+    if (!isStaff(atual.role)) throw new Error('NEXT_REDIRECT');
+    if (!can(atual.role, permission)) throw new Error('NEXT_REDIRECT');
+    return atual;
+  },
+  authorize: async (permission: Permission) => {
+    if (!isStaff(atual.role)) throw new Error('NEXT_REDIRECT');
+    return can(atual.role, permission)
+      ? { ok: true, user: atual }
+      : { ok: false, message: 'Isso é da gestão. Peça para quem administra a academia.' };
+  },
   getSessionUser: async () => atual,
-  isAdminEmail: () => false,
+  isGestaoEmail: () => false,
 }));
 
 vi.mock('@/lib/repositories/documents', () => ({
@@ -245,7 +259,8 @@ describe('autorização das ações do admin', () => {
     await fichaPendente();
     atual = sessao; // papel ALUNO
 
-    // `requireAdmin` redireciona; aqui isso vira exceção.
+    // Aluno é redirecionado, não avisado: `authorize` chama `requireStaff`,
+    // e aqui o redirect vira exceção.
     await expect(
       adminActions.approveStudentAction(
         formulario({ studentId: 'user_aluno', planId: 'mensal', amount: '150', dueDay: '11' }),
@@ -253,6 +268,125 @@ describe('autorização das ações do admin', () => {
     ).rejects.toThrow();
 
     expect((await students.getStudent('user_aluno'))?.status).toBe('pendente');
+  });
+
+  /*
+   * Os dois níveis de acesso do painel.
+   *
+   * Professor e gestão entram pela mesma porta, e a diferença mora na tabela
+   * de `lib/roles.ts`. Estes testes são a prova pelo lado do servidor: menu
+   * escondido é desenho, e uma action chamada por fora (link antigo, aba
+   * aberta antes do rebaixamento, `fetch` na mão) tem de recusar sozinha.
+   */
+  it('professor não mexe no caixa, e a recusa é mensagem, não redirect', async () => {
+    atual = professor;
+
+    const result = await adminActions.saveCashEntryAction(
+      formulario({
+        kind: 'despesa',
+        category: 'aluguel',
+        amount: '1200',
+        date: '2026-03-10',
+        description: 'Aluguel do tatame',
+        unit: 'tres-cachoeiras',
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('gestão');
+  });
+
+  it('professor não mexe na grade de horários', async () => {
+    atual = professor;
+
+    const result = await adminActions.saveClassAction(
+      formulario({
+        weekday: '2',
+        startTime: '06:00',
+        endTime: '07:00',
+        title: 'Jiu-Jitsu',
+        modality: 'jiu-jitsu',
+        level: 'Manhã',
+        unit: 'tres-cachoeiras',
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('gestão');
+  });
+
+  it('professor não promove ninguém a gestão', async () => {
+    atual = professor;
+
+    const result = await adminActions.setAccountRoleAction(
+      formulario({ userId: 'user_prof', role: 'GESTAO' }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('gestão');
+  });
+
+  it('professor não aprova matrícula — é ela que define a mensalidade', async () => {
+    await fichaPendente();
+    atual = professor;
+
+    const result = await adminActions.approveStudentAction(
+      formulario({ studentId: 'user_aluno', planId: 'mensal', amount: '150', dueDay: '11' }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect((await students.getStudent('user_aluno'))?.status).toBe('pendente');
+  });
+
+  it('professor faz o que é do tatame: lança presença e registra grau', async () => {
+    await fichaPendente();
+
+    atual = admin;
+    await adminActions.approveStudentAction(
+      formulario({
+        studentId: 'user_aluno',
+        planId: 'mensal',
+        amount: '150,00',
+        dueDay: '11',
+        belt: 'branca',
+        degree: '0',
+        classIds: 'seg-1930-mma',
+      }),
+    );
+
+    atual = professor;
+
+    const presenca = await adminActions.markPresenceAction(
+      formulario({ studentId: 'user_aluno' }),
+    );
+    expect(presenca.ok).toBe(true);
+
+    const grau = await adminActions.registerDegreeAction(formulario({ studentId: 'user_aluno' }));
+    expect(grau.ok).toBe(true);
+  });
+
+  /*
+   * O mesmo envio, o mesmo formulário, papéis diferentes.
+   *
+   * É o par do teste acima: é o que prova que a recusa vem da permissão, e
+   * não de um campo mal preenchido na montagem do teste.
+   */
+  it('gestão salva a turma que o professor não conseguiu salvar', async () => {
+    atual = admin;
+
+    const result = await adminActions.saveClassAction(
+      formulario({
+        weekday: '2',
+        startTime: '06:00',
+        endTime: '07:00',
+        title: 'Jiu-Jitsu',
+        modality: 'jiu-jitsu',
+        level: 'Manhã',
+        unit: 'tres-cachoeiras',
+      }),
+    );
+
+    expect(result.ok).toBe(true);
   });
 
   it('admin aprova e a mensalidade fica criada junto', async () => {

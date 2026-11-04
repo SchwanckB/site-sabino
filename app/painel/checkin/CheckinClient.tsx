@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 import type { CheckinResult } from '@/types/domain';
+import { saoPauloTimeString } from '@/utils/datetime';
 import { extractToken } from '@/utils/qrToken';
 
 import { checkinAction, listCheckinOptions, type OpenClassOption } from '../actions';
@@ -106,8 +107,11 @@ export function CheckinClient() {
         setResult({
           ok: false,
           reason: 'sem_aula_agora',
-          message:
-            'Nenhuma das suas turmas está acontecendo agora. O check-in vale no horário do treino.',
+          // A mesma frase do servidor: o aluno não deve ler uma coisa quando a
+          // tela recusa e outra quando o registro recusa.
+          message: options.nextClass
+            ? `Nenhuma das suas turmas está acontecendo agora. A próxima é ${options.nextClass}.`
+            : 'Você ainda não está em nenhuma turma. Fale com a recepção.',
         });
         setPhase('erro');
         return;
@@ -202,7 +206,7 @@ export function CheckinClient() {
           <h2 className="mt-5 text-2xl leading-none">Presença registrada</h2>
           {result.classTitle ? (
             <p className="mt-2 text-sm text-muted">
-              {result.classTitle} · {result.at.slice(11, 16)}
+              {result.classTitle} · {saoPauloTimeString(result.at)}
             </p>
           ) : null}
           <p className="mt-4 text-sm text-muted">Bom treino!</p>

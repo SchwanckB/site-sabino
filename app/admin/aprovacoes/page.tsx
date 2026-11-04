@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { PageHeader } from '@/components/app/PageHeader';
 
 import { weekdayLabels, type Weekday } from '@/data/seed';
+import { requirePermission } from '@/lib/auth';
 import { getPlans } from '@/lib/repositories/plansAdmin';
 import { getSchedule } from '@/lib/schedule';
 import { listStudentsByStatus, toPublicStudent } from '@/lib/repositories/students';
@@ -16,6 +17,8 @@ export const metadata: Metadata = { title: 'Aprovações' };
 export const dynamic = 'force-dynamic';
 
 export default async function AprovacoesPage() {
+  await requirePermission('matricula');
+
   const now = new Date();
   const scope = await getUnitScope();
 

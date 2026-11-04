@@ -47,6 +47,7 @@ export function StudentEditor({
   isKids,
   assignedClassIds,
   classOptions,
+  canChangeStatus,
 }: {
   readonly studentId: string;
   readonly name: string;
@@ -66,6 +67,13 @@ export function StudentEditor({
   readonly isKids: boolean;
   readonly assignedClassIds: readonly string[];
   readonly classOptions: readonly ClassOption[];
+  /**
+   * `false` para o professor.
+   *
+   * Tirar o aluno de "ativo" o remove das listas de presença **e da
+   * cobrança** — é decisão de matrícula, não de tatame.
+   */
+  readonly canChangeStatus: boolean;
 }) {
   const belts = isKids ? KIDS_BELTS : ADULT_BELTS;
   const maxDegree = isKids ? 12 : 4;
@@ -343,6 +351,7 @@ export function StudentEditor({
       </div>
 
       {/* Situação --------------------------------------------------------- */}
+      {canChangeStatus ? (
       <ActionForm
         action={setStatusAction}
         className="panel p-5 sm:p-6"
@@ -376,6 +385,7 @@ export function StudentEditor({
           <SubmitButton className="btn-secondary">Atualizar situação</SubmitButton>
         </div>
       </ActionForm>
+      ) : null}
     </div>
   );
 }

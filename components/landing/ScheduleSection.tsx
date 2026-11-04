@@ -90,7 +90,7 @@ export function ScheduleSection({ schedule }: { readonly schedule: Schedule }) {
             id="horarios-titulo"
             eyebrow="Grade da semana"
             title="Horários"
-            description="Todas as turmas são de segunda a sexta, entre 18h30 e 21h30. Chegue 10 minutos antes na primeira aula para falar com o professor."
+            description="As turmas são de segunda a sexta, à noite entre 18h30 e 21h30 — e nas terças e quintas tem jiu-jitsu de manhã, às 6h. Chegue 10 minutos antes na primeira aula para falar com o professor."
           />
 
           <Reveal delay={0.1} className="shrink-0 space-y-3">

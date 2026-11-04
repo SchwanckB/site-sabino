@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { PageHeader } from '@/components/app/PageHeader';
 
+import { requirePermission } from '@/lib/auth';
 import { listEvents } from '@/lib/repositories/calendar';
 import { listStudentsByStatus } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
@@ -18,6 +19,8 @@ export const metadata: Metadata = { title: 'Calendário' };
 export const dynamic = 'force-dynamic';
 
 export default async function CalendarioPage() {
+  await requirePermission('calendario');
+
   const now = new Date();
 
   const scope = await getUnitScope();

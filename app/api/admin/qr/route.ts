@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import QRCode from 'qrcode';
 
 import { getSessionUser } from '@/lib/auth';
+import { can } from '@/lib/roles';
 import { getCurrentQrToken } from '@/lib/repositories/qr';
 import { isUnitId } from '@/types/domain';
 import { siteUrl } from '@/lib/site';
@@ -22,7 +23,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request): Promise<NextResponse> {
   const user = await getSessionUser();
-  if (!user || user.role !== 'ADMIN') {
+  if (!user || !can(user.role, 'aula')) {
     return new NextResponse('Não encontrado', { status: 404 });
   }
 

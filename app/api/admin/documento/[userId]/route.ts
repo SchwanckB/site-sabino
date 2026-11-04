@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getSessionUser } from '@/lib/auth';
+import { can } from '@/lib/roles';
 import { openDocument } from '@/lib/repositories/documents';
 import { getStudent } from '@/lib/repositories/students';
 
@@ -21,7 +22,8 @@ export async function GET(
 ): Promise<NextResponse> {
   const user = await getSessionUser();
 
-  if (!user || user.role !== 'ADMIN') {
+  // O documento é parte da ficha: mesma permissão da tela que o abre.
+  if (!user || !can(user.role, 'alunos')) {
     return new NextResponse('Não encontrado', { status: 404 });
   }
 

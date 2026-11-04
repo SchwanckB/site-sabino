@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { PageHeader } from '@/components/app/PageHeader';
 
+import { requirePermission } from '@/lib/auth';
 import { getPlans } from '@/lib/repositories/plansAdmin';
 
 import { PlansEditor } from './PlansEditor';
@@ -10,6 +11,8 @@ export const metadata: Metadata = { title: 'Planos' };
 export const dynamic = 'force-dynamic';
 
 export default async function PlanosPage() {
+  await requirePermission('dinheiro');
+
   const { plans } = await getPlans();
   const temExemplo = plans.some((plan) => plan.isExample);
 

@@ -2,17 +2,19 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { weekdayLabels, weekdayShortLabels, type Weekday } from '@/data/seed';
+import { requirePermission } from '@/lib/auth';
 import { countCheckins, getTodayCheckins } from '@/lib/repositories/attendance';
 import { listClassLog } from '@/lib/repositories/classLog';
 import { getPaymentPlans } from '@/lib/repositories/payments';
 import { listStudentsByStatus } from '@/lib/repositories/students';
+import { can } from '@/lib/roles';
 import { getEffectiveSchedule } from '@/lib/schedule';
 import { getUnitScope } from '@/lib/unitScope';
 import { cn } from '@/lib/utils';
 import { UNIT_SHORT, filterByUnit } from '@/types/domain';
 import { findOpenClasses, occursOnDate } from '@/utils/attendanceEngine';
 import { recurringOnly } from '@/utils/classOverrides';
-import { saoPauloDateString } from '@/utils/datetime';
+import { saoPauloDateString, saoPauloTimeString } from '@/utils/datetime';
 import { getKidsGraduationStatus } from '@/utils/graduationEngine';
 import { getPaymentSummary } from '@/utils/paymentEngine';
 import { buildHaystack } from '@/utils/searchText';
@@ -34,6 +36,9 @@ export default async function AulaPage({
 }: {
   searchParams: Promise<{ turma?: string }>;
 }) {
+  const admin = await requirePermission('aula');
+  const verDinheiro = can(admin.role, 'dinheiro');
+
   const now = new Date();
   const hoje = saoPauloDateString(now);
   const scope = await getUnitScope();
@@ -111,7 +116,9 @@ export default async function AulaPage({
   const ids = students.map((student) => student.id);
   const [checkins, plans, diario] = await Promise.all([
     getTodayCheckins(ids, now),
-    getPaymentPlans(ids),
+    // A marca de "devendo" na lista da aula é dinheiro: para o professor a
+    // mensalidade não é nem lida. Ver `lib/roles.ts`.
+    verDinheiro ? getPaymentPlans(ids) : new Map(),
     listClassLog(escolhida.id, 6),
   ]);
 
@@ -151,7 +158,7 @@ export default async function AulaPage({
       belt: student.belt,
       degree: student.degree,
       present: entry !== null,
-      presentAt: entry ? entry.at.slice(11, 16) : null,
+      presentAt: entry ? saoPauloTimeString(entry.at) : null,
       note: student.notes,
       isNew: (totais.get(student.id) ?? 0) <= AULAS_DE_NOVATO,
       dueGraduation: podeGraduar,

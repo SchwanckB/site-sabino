@@ -214,6 +214,7 @@ export interface Schedule {
  * Grade confirmada pela academia.
  *
  * Três Cachoeiras:
+ *   Jiu-Jitsu (manhã)      — terça e quinta,     06h00 às 07h00
  *   Kids (4 a 8 anos)      — segunda e quinta,   18h30 às 19h30
  *   Infantil (9 a 15 anos) — terça e sexta,      18h30 às 19h30
  *   MMA                    — segunda, quarta e sexta, 19h30 às 20h30
@@ -221,6 +222,14 @@ export interface Schedule {
  *   Jiu-Jitsu              — segunda a sexta,    20h30 às 21h30
  */
 const realClasses: readonly ClassSlot[] = [
+  /*
+   * Manhã. A única turma fora do bloco da noite, e por isso vem primeiro:
+   * `sortClasses` ordena por dia e hora, e ler a grade na ordem do relógio é
+   * o que evita cadastrar um aluno da manhã numa turma da noite.
+   */
+  { id: 'ter-0600-jj', weekday: 2, startTime: '06:00', endTime: '07:00', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis · manhã', unit: 'tres-cachoeiras' },
+  { id: 'qui-0600-jj', weekday: 4, startTime: '06:00', endTime: '07:00', title: 'Jiu-Jitsu', modality: 'jiu-jitsu', level: 'Todos os níveis · manhã', unit: 'tres-cachoeiras' },
+
   // Segunda
   { id: 'seg-1830-kids', weekday: 1, startTime: '18:30', endTime: '19:30', title: 'Jiu-Jitsu Kids', modality: 'kids', level: '4 a 8 anos', unit: 'tres-cachoeiras' },
   { id: 'seg-1930-mma', weekday: 1, startTime: '19:30', endTime: '20:30', title: 'MMA', modality: 'mma', level: 'Todos os níveis', unit: 'tres-cachoeiras' },
@@ -414,7 +423,7 @@ export const faq: readonly FaqItem[] = [
     id: 'atendimento',
     question: 'Como falo com a academia?',
     answer:
-      'Pelo WhatsApp em horário comercial, ou pessoalmente na recepção durante os horários de treino, de segunda a sexta, das 18h30 às 21h30.',
+      'Pelo WhatsApp em horário comercial, ou pessoalmente na recepção durante os horários de treino: de segunda a sexta das 18h30 às 21h30, e nas manhãs de terça e quinta das 6h às 7h.',
     isExample: false,
   },
   {

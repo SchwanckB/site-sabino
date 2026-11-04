@@ -19,7 +19,13 @@ import {
   groupAssignedByWeekday,
 } from '@/utils/attendanceEngine';
 import { canceledOn, recurringOnly } from '@/utils/classOverrides';
-import { daysBetween, formatBr, saoPauloDateString, saoPauloParts } from '@/utils/datetime';
+import {
+  daysBetween,
+  formatBr,
+  saoPauloDateString,
+  saoPauloParts,
+  saoPauloTimeString,
+} from '@/utils/datetime';
 import { occurrencesInMonth } from '@/utils/classReport';
 import { KIDS_TOTAL_DEGREES, getDegreeColor } from '@/utils/graduationEngine';
 import { formatCents, getPaymentSummary, PLAN_LABELS } from '@/utils/paymentEngine';
@@ -218,7 +224,7 @@ export default async function PainelPage() {
         {checkedInToday ? (
           checkinDeHoje ? (
             <span className="badge-ok shrink-0">
-              Check-in às {checkinDeHoje.at.slice(11, 16)}
+              Check-in às {saoPauloTimeString(checkinDeHoje.at)}
             </span>
           ) : null
         ) : (
@@ -246,7 +252,7 @@ export default async function PainelPage() {
         <Stat
           label="Último treino"
           value={ultimoTreino ? formatBr(ultimoTreino.date).slice(0, 5) : '--'}
-          {...(ultimoTreino ? { hint: `às ${ultimoTreino.at.slice(11, 16)}` } : {})}
+          {...(ultimoTreino ? { hint: `às ${saoPauloTimeString(ultimoTreino.at)}` } : {})}
         />
       </StatStrip>
 
@@ -489,7 +495,7 @@ export default async function PainelPage() {
                   <div className="min-w-0">
                     <p className="text-sm text-foreground">{entry.classTitle ?? 'Treino'}</p>
                     <p className="text-xs tabular-nums text-muted">
-                      {formatBr(entry.date)} às {entry.at.slice(11, 16)}
+                      {formatBr(entry.date)} às {saoPauloTimeString(entry.at)}
                     </p>
                   </div>
                   <span className="badge-neutral shrink-0">

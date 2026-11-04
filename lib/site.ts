@@ -50,8 +50,21 @@ export const siteConfig = {
   openingHours: {
     isExample: false,
     whatsapp: 'WhatsApp em horário comercial',
-    reception: 'Recepção aberta durante os treinos, de segunda a sexta, das 18h30 às 21h30',
+    reception:
+      'Recepção aberta durante os treinos: de segunda a sexta das 18h30 às 21h30, e nas manhãs de terça e quinta das 6h às 7h',
+    /**
+     * Janelas de treino, para o JSON-LD.
+     *
+     * São duas desde a turma da manhã, e não uma só de 6h às 21h30: a segunda
+     * forma diria ao Google que a academia fica aberta quinze horas seguidas,
+     * e quem pesquisasse "aberto agora" às 15h apareceria na porta fechada.
+     */
     trainingWindow: { start: '18:30', end: '21:30' },
+    morningWindow: {
+      days: ['Tuesday', 'Thursday'],
+      start: '06:00',
+      end: '07:00',
+    },
   },
 } as const;
 

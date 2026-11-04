@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { getSessionUser } from '@/lib/auth';
+import { isStaff } from '@/lib/roles';
 import { getStudent } from '@/lib/repositories/students';
 
 export const metadata: Metadata = {
@@ -20,13 +21,15 @@ export const dynamic = 'force-dynamic';
  * promover alguém a professor funcionava no Clerk, mas ele continuava entrando
  * na área do aluno e concluía, com razão, que a promoção não tinha pegado.
  *
- * Esta rota não desenha nada. Lê o papel e manda para o lugar certo.
+ * Esta rota não desenha nada. Lê o papel e manda para o lugar certo. Gestão e
+ * professor vão para o mesmo `/admin` — é lá que o menu se ajusta ao que cada
+ * um pode.
  */
 export default async function EntrandoPage() {
   const user = await getSessionUser();
   if (!user) redirect('/entrar');
 
-  if (user.role === 'ADMIN') redirect('/admin');
+  if (isStaff(user.role)) redirect('/admin');
 
   const student = await getStudent(user.id);
   if (!student) redirect('/onboarding');

@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_GRACE_DAYS,
   DUE_SOON_DAYS,
+  RAISE_MAX_PERCENT,
+  RAISE_MIN_PERCENT,
   advanceDueDate,
   applyPayment,
   firstDueDate,
@@ -10,6 +12,8 @@ import {
   getPaymentSummary,
   normalizeDueDay,
   parseCentsInput,
+  parsePercentInput,
+  raisedCents,
   referenceMonth,
   rollbackDueDate,
   type PaymentPlan,
@@ -326,5 +330,81 @@ describe('applyPayment', () => {
 
     expect(r.installmentsPaid).toBe(0);
     expect(r.creditCents).toBe(0);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Reajuste em lote                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `raisedCents` e `parsePercentInput` são usados nos dois lados: a tela de
+ * reajuste simula com eles, e `bulkRaiseAction` grava com eles. É essa
+ * partilha que garante que a prévia na tela seja a conta que o servidor faz —
+ * uma simulação que erra por um centavo custa a confiança na tela inteira.
+ */
+describe('raisedCents', () => {
+  it('aplica o percentual sobre o valor de tabela', () => {
+    expect(raisedCents(15000, 10)).toBe(16500);
+    expect(raisedCents(15000, 8)).toBe(16200);
+  });
+
+  it('percentual negativo reduz', () => {
+    expect(raisedCents(20000, -25)).toBe(15000);
+  });
+
+  it('arredonda ao centavo, para cima e para baixo', () => {
+    // 13333 * 1.075 = 14332,975
+    expect(raisedCents(13333, 7.5)).toBe(14333);
+    // 10001 * 1.004 = 10041,004
+    expect(raisedCents(10001, 0.4)).toBe(10041);
+  });
+
+  it('nunca devolve valor negativo', () => {
+    expect(raisedCents(10000, -200)).toBe(0);
+    expect(raisedCents(-5000, 10)).toBe(0);
+  });
+
+  it('valor quebrado não vira NaN no fechamento do mês', () => {
+    expect(raisedCents(Number.NaN, 10)).toBe(0);
+    expect(raisedCents(15000, Number.NaN)).toBe(0);
+  });
+});
+
+describe('parsePercentInput', () => {
+  it('aceita ponto e vírgula, porque o teclado brasileiro oferece a vírgula', () => {
+    expect(parsePercentInput('7,5')).toBe(7.5);
+    expect(parsePercentInput('7.5')).toBe(7.5);
+    expect(parsePercentInput(' 10 ')).toBe(10);
+  });
+
+  it('aceita redução', () => {
+    expect(parsePercentInput('-10')).toBe(-10);
+  });
+
+  /*
+   * Zero não é reajuste: é clique à toa que ainda assim gravaria uma linha no
+   * histórico de valor de cada aluno marcado.
+   */
+  it('recusa zero', () => {
+    expect(parsePercentInput('0')).toBeNull();
+    expect(parsePercentInput('0,0')).toBeNull();
+  });
+
+  it('recusa fora da faixa — a trava contra digitar 1500 querendo R$ 15,00', () => {
+    expect(parsePercentInput('1500')).toBeNull();
+    expect(parsePercentInput(String(RAISE_MAX_PERCENT + 1))).toBeNull();
+    expect(parsePercentInput(String(RAISE_MIN_PERCENT - 1))).toBeNull();
+  });
+
+  it('aceita exatamente os limites', () => {
+    expect(parsePercentInput(String(RAISE_MAX_PERCENT))).toBe(RAISE_MAX_PERCENT);
+    expect(parsePercentInput(String(RAISE_MIN_PERCENT))).toBe(RAISE_MIN_PERCENT);
+  });
+
+  it('recusa vazio e texto', () => {
+    expect(parsePercentInput('')).toBeNull();
+    expect(parsePercentInput('   ')).toBeNull();
+    expect(parsePercentInput('oito por cento')).toBeNull();
   });
 });

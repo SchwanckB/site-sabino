@@ -2,7 +2,8 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache';
 
-import { isAdminEmail, requireAdmin, type Role } from '@/lib/auth';
+import { authorize, isGestaoEmail, requireStaff } from '@/lib/auth';
+import { ROLE_LABELS, isRole } from '@/lib/roles';
 import { CACHE_TAGS } from '@/lib/cacheTags';
 import { checkbox, intInRange, text, textList } from '@/lib/formData';
 import { deleteAccount, getAccountSummary, setAccountRole } from '@/lib/repositories/accounts';
@@ -65,18 +66,26 @@ import { formatBr, saoPauloDateString } from '@/utils/datetime';
 import { KIDS_TOTAL_DEGREES } from '@/utils/graduationEngine';
 import {
   DEFAULT_GRACE_DAYS,
+  RAISE_MAX_PERCENT,
+  RAISE_MIN_PERCENT,
   formatCents,
   installmentCents,
   parseCentsInput,
+  parsePercentInput,
+  raisedCents,
   type PlanId,
 } from '@/utils/paymentEngine';
 
 /**
  * Ações do administrador.
  *
- * **Toda** ação começa por `requireAdmin()`. Server Actions são endpoints HTTP
- * públicos: sem essa checagem, qualquer pessoa com o ID da action poderia
- * aprovar matrículas ou quitar mensalidades.
+ * **Toda** ação começa por `authorize(permissão)`. Server Actions são endpoints
+ * HTTP públicos: sem essa checagem, qualquer pessoa com o ID da action poderia
+ * aprovar matrículas ou quitar mensalidades — e, desde que o painel tem dois
+ * níveis, o professor chamaria por fora o que não aparece no menu dele.
+ *
+ * A permissão de cada ação é a do assunto, não a da tela que a dispara: ver a
+ * tabela em `lib/roles.ts`.
  */
 
 export interface ActionResult {
@@ -211,7 +220,9 @@ function readPlanInput(
 /* -------------------------------------------------------------------------- */
 
 export async function approveStudentAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('matricula');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const studentId = text(form, 'studentId');
   const student = await getStudent(studentId);
@@ -266,7 +277,9 @@ export async function approveStudentAction(form: FormData): Promise<ActionResult
 }
 
 export async function rejectStudentAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('matricula');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const student = await getStudent(text(form, 'studentId'));
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
@@ -284,7 +297,9 @@ export async function rejectStudentAction(form: FormData): Promise<ActionResult>
 }
 
 export async function setStatusAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('matricula');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const student = await getStudent(text(form, 'studentId'));
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
@@ -317,7 +332,9 @@ export async function setStatusAction(form: FormData): Promise<ActionResult> {
  * fosse ao contrário, sobraria a ficha de alguém que já não consegue entrar.
  */
 export async function deleteStudentAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('matricula');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const student = await getStudent(text(form, 'studentId'));
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
@@ -388,7 +405,9 @@ export async function deleteStudentAction(form: FormData): Promise<ActionResult>
  * tem nome preenchido, e "Sem nome" não confirma nada.
  */
 export async function deleteAccountAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('contas');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const targetId = text(form, 'userId');
   if (targetId.length === 0) return { ok: false, message: 'Conta inválida.' };
@@ -407,7 +426,7 @@ export async function deleteAccountAction(form: FormData): Promise<ActionResult>
 
   // ADMIN_EMAILS reconstrói o acesso no próximo login. Apagar a conta aqui
   // deixaria a pessoa entrar de novo, como professor, e parecer um fantasma.
-  if (account.email.length > 0 && isAdminEmail(account.email)) {
+  if (account.email.length > 0 && isGestaoEmail(account.email)) {
     return {
       ok: false,
       message:
@@ -478,7 +497,8 @@ export async function deleteAccountAction(form: FormData): Promise<ActionResult>
 
 /** Altera turmas, faixa, graus e observações de um aluno já ativo. */
 export async function updateStudentAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('alunos');
+  if (!auth.ok) return auth;
 
   const student = await getStudent(text(form, 'studentId'));
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
@@ -621,7 +641,9 @@ export async function updateStudentAction(form: FormData): Promise<ActionResult>
 /* -------------------------------------------------------------------------- */
 
 export async function registerPaymentAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const studentId = text(form, 'studentId');
   const plan = await getPaymentPlan(studentId);
@@ -689,7 +711,9 @@ export async function registerPaymentAction(form: FormData): Promise<ActionResul
 }
 
 export async function undoPaymentAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const studentId = text(form, 'studentId');
   const plan = await getPaymentPlan(studentId);
@@ -712,7 +736,9 @@ export async function undoPaymentAction(form: FormData): Promise<ActionResult> {
 }
 
 export async function updatePlanAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const plan = readPlanInput(form, text(form, 'studentId'));
   if (!plan.ok) return { ok: false, message: plan.message };
@@ -747,17 +773,19 @@ export async function updatePlanAction(form: FormData): Promise<ActionResult> {
  * O vencimento **não** se move: reajuste é valor, não prazo.
  */
 export async function bulkRaiseAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const ids = textList(form, 'studentIds');
   if (ids.length === 0) return { ok: false, message: 'Selecione pelo menos um aluno.' };
 
-  const percentual = Number(text(form, 'percent').replace(',', '.'));
-  if (!Number.isFinite(percentual) || percentual === 0) {
-    return { ok: false, message: 'Informe o percentual do reajuste.' };
-  }
-  if (percentual < -50 || percentual > 100) {
-    return { ok: false, message: 'Percentual fora da faixa aceita (-50% a +100%).' };
+  const percentual = parsePercentInput(text(form, 'percent'));
+  if (percentual === null) {
+    return {
+      ok: false,
+      message: `Informe o percentual do reajuste, entre ${RAISE_MIN_PERCENT}% e +${RAISE_MAX_PERCENT}%.`,
+    };
   }
 
   const note = text(form, 'changeNote') || `reajuste de ${percentual}%`;
@@ -773,9 +801,7 @@ export async function bulkRaiseAction(form: FormData): Promise<ActionResult> {
       continue;
     }
 
-    // Arredonda ao centavo: meio centavo por aluno viraria diferença de
-    // alguns reais no fechamento do mês.
-    const novo = Math.max(0, Math.round(atual.amountCents * (1 + percentual / 100)));
+    const novo = raisedCents(atual.amountCents, percentual);
     if (novo === atual.amountCents) continue;
 
     await setupPaymentPlan(
@@ -876,7 +902,9 @@ function presenceMessage(outcome: PresenceOutcome): ActionResult {
 }
 
 export async function markPresenceAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('aula');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const now = new Date();
   const [student, schedule] = await Promise.all([
@@ -900,7 +928,9 @@ export async function markPresenceAction(form: FormData): Promise<ActionResult> 
  * trava de "uma presença por dia".
  */
 export async function markPresenceBatchAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('aula');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const ids = textList(form, 'studentIds');
   if (ids.length === 0) {
@@ -945,7 +975,9 @@ export async function markPresenceBatchAction(form: FormData): Promise<ActionRes
 }
 
 export async function undoPresenceAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('aula');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const student = await getStudent(text(form, 'studentId'));
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
@@ -969,7 +1001,9 @@ export async function undoPresenceAction(form: FormData): Promise<ActionResult> 
 /* -------------------------------------------------------------------------- */
 
 export async function registerDegreeAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('alunos');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const student = await getStudent(text(form, 'studentId'));
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
@@ -983,7 +1017,9 @@ export async function registerDegreeAction(form: FormData): Promise<ActionResult
 }
 
 export async function undoDegreeAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('alunos');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const student = await getStudent(text(form, 'studentId'));
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
@@ -1001,7 +1037,9 @@ export async function undoDegreeAction(form: FormData): Promise<ActionResult> {
 }
 
 export async function promoteBeltAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('alunos');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const student = await getStudent(text(form, 'studentId'));
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
@@ -1021,7 +1059,8 @@ export async function promoteBeltAction(form: FormData): Promise<ActionResult> {
 /* -------------------------------------------------------------------------- */
 
 export async function saveClassAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('horarios');
+  if (!auth.ok) return auth;
 
   const result = await upsertClass(
     {
@@ -1047,7 +1086,8 @@ export async function saveClassAction(form: FormData): Promise<ActionResult> {
 }
 
 export async function deleteClassAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('horarios');
+  if (!auth.ok) return auth;
 
   const id = text(form, 'id');
   if (id.length === 0) return { ok: false, message: 'Turma inválida.' };
@@ -1065,7 +1105,9 @@ export async function deleteClassAction(form: FormData): Promise<ActionResult> {
 /* -------------------------------------------------------------------------- */
 
 export async function saveCashEntryAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const amountCents = parseCentsInput(text(form, 'amount'));
   if (amountCents === null) {
@@ -1099,7 +1141,8 @@ export async function saveCashEntryAction(form: FormData): Promise<ActionResult>
 }
 
 export async function deleteCashEntryAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
 
   const result = await removeCashEntry(text(form, 'month'), text(form, 'id'), new Date());
   if (!result.ok) return { ok: false, message: result.error ?? 'Não foi possível remover.' };
@@ -1109,7 +1152,8 @@ export async function deleteCashEntryAction(form: FormData): Promise<ActionResul
 }
 
 export async function saveRecurringCostAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
 
   const amountCents = parseCentsInput(text(form, 'amount'));
   if (amountCents === null) return { ok: false, message: 'Informe o valor da conta fixa.' };
@@ -1134,7 +1178,8 @@ export async function saveRecurringCostAction(form: FormData): Promise<ActionRes
 }
 
 export async function deleteRecurringCostAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
 
   const id = text(form, 'id');
   if (id.length === 0) return { ok: false, message: 'Conta fixa inválida.' };
@@ -1153,7 +1198,9 @@ export async function deleteRecurringCostAction(form: FormData): Promise<ActionR
  * ter o botão.
  */
 export async function postRecurringAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const month = text(form, 'month');
   const result = await postRecurringForMonth(month, admin.id, new Date());
@@ -1183,7 +1230,8 @@ export async function postRecurringAction(form: FormData): Promise<ActionResult>
  * mudar depois de ter sido usado para decidir algo.
  */
 export async function setMonthClosedAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
 
   const month = text(form, 'month');
   if (!isMonth(month)) return { ok: false, message: 'Mês inválido.' };
@@ -1218,13 +1266,21 @@ export async function setMonthClosedAction(form: FormData): Promise<ActionResult
  * que vive no repositório.
  */
 export async function markFollowupAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
-
   const kind = text(form, 'kind');
   const userId = text(form, 'userId');
 
   if (!isFollowupKind(kind)) return { ok: false, message: 'Assunto inválido.' };
   if (userId.length === 0) return { ok: false, message: 'Aluno inválido.' };
+
+  /*
+   * A permissão sai do assunto, e por isso vem depois de ler o formulário.
+   *
+   * Aniversário e retorno são conversa de tatame — o professor liga, anota e
+   * o aviso para de voltar. Cobrança é dinheiro: quem não vê a mensalidade
+   * também não dá a cobrança por feita.
+   */
+  const auth = await authorize(kind === 'cobranca' ? 'dinheiro' : 'alunos');
+  if (!auth.ok) return auth;
 
   const desfazer = checkbox(form, 'undo');
 
@@ -1259,7 +1315,8 @@ export async function markFollowupAction(form: FormData): Promise<ActionResult> 
  * decide presença. O que precisa se refazer é só o painel.
  */
 export async function saveClassOverrideAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('horarios');
+  if (!auth.ok) return auth;
 
   const classId = text(form, 'classId');
   const canceled = checkbox(form, 'canceled');
@@ -1300,7 +1357,8 @@ export async function saveClassOverrideAction(form: FormData): Promise<ActionRes
 }
 
 export async function deleteClassOverrideAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('horarios');
+  if (!auth.ok) return auth;
 
   const id = text(form, 'id');
   if (id.length === 0) return { ok: false, message: 'Aula personalizada inválida.' };
@@ -1312,7 +1370,8 @@ export async function deleteClassOverrideAction(form: FormData): Promise<ActionR
 }
 
 export async function resetScheduleAction(): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('horarios');
+  if (!auth.ok) return auth;
 
   await resetScheduleToSeed(new Date());
 
@@ -1327,34 +1386,48 @@ export async function resetScheduleAction(): Promise<ActionResult> {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Promove uma conta a professor (ADMIN) ou devolve a aluno.
+ * Define a permissão de uma conta: gestão, professor ou aluno.
  *
- * Professor e administrador são o mesmo papel: quem ensina precisa aprovar
- * matrícula, lançar presença e registrar grau.
+ * As três entram pela mesma porta — o que muda é o que o painel mostra e o
+ * que as ações aceitam. Ver a tabela em `lib/roles.ts`.
  */
 export async function setAccountRoleAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('contas');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const targetId = text(form, 'userId');
   const role = text(form, 'role');
 
-  if (role !== 'ADMIN' && role !== 'ALUNO') {
+  if (!isRole(role)) {
     return { ok: false, message: 'Permissão inválida.' };
   }
 
-  // Trava contra se trancar para fora: o último admin não pode se rebaixar
-  // sozinho e deixar a academia sem ninguém capaz de aprovar cadastros.
-  if (targetId === admin.id && role === 'ALUNO') {
+  /*
+   * Trava contra se trancar para fora.
+   *
+   * Quem administra não pode tirar a própria gestão: a tela de contas é o
+   * único lugar onde se promove alguém, e sair dela sozinho deixaria a
+   * academia sem ninguém capaz de devolver o acesso — a não ser mexendo em
+   * variável de ambiente na Vercel.
+   */
+  if (targetId === admin.id && role !== 'GESTAO') {
     return {
       ok: false,
-      message: 'Você não pode remover o próprio acesso de professor. Peça a outro professor.',
+      message:
+        'Você não pode tirar a sua própria gestão. Promova outra pessoa primeiro e peça para ela fazer isso.',
     };
   }
 
-  const result = await setAccountRole(targetId, role as Role);
+  const result = await setAccountRole(targetId, role);
 
   if (result.ok) {
-    await audit(admin, 'papel.alterado', { id: targetId, name: targetId }, `virou ${role}`);
+    await audit(
+      admin,
+      'papel.alterado',
+      { id: targetId, name: targetId },
+      `virou ${ROLE_LABELS[role].toLowerCase()}`,
+    );
   }
 
   refreshAdmin();
@@ -1367,7 +1440,8 @@ export async function setAccountRoleAction(form: FormData): Promise<ActionResult
 /* -------------------------------------------------------------------------- */
 
 export async function savePlanAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
 
   const typeValue = text(form, 'type');
   const type = typeValue === 'pacote' ? 'pacote' : 'plano';
@@ -1395,7 +1469,8 @@ export async function savePlanAction(form: FormData): Promise<ActionResult> {
 }
 
 export async function deletePlanAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
 
   const id = text(form, 'id');
   if (id.length === 0) return { ok: false, message: 'Plano inválido.' };
@@ -1416,7 +1491,8 @@ export async function deletePlanAction(form: FormData): Promise<ActionResult> {
 }
 
 export async function resetPlansAction(): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
 
   await resetPlansToSeed(new Date());
 
@@ -1431,7 +1507,8 @@ export async function resetPlansAction(): Promise<ActionResult> {
 /* -------------------------------------------------------------------------- */
 
 export async function saveEventAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('calendario');
+  if (!auth.ok) return auth;
 
   const result = await upsertEvent(
     {
@@ -1453,7 +1530,8 @@ export async function saveEventAction(form: FormData): Promise<ActionResult> {
 }
 
 export async function deleteEventAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('calendario');
+  if (!auth.ok) return auth;
 
   const id = text(form, 'id');
   if (id.length === 0) return { ok: false, message: 'Evento inválido.' };
@@ -1466,7 +1544,8 @@ export async function deleteEventAction(form: FormData): Promise<ActionResult> {
 
 /** Ajustes da academia — hoje só a chave Pix usada na cobrança. */
 export async function saveSettingsAction(form: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const auth = await authorize('dinheiro');
+  if (!auth.ok) return auth;
 
   await saveAcademySettings(
     { pixKey: text(form, 'pixKey'), pixOwner: text(form, 'pixOwner') },
@@ -1484,7 +1563,8 @@ export async function saveSettingsAction(form: FormData): Promise<ActionResult> 
  * vez, e deixar cache de outra unidade na tela seria pior do que recarregar.
  */
 export async function setUnitScopeAction(form: FormData): Promise<void> {
-  await requireAdmin();
+  // Não devolve `ActionResult`: aqui a barreira redireciona, como numa página.
+  await requireStaff();
 
   const scope = toUnitScope(text(form, 'scope'));
   await setUnitScope(scope);
@@ -1506,7 +1586,9 @@ export async function setUnitScopeAction(form: FormData): Promise<void> {
  * chamada feita depois que a aula acabou.
  */
 export async function markPresenceInClassAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('aula');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const studentId = text(form, 'studentId');
   const classId = text(form, 'classId');
@@ -1556,7 +1638,9 @@ export async function markPresenceInClassAction(form: FormData): Promise<ActionR
 
 /** Registra o que foi treinado na aula. */
 export async function saveClassLogAction(form: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const auth = await authorize('aula');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
 
   const now = new Date();
   const result = await saveClassLog(

@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { weekdayShortLabels, type Weekday } from '@/data/seed';
+import { requireStaff } from '@/lib/auth';
+import { can } from '@/lib/roles';
 import { getTodayCheckins, listCheckins } from '@/lib/repositories/attendance';
 import { listFollowups, parabensDadoNoAno, retornoRecente } from '@/lib/repositories/followups';
 import { getPaymentPlans } from '@/lib/repositories/payments';
@@ -31,6 +33,19 @@ export const metadata: Metadata = { title: 'Visão geral' };
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
+  const admin = await requireStaff();
+
+  /*
+   * A Visão geral é a única tela que os dois papéis abrem, e por isso é a que
+   * mais muda entre eles.
+   *
+   * Para o professor ela é sobre o tatame: quem está em aula agora, quem mais
+   * treina, quem sumiu, aniversários. Inadimplência e valor em aberto saem —
+   * é o mesmo recorte da ficha do aluno, e manter os dois iguais é o que faz
+   * "professor não vê dinheiro" ser uma regra e não uma lista de exceções.
+   */
+  const verDinheiro = can(admin.role, 'dinheiro');
+
   const now = new Date();
   const hoje = saoPauloDateString(now);
 
@@ -51,7 +66,9 @@ export default async function AdminPage() {
 
   const ids = active.map((student) => student.id);
   const [plans, checkinsHoje] = await Promise.all([
-    getPaymentPlans(ids),
+    // Mapa vazio para o professor: a mensalidade não é lida, não trafega e não
+    // chega ao navegador — esconder no JSX deixaria o valor no HTML.
+    verDinheiro ? getPaymentPlans(ids) : new Map(),
     getTodayCheckins(ids, now),
   ]);
 
@@ -199,7 +216,7 @@ export default async function AdminPage() {
         title="Visão geral"
         actions={
           <>
-            {aguardando > 0 ? (
+            {aguardando > 0 && can(admin.role, 'matricula') ? (
               <Link href="/admin/aprovacoes" className="btn-primary text-sm">
                 {aguardando} {aguardando === 1 ? 'cadastro aguardando' : 'cadastros aguardando'}
               </Link>
@@ -274,7 +291,7 @@ export default async function AdminPage() {
           </p>
         </div>
       ) : (
-        <Dashboards rows={rows} />
+        <Dashboards rows={rows} showMoney={verDinheiro} />
       )}
     </div>
   );

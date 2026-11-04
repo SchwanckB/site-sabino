@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { AppShell, type NavItem, type PrimaryAction } from '@/components/app/AppShell';
 import { getSessionUser } from '@/lib/auth';
+import { isStaff } from '@/lib/roles';
 import { getStudent } from '@/lib/repositories/students';
 
 export const metadata: Metadata = {
@@ -22,7 +23,7 @@ export default async function PainelLayout({
 
   // Professor que também treina tem ficha e vê o painel normalmente. Sem
   // ficha, mandá-lo para /onboarding seria absurdo — ele é o professor.
-  if (user.role === 'ADMIN') {
+  if (isStaff(user.role)) {
     if (!student || student.status !== 'ativo') redirect('/admin');
   } else {
     if (!student) redirect('/onboarding');
@@ -40,11 +41,11 @@ export default async function PainelLayout({
   // Professor que também treina precisa de um caminho de volta. Sem isto,
   // quem é promovido a professor entra na área do aluno e não encontra o
   // painel — parece que a promoção não funcionou.
-  if (user.role === 'ADMIN') {
+  if (isStaff(user.role)) {
     items.push({
       href: '/admin',
-      label: 'Painel do professor',
-      short: 'Professor',
+      label: user.role === 'GESTAO' ? 'Painel da gestão' : 'Painel do professor',
+      short: user.role === 'GESTAO' ? 'Gestão' : 'Professor',
       icon: 'grafico',
     });
   }

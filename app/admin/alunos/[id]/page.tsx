@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation';
 
 import { BeltDisplay } from '@/components/app/BeltDisplay';
 import { weekdayLabels, type Weekday } from '@/data/seed';
+import { requirePermission } from '@/lib/auth';
+import { can } from '@/lib/roles';
 import { DOCUMENT_KIND_SHORT } from '@/lib/documentRules';
 import { countCheckins, listCheckins } from '@/lib/repositories/attendance';
 import { listGraduationHistory } from '@/lib/repositories/graduation';
@@ -33,19 +35,34 @@ export default async function AlunoPage({
 }: {
   readonly params: Promise<{ id: string }>;
 }) {
+  const admin = await requirePermission('alunos');
+
   const { id } = await params;
   const student = await getStudent(id);
   if (!student) notFound();
+
+  /*
+   * O que esta ficha mostra depende de quem abriu.
+   *
+   * O professor cuida de turmas, faixa e graus — e não vê mensalidade nem
+   * pagamentos, que é o mesmo recorte da Visão geral. Mudar a situação do
+   * cadastro e apagar a ficha mexem na cobrança e não têm desfazer: ficam com
+   * a gestão.
+   */
+  const verDinheiro = can(admin.role, 'dinheiro');
+  const podeMatricula = can(admin.role, 'matricula');
 
   const now = new Date();
 
   const [schedule, plan, checkins, total, graduations, payments] = await Promise.all([
     getSchedule(),
-    getPaymentPlan(student.id),
+    // Sem permissão de dinheiro a leitura também não acontece: não é só a
+    // seção que desaparece da tela, o dado não chega ao navegador.
+    verDinheiro ? getPaymentPlan(student.id) : null,
     listCheckins(student.id, 120),
     countCheckins(student.id),
     listGraduationHistory(student.id, 20),
-    listPaymentHistory(student.id, 12),
+    verDinheiro ? listPaymentHistory(student.id, 12) : [],
   ]);
 
   // A lista crua de datas vira tempo por faixa e intervalo entre graus.
@@ -155,7 +172,12 @@ export default async function AlunoPage({
       </section>
 
       {/* Resumo rápido ----------------------------------------------------- */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div
+        className={cn(
+          'mt-6 grid gap-4',
+          verDinheiro ? 'sm:grid-cols-3' : 'sm:grid-cols-2',
+        )}
+      >
         <div className="panel p-4">
           <p className="text-xs text-muted">Total de treinos</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums text-crimson">
@@ -166,31 +188,33 @@ export default async function AlunoPage({
           <p className="text-xs text-muted">Últimos 90 dias</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums">{last90}</p>
         </div>
-        <div
-          className={cn(
-            'rounded-2xl border p-4 backdrop-blur-md',
-            summary?.status === 'vencida'
-              ? 'border-crimson/40 bg-crimson/[.06]'
-              : summary?.status === 'vence_em_breve'
-                ? 'border-amber-500/30 bg-amber-500/[.05]'
-                : 'border-hairline bg-white/[.04]',
-          )}
-        >
-          <p className="text-xs text-muted">Mensalidade</p>
-          {summary ? (
-            <>
-              <p className="mt-1 font-display text-xl leading-none">
-                {formatCents(summary.amountCents)}
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                {summary.planName ? `${summary.planName} · ` : ''}
-                {PLAN_LABELS[summary.planId]} · vence {formatBr(summary.dueDate)}
-              </p>
-            </>
-          ) : (
-            <p className="mt-1 text-sm text-muted">Não definida</p>
-          )}
-        </div>
+        {verDinheiro ? (
+          <div
+            className={cn(
+              'rounded-2xl border p-4 backdrop-blur-md',
+              summary?.status === 'vencida'
+                ? 'border-crimson/40 bg-crimson/[.06]'
+                : summary?.status === 'vence_em_breve'
+                  ? 'border-amber-500/30 bg-amber-500/[.05]'
+                  : 'border-hairline bg-white/[.04]',
+            )}
+          >
+            <p className="text-xs text-muted">Mensalidade</p>
+            {summary ? (
+              <>
+                <p className="mt-1 font-display text-xl leading-none">
+                  {formatCents(summary.amountCents)}
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  {summary.planName ? `${summary.planName} · ` : ''}
+                  {PLAN_LABELS[summary.planId]} · vence {formatBr(summary.dueDate)}
+                </p>
+              </>
+            ) : (
+              <p className="mt-1 text-sm text-muted">Não definida</p>
+            )}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-6">
@@ -212,11 +236,14 @@ export default async function AlunoPage({
           isKids={isKids}
           assignedClassIds={student.classIds}
           classOptions={classOptions}
+          canChangeStatus={podeMatricula}
         />
       </div>
 
       {/* Históricos --------------------------------------------------------- */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+      <div
+        className={cn('mt-6 grid gap-6', verDinheiro ? 'lg:grid-cols-3' : 'lg:grid-cols-2')}
+      >
         <section className="panel p-5 sm:p-6">
           <h2 className="text-lg normal-case tracking-normal">Graduações</h2>
           {timeline.daysSinceLast !== null ? (
@@ -274,29 +301,31 @@ export default async function AlunoPage({
           )}
         </section>
 
-        <section className="panel p-5 sm:p-6">
-          <h2 className="text-lg normal-case tracking-normal">Pagamentos</h2>
-          {payments.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">Nenhum pagamento registrado.</p>
-          ) : (
-            <ul className="mt-4 divide-y divide-hairline text-sm">
-              {payments.map((entry) => (
-                <li key={entry.paidAt} className="flex justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <p className="text-foreground">{formatCents(entry.amountCents)}</p>
-                    <p className="text-xs text-muted">
-                      ref. {entry.referenceMonth} ·{' '}
-                      {PAYMENT_METHOD_LABELS[entry.method as PaymentMethod] ?? entry.method}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-xs tabular-nums text-muted">
-                    {formatBr(entry.paidAt.slice(0, 10))}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {verDinheiro ? (
+          <section className="panel p-5 sm:p-6">
+            <h2 className="text-lg normal-case tracking-normal">Pagamentos</h2>
+            {payments.length === 0 ? (
+              <p className="mt-3 text-sm text-muted">Nenhum pagamento registrado.</p>
+            ) : (
+              <ul className="mt-4 divide-y divide-hairline text-sm">
+                {payments.map((entry) => (
+                  <li key={entry.paidAt} className="flex justify-between gap-3 py-3">
+                    <div className="min-w-0">
+                      <p className="text-foreground">{formatCents(entry.amountCents)}</p>
+                      <p className="text-xs text-muted">
+                        ref. {entry.referenceMonth} ·{' '}
+                        {PAYMENT_METHOD_LABELS[entry.method as PaymentMethod] ?? entry.method}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs tabular-nums text-muted">
+                      {formatBr(entry.paidAt.slice(0, 10))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ) : null}
 
         <section className="panel p-5 sm:p-6">
           <h2 className="text-lg normal-case tracking-normal">Últimas presenças</h2>
@@ -330,6 +359,7 @@ export default async function AlunoPage({
         — e o texto diz isso, senão o botão vira o caminho fácil para resolver
         "esse aluno não treina mais".
       */}
+      {podeMatricula ? (
       <section className="mt-10 rounded-2xl border border-crimson/40 bg-crimson/[.05] p-5 sm:p-6">
         <h2 className="text-lg normal-case tracking-normal text-crimson">Apagar cadastro</h2>
         <p className="mt-2 text-sm leading-relaxed text-muted">
@@ -345,6 +375,7 @@ export default async function AlunoPage({
 
         <DeleteStudentForm studentId={student.id} studentName={student.name} />
       </section>
+      ) : null}
     </div>
   );
 }

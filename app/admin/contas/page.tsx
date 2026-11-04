@@ -2,16 +2,24 @@ import type { Metadata } from 'next';
 
 import { PageHeader } from '@/components/app/PageHeader';
 
-import { requireAdmin } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { listAccounts } from '@/lib/repositories/accounts';
+import type { Role } from '@/lib/roles';
 
 import { AccountsList, type AccountRow } from './AccountsList';
 
 export const metadata: Metadata = { title: 'Contas e acessos' };
 export const dynamic = 'force-dynamic';
 
+/** Ordem de leitura: quem administra, quem ensina, quem travou, o resto. */
+const ROLE_WEIGHT: Readonly<Record<Role, number>> = {
+  GESTAO: 0,
+  PROFESSOR: 1,
+  ALUNO: 3,
+};
+
 export default async function ContasPage() {
-  const admin = await requireAdmin();
+  const admin = await requirePermission('contas');
   const accounts = await listAccounts();
 
   const rows: AccountRow[] = accounts
@@ -27,10 +35,9 @@ export default async function ContasPage() {
       lastSignInAt: account.lastSignInAt,
       isSelf: account.id === admin.id,
     }))
-    // Professores primeiro, depois quem travou no cadastro, depois o resto.
     .sort((a, b) => {
       const weight = (row: AccountRow): number =>
-        row.role === 'ADMIN' ? 0 : row.enrollmentStatus === null ? 1 : 2;
+        row.role === 'ALUNO' && row.enrollmentStatus === null ? 2 : ROLE_WEIGHT[row.role];
       const diff = weight(a) - weight(b);
       return diff !== 0 ? diff : a.name.localeCompare(b.name, 'pt-BR');
     });
@@ -39,7 +46,7 @@ export default async function ContasPage() {
     <div className="page-stack">
       <PageHeader
         title="Contas e acessos"
-        meta="Professor e administrador são o mesmo acesso."
+        meta="Quem entra no painel da academia, e com qual permissão."
       />
 
       {accounts.length === 0 ? (

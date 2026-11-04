@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { can, isStaff, type Permission } from '@/lib/roles';
+
 import { UpstashMock } from './upstashMock';
 
 /**
@@ -16,7 +18,7 @@ const professor = {
   id: 'user_admin',
   email: 'admin@teste.com',
   name: 'Professor Sabino',
-  role: 'ADMIN' as const,
+  role: 'GESTAO' as const,
   imageUrl: null,
 };
 const alunoSessao = { ...professor, id: 'user_pedro', role: 'ALUNO' as const };
@@ -30,12 +32,23 @@ const blobsApagados: string[] = [];
 
 vi.mock('@/lib/auth', () => ({
   requireUser: async () => atual,
-  requireAdmin: async () => {
-    if (atual.role !== 'ADMIN') throw new Error('NEXT_REDIRECT');
+  requireStaff: async () => {
+    if (!isStaff(atual.role)) throw new Error('NEXT_REDIRECT');
     return atual;
   },
+  requirePermission: async (permission: Permission) => {
+    if (!isStaff(atual.role)) throw new Error('NEXT_REDIRECT');
+    if (!can(atual.role, permission)) throw new Error('NEXT_REDIRECT');
+    return atual;
+  },
+  authorize: async (permission: Permission) => {
+    if (!isStaff(atual.role)) throw new Error('NEXT_REDIRECT');
+    return can(atual.role, permission)
+      ? { ok: true, user: atual }
+      : { ok: false, message: 'Isso é da gestão. Peça para quem administra a academia.' };
+  },
   getSessionUser: async () => atual,
-  isAdminEmail: () => false,
+  isGestaoEmail: () => false,
 }));
 
 vi.mock('@/lib/repositories/accounts', () => ({

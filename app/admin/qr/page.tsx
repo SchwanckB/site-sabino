@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import { PageHeader } from '@/components/app/PageHeader';
+import { requirePermission } from '@/lib/auth';
 import { isQrSecretConfigured } from '@/lib/repositories/qr';
 import { getSchedule } from '@/lib/schedule';
 import { getUnitScope } from '@/lib/unitScope';
@@ -12,6 +13,8 @@ export const metadata: Metadata = { title: 'QR da recepção' };
 export const dynamic = 'force-dynamic';
 
 export default async function QrPage() {
+  await requirePermission('aula');
+
   const scope = await getUnitScope();
   const schedule = await getSchedule();
 

@@ -93,6 +93,27 @@ export function saoPauloMonthString(now: Date): string {
   return saoPauloDateString(now).slice(0, 7);
 }
 
+/**
+ * `HH:mm` no relógio da academia, a partir de um instante.
+ *
+ * Existe porque `at.slice(11, 16)` — que era o jeito usado em todas as telas —
+ * lê a hora **UTC** gravada no ISO, não a de São Paulo. Quem batia presença às
+ * 19h30 via "check-in às 22:30" e concluía, com razão, que o sistema havia
+ * marcado na hora errada. O mesmo valia para a lista da aula, a chamada e a
+ * planilha de presenças.
+ *
+ * Aceita string para poder receber `entry.at` direto do banco. Instante
+ * inválido devolve `--:--`: a tela mostra a presença mesmo sem a hora, em vez
+ * de quebrar a página inteira por um registro torto.
+ */
+export function saoPauloTimeString(instant: Date | string): string {
+  const date = instant instanceof Date ? instant : new Date(instant);
+  if (Number.isNaN(date.getTime())) return '--:--';
+
+  const { hour, minute } = saoPauloParts(date);
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
 /** Minutos desde a meia-noite em São Paulo (`19:30` → 1170). */
 export function saoPauloMinutesOfDay(now: Date): number {
   const { hour, minute } = saoPauloParts(now);

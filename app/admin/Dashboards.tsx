@@ -56,7 +56,20 @@ const DIAS_SUMIDO = 21;
  * professor é sempre sobre um grupo ("como está a turma infantil?"), não sobre
  * um indicador isolado.
  */
-export function Dashboards({ rows }: { readonly rows: readonly DashboardRow[] }) {
+export function Dashboards({
+  rows,
+  showMoney,
+}: {
+  readonly rows: readonly DashboardRow[];
+  /**
+   * `false` para o professor: sem inadimplência, sem valor em aberto.
+   *
+   * Não é só esconder — a página nem lê a mensalidade nesse caso, e os campos
+   * de dinheiro de `DashboardRow` chegam zerados. Mostrar "0 inadimplentes"
+   * em cima de dado que não foi lido seria pior que não mostrar nada.
+   */
+  readonly showMoney: boolean;
+}) {
   const [recorte, setRecorte] = useState<Recorte>('todos');
   const [sexo, setSexo] = useState<Sexo>('todos');
 
@@ -120,18 +133,28 @@ export function Dashboards({ rows }: { readonly rows: readonly DashboardRow[] })
           value={String(filtrados.length)}
           hint={`${filtrados.filter((r) => r.category === 'kids').length} crianças · ${filtrados.filter((r) => r.category === 'adulto').length} adultos`}
         />
-        <Stat
-          label="Em dia"
-          value={`${percentualEmDia}%`}
-          hint={`${emDia} de ${filtrados.length}`}
-          tone={percentualEmDia >= 80 ? 'bom' : 'neutro'}
-        />
-        <Stat
-          label="Inadimplentes"
-          value={String(vencidas.length)}
-          hint={totalAberto > 0 ? `${formatCents(totalAberto)} em aberto` : 'nada em aberto'}
-          tone={vencidas.length > 0 ? 'alerta' : 'bom'}
-        />
+        {showMoney ? (
+          <>
+            <Stat
+              label="Em dia"
+              value={`${percentualEmDia}%`}
+              hint={`${emDia} de ${filtrados.length}`}
+              tone={percentualEmDia >= 80 ? 'bom' : 'neutro'}
+            />
+            <Stat
+              label="Inadimplentes"
+              value={String(vencidas.length)}
+              hint={totalAberto > 0 ? `${formatCents(totalAberto)} em aberto` : 'nada em aberto'}
+              tone={vencidas.length > 0 ? 'alerta' : 'bom'}
+            />
+          </>
+        ) : (
+          <Stat
+            label="Treinando hoje"
+            value={String(filtrados.filter((r) => r.checkins30 > 0).length)}
+            hint="com treino nos últimos 30 dias"
+          />
+        )}
         <Stat
           label="Treinos / 30d"
           value={String(treinosNoMes)}
@@ -139,7 +162,7 @@ export function Dashboards({ rows }: { readonly rows: readonly DashboardRow[] })
         />
       </StatStrip>
 
-      {emBreve.length > 0 || semPlano.length > 0 ? (
+      {showMoney && (emBreve.length > 0 || semPlano.length > 0) ? (
         <p className="text-xs text-muted">
           {emBreve.length > 0 ? (
             <Link href="/admin/financeiro" className="text-amber-300 hover:underline">

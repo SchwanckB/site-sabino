@@ -300,6 +300,54 @@ export function referenceMonth(plan: PaymentPlan): string {
   return plan.dueDate.slice(0, 7);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Reajuste                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Faixa aceita num reajuste, em pontos percentuais.
+ *
+ * O teto não é desconfiança do professor: é a trava contra o dedo que digita
+ * 1500 querendo R$ 15,00. Reajuste de verdade mora entre -10% e +20%, e o
+ * limite larga o suficiente para caber uma correção de tabela sem caber um
+ * acidente. O piso negativo existe porque reajuste para baixo acontece —
+ * promoção de turma vazia, correção de valor errado na matrícula.
+ */
+export const RAISE_MIN_PERCENT = -50;
+export const RAISE_MAX_PERCENT = 100;
+
+/**
+ * Valor de tabela depois de um reajuste percentual.
+ *
+ * Arredonda ao centavo: meio centavo por aluno viraria alguns reais de
+ * diferença no fechamento do mês. Mora aqui, e não dentro da action, para a
+ * simulação que o professor vê na tela ser **a mesma conta** que o servidor
+ * vai gravar — uma prévia que erra por um centavo custa a confiança na tela
+ * inteira.
+ */
+export function raisedCents(amountCents: number, percent: number): number {
+  if (!Number.isFinite(amountCents) || !Number.isFinite(percent)) return 0;
+  return Math.max(0, Math.round(Math.max(0, amountCents) * (1 + percent / 100)));
+}
+
+/**
+ * `"5"`, `"5,5"` ou `"-10"` → percentual utilizável, ou `null`.
+ *
+ * Aceita vírgula porque é o que o teclado brasileiro oferece primeiro, e
+ * recusa zero: reajuste de 0% não é reajuste, é clique à toa que ainda assim
+ * gravaria uma linha no histórico de cada aluno.
+ */
+export function parsePercentInput(value: string): number | null {
+  const cleaned = value.replace(',', '.').trim();
+  if (cleaned.length === 0) return null;
+
+  const parsed = Number(cleaned);
+  if (!Number.isFinite(parsed) || parsed === 0) return null;
+  if (parsed < RAISE_MIN_PERCENT || parsed > RAISE_MAX_PERCENT) return null;
+
+  return parsed;
+}
+
 /** Centavos → `R$ 150,00`. */
 export function formatCents(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', {

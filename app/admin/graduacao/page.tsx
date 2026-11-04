@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { PageHeader } from '@/components/app/PageHeader';
 
+import { requirePermission } from '@/lib/auth';
 import { listCheckins } from '@/lib/repositories/attendance';
 import { listStudentsByStatus } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
@@ -29,6 +30,8 @@ function toAdultBelt(belt: string): AdultBelt {
 }
 
 export default async function GraduacaoPage() {
+  await requirePermission('alunos');
+
   const now = new Date();
   const scope = await getUnitScope();
   const active = filterByUnit(await listStudentsByStatus('ativo'), scope);

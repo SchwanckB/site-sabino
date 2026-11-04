@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { PageHeader } from '@/components/app/PageHeader';
 
 import { weekdayLabels, type Weekday } from '@/data/seed';
+import { requirePermission } from '@/lib/auth';
 import { listUpcomingClassOverrides } from '@/lib/repositories/classOverrides';
 import { getEditableSchedule } from '@/lib/repositories/scheduleAdmin';
 import { getUnitScope } from '@/lib/unitScope';
@@ -16,6 +17,8 @@ export const metadata: Metadata = { title: 'Horários' };
 export const dynamic = 'force-dynamic';
 
 export default async function HorariosPage() {
+  await requirePermission('horarios');
+
   const now = new Date();
   const today = saoPauloDateString(now);
 

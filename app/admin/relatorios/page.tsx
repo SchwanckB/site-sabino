@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { PageHeader } from '@/components/app/PageHeader';
 
 import { weekdayShortLabels, type Weekday } from '@/data/seed';
+import { requirePermission } from '@/lib/auth';
 import { listCheckins } from '@/lib/repositories/attendance';
 import { listStudentsByStatus } from '@/lib/repositories/students';
 import { getSchedule } from '@/lib/schedule';
@@ -26,6 +27,8 @@ const EXPORTS: readonly { tipo: string; label: string; hint: string }[] = [
 ];
 
 export default async function RelatoriosPage() {
+  await requirePermission('relatorios');
+
   const now = new Date();
   const scope = await getUnitScope();
 

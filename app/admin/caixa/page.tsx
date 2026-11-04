@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
 import { PageHeader, Stat, StatStrip } from '@/components/app/PageHeader';
 
+import { requirePermission } from '@/lib/auth';
 import {
   isMonth,
   listCashEntries,
@@ -73,6 +74,8 @@ export default async function CaixaPage({
 }: {
   readonly searchParams: Promise<{ mes?: string }>;
 }) {
+  await requirePermission('dinheiro');
+
   const now = new Date();
   const hoje = saoPauloDateString(now);
   const { mes } = await searchParams;

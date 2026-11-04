@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { can, isStaff, type Permission } from '@/lib/roles';
+
 import { UpstashMock } from './upstashMock';
 
 /**
@@ -21,15 +23,29 @@ const admin = {
   id: 'user_admin',
   email: 'admin@teste.com',
   name: 'Professor',
-  role: 'ADMIN' as const,
+  role: 'GESTAO' as const,
   imageUrl: null,
 };
 
 vi.mock('@/lib/auth', () => ({
   requireUser: async () => admin,
-  requireAdmin: async () => admin,
+  requireStaff: async () => {
+    if (!isStaff(admin.role)) throw new Error('NEXT_REDIRECT');
+    return admin;
+  },
+  requirePermission: async (permission: Permission) => {
+    if (!isStaff(admin.role)) throw new Error('NEXT_REDIRECT');
+    if (!can(admin.role, permission)) throw new Error('NEXT_REDIRECT');
+    return admin;
+  },
+  authorize: async (permission: Permission) => {
+    if (!isStaff(admin.role)) throw new Error('NEXT_REDIRECT');
+    return can(admin.role, permission)
+      ? { ok: true, user: admin }
+      : { ok: false, message: 'Isso é da gestão. Peça para quem administra a academia.' };
+  },
   getSessionUser: async () => admin,
-  isAdminEmail: () => false,
+  isGestaoEmail: () => false,
 }));
 
 vi.mock('next/cache', () => ({

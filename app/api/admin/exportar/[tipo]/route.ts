@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getSessionUser } from '@/lib/auth';
+import { can } from '@/lib/roles';
 import { listCheckins } from '@/lib/repositories/attendance';
 import { listCashEntriesRange } from '@/lib/repositories/cashbook';
 import { listPaymentHistory, getPaymentPlans } from '@/lib/repositories/payments';
@@ -15,7 +16,7 @@ import {
 } from '@/types/domain';
 import { categoryLabel } from '@/utils/cashbook';
 import { buildCsv, csvCents, csvFilename } from '@/utils/csv';
-import { addMonths, formatBr, saoPauloDateString } from '@/utils/datetime';
+import { addMonths, formatBr, saoPauloDateString, saoPauloTimeString } from '@/utils/datetime';
 import { calculateAge } from '@/utils/graduationEngine';
 import { getPaymentSummary } from '@/utils/paymentEngine';
 
@@ -47,7 +48,9 @@ export async function GET(
   { params }: { params: Promise<{ tipo: string }> },
 ): Promise<NextResponse> {
   const user = await getSessionUser();
-  if (!user || user.role !== 'ADMIN') {
+  // A planilha é a tela de relatórios por outro caminho: a URL é adivinhável,
+  // e sem esta checagem o professor baixaria o financeiro que o menu esconde.
+  if (!user || !can(user.role, 'relatorios')) {
     return new NextResponse('Não encontrado', { status: 404 });
   }
 
@@ -197,7 +200,7 @@ async function csvPresencas(
         student.name,
         UNIT_LABELS[student.unit],
         entry.classTitle ?? '',
-        entry.at.slice(11, 16),
+        saoPauloTimeString(entry.at),
         entry.source,
       ]);
     }

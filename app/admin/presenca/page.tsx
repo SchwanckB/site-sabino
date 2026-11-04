@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { PageHeader } from '@/components/app/PageHeader';
 
+import { requirePermission } from '@/lib/auth';
 import { getTodayCheckins } from '@/lib/repositories/attendance';
 import { listStudentsByStatus } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
@@ -10,7 +11,7 @@ import { getEffectiveSchedule } from '@/lib/schedule';
 import { weekdayShortLabels, type Weekday } from '@/data/seed';
 import { findOpenClasses } from '@/utils/attendanceEngine';
 import { recurringOnly } from '@/utils/classOverrides';
-import { saoPauloParts } from '@/utils/datetime';
+import { saoPauloParts, saoPauloTimeString } from '@/utils/datetime';
 
 import { PresenceList, type PresenceRow, type TurmaResumo } from './PresenceList';
 
@@ -18,6 +19,8 @@ export const metadata: Metadata = { title: 'Presença' };
 export const dynamic = 'force-dynamic';
 
 export default async function PresencaPage() {
+  await requirePermission('aula');
+
   const now = new Date();
 
   const scope = await getUnitScope();
@@ -48,7 +51,7 @@ export default async function PresencaPage() {
         degree: student.degree,
         inClassNow: open[0] ? `${open[0].title} · ${open[0].startTime}` : null,
         present: entry !== null,
-        presentAt: entry ? entry.at.slice(11, 16) : null,
+        presentAt: entry ? saoPauloTimeString(entry.at) : null,
         presentSource: entry?.source ?? null,
         classIds: student.classIds,
       };

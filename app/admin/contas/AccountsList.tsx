@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { ActionForm, SubmitButton } from '@/components/app/ActionForm';
+import { ROLE_HINTS, ROLE_LABELS, type Role } from '@/lib/roles';
 import { cn, initials } from '@/lib/utils';
 import { STATUS_LABELS, type UserStatus } from '@/types/domain';
 import { formatBr } from '@/utils/datetime';
@@ -14,7 +15,7 @@ export interface AccountRow {
   readonly id: string;
   readonly name: string;
   readonly email: string;
-  readonly role: 'ADMIN' | 'ALUNO';
+  readonly role: Role;
   readonly roleFromEnv: boolean;
   readonly rolePersisted: boolean;
   readonly enrollmentStatus: UserStatus | null;
@@ -23,10 +24,11 @@ export interface AccountRow {
   readonly isSelf: boolean;
 }
 
-type Filter = 'todos' | 'professores' | 'sem_ficha' | 'alunos';
+type Filter = 'todos' | 'gestao' | 'professores' | 'sem_ficha' | 'alunos';
 
 const FILTERS: readonly { id: Filter; label: string }[] = [
   { id: 'todos', label: 'Todas' },
+  { id: 'gestao', label: 'Gestão' },
   { id: 'professores', label: 'Professores' },
   { id: 'alunos', label: 'Alunos' },
   { id: 'sem_ficha', label: 'Não preencheram a ficha' },
@@ -38,6 +40,53 @@ const STATUS_STYLE: Readonly<Record<UserStatus, string>> = {
   pendente: 'badge-warn',
   recusado: 'badge-late',
   inativo: 'badge-neutral',
+};
+
+/**
+ * Cor do papel.
+ *
+ * Gestão em vermelho cheio, professor em vermelho fraco, aluno em cinza: a
+ * escada de cor é a escada de permissão, e dá para varrer a lista sem ler
+ * rótulo nenhum.
+ */
+const ROLE_STYLE: Readonly<Record<Role, string>> = {
+  GESTAO: 'border-crimson/50 bg-crimson/25 text-foreground',
+  PROFESSOR: 'border-crimson/30 bg-crimson/[.12] text-crimson',
+  ALUNO: 'border-white/[.12] bg-white/[.07] text-muted',
+};
+
+const ROW_STYLE: Readonly<Record<Role, string | null>> = {
+  GESTAO: 'border-crimson/40 bg-crimson/[.07]',
+  PROFESSOR: 'border-crimson/20 bg-crimson/[.03]',
+  ALUNO: null,
+};
+
+/**
+ * O que a troca de papel significa, em uma frase, antes de confirmar.
+ *
+ * O texto depende de **onde a conta está** e não só de para onde vai: "dar
+ * acesso de professor" e "tirar a gestão, deixando só professor" terminam no
+ * mesmo papel e são decisões opostas. Um `confirm()` genérico fazia a segunda
+ * parecer a primeira.
+ */
+function confirmText(row: AccountRow, to: Role): string {
+  if (to === 'GESTAO') {
+    return `Dar a gestão completa para ${row.name}? Ele passa a ver e mexer em dinheiro, caixa, planos, grade de horários e no acesso das outras contas — inclusive promover e rebaixar gente.`;
+  }
+
+  if (to === 'PROFESSOR') {
+    return row.role === 'GESTAO'
+      ? `Tirar a gestão de ${row.name} e deixar só como professor? Ele continua abrindo aula, lançando presença e graduando, mas perde dinheiro, caixa, planos, horários e contas.`
+      : `Dar acesso de professor para ${row.name}? Ele passa a abrir aula, lançar presença, mostrar o QR e registrar graduação. Não vê dinheiro.`;
+  }
+
+  return `Tirar o acesso ao painel da academia de ${row.name}? Ele volta a ser só aluno.`;
+}
+
+const LABEL_ACAO: Readonly<Record<Role, string>> = {
+  GESTAO: 'Promover à gestão',
+  PROFESSOR: 'Tornar professor',
+  ALUNO: 'Tirar acesso ao painel',
 };
 
 export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] }) {
@@ -54,28 +103,59 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
           row.name.toLowerCase().includes(term) || row.email.toLowerCase().includes(term);
         if (!hit) return false;
       }
-      if (filter === 'professores') return row.role === 'ADMIN';
+      if (filter === 'gestao') return row.role === 'GESTAO';
+      if (filter === 'professores') return row.role === 'PROFESSOR';
       if (filter === 'alunos') return row.role === 'ALUNO';
       if (filter === 'sem_ficha') return row.enrollmentStatus === null;
       return true;
     });
   }, [rows, filter, search]);
 
-  const admins = rows.filter((row) => row.role === 'ADMIN').length;
+  const gestores = rows.filter((row) => row.role === 'GESTAO').length;
+  const professores = rows.filter((row) => row.role === 'PROFESSOR').length;
   const orphans = rows.filter((row) => row.enrollmentStatus === null).length;
 
   return (
     <div>
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/*
+        Legenda dos dois níveis.
+
+        A tela promove e rebaixa gente, e quem chega aqui depois de um mês sem
+        abrir não lembra o que "professor" deixa de ver. Explicar aqui em cima
+        é mais barato que explicar dentro de cada botão.
+      */}
+      <section className="panel panel-pad">
+        <h2 className="panel-title">Os dois acessos do painel</h2>
+        <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+          {(['GESTAO', 'PROFESSOR'] as const).map((role) => (
+            <div key={role} className="rounded-xl border border-hairline bg-white/[.03] p-3.5">
+              <dt>
+                <span className={cn('badge', ROLE_STYLE[role])}>{ROLE_LABELS[role]}</span>
+              </dt>
+              <dd className="mt-2 text-xs leading-relaxed text-muted">{ROLE_HINTS[role]}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-3 text-xs leading-relaxed text-muted">
+          Os dois entram pelo mesmo lugar. O que muda é o menu que aparece e o que o painel
+          aceita salvar.
+        </p>
+      </section>
+
+      <div className="mt-3 grid gap-4 sm:grid-cols-4">
         <div className="panel p-4">
           <p className="text-xs text-muted">Contas criadas</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums">{rows.length}</p>
         </div>
         <div className="panel p-4">
-          <p className="text-xs text-muted">Professores</p>
+          <p className="text-xs text-muted">Gestão</p>
           <p className="mt-1 font-display text-3xl leading-none tabular-nums text-crimson">
-            {admins}
+            {gestores}
           </p>
+        </div>
+        <div className="panel p-4">
+          <p className="text-xs text-muted">Professores</p>
+          <p className="mt-1 font-display text-3xl leading-none tabular-nums">{professores}</p>
         </div>
         <div className="panel p-4">
           <p className="text-xs text-muted">Sem ficha preenchida</p>
@@ -127,13 +207,7 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
       ) : (
         <ul className="mt-4 space-y-3">
           {visible.map((row) => (
-            <li
-              key={row.id}
-              className={cn(
-                'panel p-4 sm:p-5',
-                row.role === 'ADMIN' ? 'border-crimson/30 bg-crimson/[.05]' : null,
-              )}
-            >
+            <li key={row.id} className={cn('panel p-4 sm:p-5', ROW_STYLE[row.role])}>
               <div className="flex flex-wrap items-start gap-4">
                 <span
                   aria-hidden="true"
@@ -156,21 +230,12 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
                   <p className="truncate text-xs text-muted">{row.email}</p>
 
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span
-                      className={cn(
-                        'badge',
-                        row.role === 'ADMIN'
-                          ? 'border-crimson/40 bg-crimson/20 text-crimson'
-                          : 'border-white/[.12] bg-white/[.07] text-muted',
-                      )}
-                    >
-                      {row.role === 'ADMIN' ? 'Professor' : 'Aluno'}
+                    <span className={cn('badge', ROLE_STYLE[row.role])}>
+                      {ROLE_LABELS[row.role]}
                     </span>
 
                     {row.enrollmentStatus ? (
-                      <span
-                        className={STATUS_STYLE[row.enrollmentStatus]}
-                      >
+                      <span className={STATUS_STYLE[row.enrollmentStatus]}>
                         {STATUS_LABELS[row.enrollmentStatus]}
                       </span>
                     ) : (
@@ -194,56 +259,59 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-white/10 pt-4">
-                {row.role === 'ALUNO' ? (
-                  <ActionForm
-                    action={setAccountRoleAction}
-                    confirm={`Dar acesso de professor para ${row.name}? Ele poderá aprovar matrículas, lançar presença e registrar graduação.`}
-                  >
-                    <input type="hidden" name="userId" value={row.id} />
-                    <input type="hidden" name="role" value="ADMIN" />
-                    <SubmitButton className="btn-secondary text-xs" pendingLabel="Promovendo…">
-                      Tornar professor
-                    </SubmitButton>
-                  </ActionForm>
-                ) : (
-                  <>
-                    {/*
-                      Papel vindo só de ADMIN_EMAILS some junto com a variável:
-                      um deploy sem ela e o professor perde o painel. Gravar na
-                      conta tira essa dependência — e sem este botão não havia
-                      como fazê-lo, já que a tela já o mostrava como professor.
-                    */}
-                    {row.roleFromEnv && !row.rolePersisted ? (
+                {/*
+                  Um botão por papel que a conta ainda não tem. Antes era um
+                  par de botões fixo ("tornar professor" / "remover acesso"),
+                  que com três níveis não diria para onde a conta vai.
+                */}
+                {(['GESTAO', 'PROFESSOR', 'ALUNO'] as const)
+                  .filter((role) => role !== row.role)
+                  .map((role) => {
+                    // Gestão vinda de ADMIN_EMAILS volta no próximo login: o
+                    // botão existiria só para dar uma mensagem de erro.
+                    const travado = row.roleFromEnv && role !== 'GESTAO';
+                    // Ninguém tira a própria gestão — ver `setAccountRoleAction`.
+                    const seTrancando = row.isSelf && row.role === 'GESTAO';
+
+                    return (
                       <ActionForm
+                        key={role}
                         action={setAccountRoleAction}
-                        confirm={`Gravar o acesso de professor na conta de ${row.name}? Assim ele não depende mais da variável ADMIN_EMAILS.`}
+                        confirm={confirmText(row, role)}
                       >
                         <input type="hidden" name="userId" value={row.id} />
-                        <input type="hidden" name="role" value="ADMIN" />
-                        <SubmitButton className="btn-secondary text-xs" pendingLabel="Gravando…">
-                          Fixar acesso na conta
+                        <input type="hidden" name="role" value={role} />
+                        <SubmitButton
+                          className={cn(
+                            role === 'ALUNO' ? 'btn-ghost text-xs' : 'btn-secondary text-xs',
+                            (travado || seTrancando) && 'pointer-events-none opacity-40',
+                          )}
+                          pendingLabel="Salvando…"
+                        >
+                          {LABEL_ACAO[role]}
                         </SubmitButton>
                       </ActionForm>
-                    ) : null}
+                    );
+                  })}
 
-                    <ActionForm
-                      action={setAccountRoleAction}
-                      confirm={`Remover o acesso de professor de ${row.name}?`}
-                    >
-                      <input type="hidden" name="userId" value={row.id} />
-                      <input type="hidden" name="role" value="ALUNO" />
-                      <SubmitButton
-                        className={cn(
-                          'btn-ghost text-xs',
-                          (row.isSelf || row.roleFromEnv) && 'pointer-events-none opacity-40',
-                        )}
-                        pendingLabel="…"
-                      >
-                        Remover acesso de professor
-                      </SubmitButton>
-                    </ActionForm>
-                  </>
-                )}
+                {/*
+                  Papel vindo só de ADMIN_EMAILS some junto com a variável: um
+                  deploy sem ela e a academia fica sem gestão. Gravar na conta
+                  tira essa dependência — e sem este botão não havia como
+                  fazê-lo, já que a tela já a mostrava como gestão.
+                */}
+                {row.roleFromEnv && !row.rolePersisted ? (
+                  <ActionForm
+                    action={setAccountRoleAction}
+                    confirm={`Gravar a gestão na conta de ${row.name}? Assim ela não depende mais da variável ADMIN_EMAILS.`}
+                  >
+                    <input type="hidden" name="userId" value={row.id} />
+                    <input type="hidden" name="role" value="GESTAO" />
+                    <SubmitButton className="btn-secondary text-xs" pendingLabel="Gravando…">
+                      Fixar gestão na conta
+                    </SubmitButton>
+                  </ActionForm>
+                ) : null}
 
                 {row.enrollmentStatus ? (
                   <Link href={`/admin/alunos/${row.id}`} className="btn-ghost text-xs">
@@ -308,10 +376,17 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
                 </ActionForm>
               ) : null}
 
-              {row.isSelf && row.role === 'ADMIN' ? (
+              {row.isSelf && row.role === 'GESTAO' ? (
                 <p className="mt-2 text-[11px] text-muted">
-                  Você não pode remover o próprio acesso — é a trava que impede a academia de
-                  ficar sem nenhum professor.
+                  Você não pode tirar a sua própria gestão — é a trava que impede a academia de
+                  ficar sem ninguém capaz de devolver acesso. Promova outra pessoa primeiro.
+                </p>
+              ) : null}
+
+              {row.roleFromEnv ? (
+                <p className="mt-2 text-[11px] text-muted">
+                  Esta conta tem gestão por estar em <code>ADMIN_EMAILS</code>. Para rebaixá-la,
+                  tire o e-mail da variável de ambiente na Vercel primeiro.
                 </p>
               ) : null}
             </li>
