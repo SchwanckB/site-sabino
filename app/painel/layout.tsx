@@ -34,6 +34,7 @@ export default async function PainelLayout({
     { href: '/painel', label: 'Início', icon: 'inicio', primary: true },
     { href: '/painel#mensalidade', label: 'Mensalidade', short: 'Pagar', icon: 'dinheiro', primary: true },
     { href: '/painel#frequencia', label: 'Meus treinos', short: 'Treinos', icon: 'grafico' },
+    { href: '/painel/calendario', label: 'Calendário', short: 'Agenda', icon: 'calendario' },
     { href: '/painel/ranking', label: 'Ranking', icon: 'trofeu', primary: true },
     { href: '/painel/checkin', label: 'Check-in', icon: 'qr' },
   ];
