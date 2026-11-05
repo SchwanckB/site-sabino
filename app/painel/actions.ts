@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { weekdayLabels, type Weekday } from '@/data/seed';
 import { requireUser } from '@/lib/auth';
 import { consumeRateLimit, rateLimitMessage } from '@/lib/rateLimit';
-import { recordCheckin } from '@/lib/repositories/attendance';
+import { getTodayCheckins, recordCheckin } from '@/lib/repositories/attendance';
 import { validateQrToken } from '@/lib/repositories/qr';
 import { getStudent } from '@/lib/repositories/students';
 import { getEffectiveScheduleFresh } from '@/lib/schedule';
@@ -69,6 +69,14 @@ export type CheckinOptions =
        * ou o cartaz.
        */
       readonly nextClass: string | null;
+      /**
+       * Turmas abertas que ele **já marcou**, em texto curto. `null` quando
+       * ainda há o que marcar.
+       *
+       * Separa "você escaneou duas vezes" de "você errou o horário": as duas
+       * chegam na tela como lista vazia, e a mensagem precisa ser outra.
+       */
+      readonly alreadyDone: string | null;
     };
 
 /**
@@ -152,12 +160,30 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
   }
 
   const now = new Date();
-  const schedule = await getEffectiveScheduleFresh(now);
+  const [schedule, doDia] = await Promise.all([
+    getEffectiveScheduleFresh(now),
+    getTodayCheckins([student.id], now),
+  ]);
+
+  /*
+   * As aulas abertas **que ele ainda não marcou**.
+   *
+   * Com turmas encostadas de hora em hora, quem faz MMA às 19:30 e Jiu às
+   * 20:30 tem as duas janelas abertas boa parte da noite. Sem este filtro, o
+   * segundo check-in da noite voltava a perguntar "qual aula?" oferecendo a
+   * que ele acabou de marcar — e escolher errado devolvia "você já tem
+   * presença nesta aula", que parece defeito.
+   *
+   * Filtrando, o caso comum deixa de perguntar: sobra uma só e a tela
+   * registra sozinha.
+   */
+  const jaMarcadas = new Set((doDia.get(student.id) ?? []).map((entry) => entry.classId));
   const abertas = findOpenClasses(schedule.classes, student.classIds, now);
+  const pendentes = abertas.filter((slot) => !jaMarcadas.has(slot.classId));
 
   return {
     ok: true,
-    classes: abertas.map((slot) => ({
+    classes: pendentes.map((slot) => ({
       classId: slot.classId,
       title: slot.title,
       level: slot.level ?? '',
@@ -165,14 +191,43 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
       hint: estadoDaAula(slot),
     })),
     nextClass:
-      abertas.length === 0
+      pendentes.length === 0
         ? proximaAulaEmTexto(schedule.classes, student.classIds, now)
+        : null,
+    /*
+     * Havia aula aberta, mas ele já marcou todas. É diferente de "nenhuma
+     * turma sua está acontecendo agora" — ali ele erraria o horário; aqui ele
+     * fez tudo certo e só escaneou duas vezes.
+     */
+    alreadyDone:
+      abertas.length > 0 && pendentes.length === 0
+        ? abertas.map((slot) => `${slot.title} · ${slot.startTime}`).join(' e ')
         : null,
   };
 }
 
-/** Registra a presença na turma escolhida pelo aluno. */
-export async function checkinAction(token: string, classId: string): Promise<CheckinResult> {
+/**
+ * Registra a presença nas turmas escolhidas pelo aluno.
+ *
+ * Recebe **lista**, e não uma turma só, por causa do caso mais comum da
+ * academia: quem faz MMA às 19:30 e fica para o Jiu das 20:30. Ele escaneia o
+ * cartaz uma vez, na chegada, e a tela pergunta se vai ficar para a seguinte —
+ * respondendo que sim, as duas presenças entram na mesma leitura. Obrigá-lo a
+ * voltar ao celular uma hora depois é o que fazia a segunda aula ficar sem
+ * registro.
+ *
+ * A contrapartida é conhecida e aceita: a presença da segunda aula é gravada
+ * antes de ela acontecer. Quem disser que fica e for embora tem presença a
+ * mais, e o professor desfaz na chamada — é o mesmo custo de qualquer lista
+ * assinada na entrada.
+ *
+ * Cada id é reconferido contra as aulas abertas **do aluno**: cliente não é
+ * fonte de verdade, e sem isso bastaria mandar a grade inteira no formulário.
+ */
+export async function checkinAction(
+  token: string,
+  classIds: readonly string[],
+): Promise<CheckinResult> {
   const user = await requireUser();
 
   const student = await getStudent(user.id);
@@ -215,9 +270,13 @@ export async function checkinAction(token: string, classId: string): Promise<Che
    * outro dia. É aqui que a janela de horário e a matrícula são impostas.
    */
   const abertas = findOpenClasses(schedule.classes, student.classIds, now);
-  const escolhida = abertas.find((slot) => slot.classId === classId) ?? null;
 
-  if (!escolhida) {
+  // Só as abertas que ele pediu, na ordem da grade. `Set` porque o mesmo id
+  // repetido no formulário não pode virar duas tentativas.
+  const pedidas = new Set(classIds);
+  const escolhidas = abertas.filter((slot) => pedidas.has(slot.classId));
+
+  if (escolhidas.length === 0) {
     if (abertas.length > 0) {
       return {
         ok: false,
@@ -236,34 +295,71 @@ export async function checkinAction(token: string, classId: string): Promise<Che
     };
   }
 
-  const result = await recordCheckin(
-    {
-      student,
-      classId: escolhida.classId,
-      classTitle: escolhida.title,
-      source: 'qr',
-      registeredBy: student.id,
-    },
-    now,
-  );
+  /*
+   * Grava uma a uma, e não em paralelo: a trava é um `SET NX` por turma, e o
+   * que importa é saber quais entraram para confirmar pelo nome na tela.
+   */
+  const registradas: { title: string; time: string }[] = [];
+  const repetidas: string[] = [];
+  let ultimoAt = '';
+  let falhou = false;
 
-  if (!result.ok) {
-    return result.reason === 'ja_registrado'
-      ? {
-          ok: false,
-          reason: 'ja_registrado',
-          message: 'Você já registrou presença hoje.',
-        }
-      : {
-          ok: false,
-          reason: 'erro',
-          message: 'Não foi possível registrar agora. Chame a recepção.',
-        };
+  for (const slot of escolhidas) {
+    const result = await recordCheckin(
+      {
+        student,
+        classId: slot.classId,
+        classTitle: slot.title,
+        source: 'qr',
+        registeredBy: student.id,
+      },
+      now,
+    );
+
+    if (result.ok) {
+      registradas.push({ title: slot.title, time: slot.startTime });
+      ultimoAt = result.entry.at;
+    } else if (result.reason === 'ja_registrado') {
+      repetidas.push(slot.title);
+    } else {
+      falhou = true;
+    }
+  }
+
+  if (registradas.length === 0) {
+    if (repetidas.length > 0) {
+      return {
+        ok: false,
+        reason: 'ja_registrado',
+        message: `Você já marcou presença em ${repetidas.join(' e ')}.`,
+      };
+    }
+
+    return {
+      ok: false,
+      reason: 'erro',
+      message: 'Não foi possível registrar agora. Chame a recepção.',
+    };
+  }
+
+  // Parte entrou e parte falhou no banco: o aluno não pode sair achando que
+  // as duas estão registradas.
+  if (falhou) {
+    return {
+      ok: false,
+      reason: 'erro',
+      message: `Só ${registradas.map((item) => item.title).join(' e ')} foi registrada. Confira com a recepção antes de treinar.`,
+    };
   }
 
   revalidatePath('/painel');
   revalidatePath('/admin/presenca');
   revalidatePath('/admin/aula');
 
-  return { ok: true, classTitle: escolhida.title, at: result.entry.at };
+  return {
+    ok: true,
+    classTitle: registradas.map((item) => item.title).join(' e '),
+    at: ultimoAt,
+    classes: registradas,
+  };
 }

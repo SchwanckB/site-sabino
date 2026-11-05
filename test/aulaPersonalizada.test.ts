@@ -219,7 +219,7 @@ describe('o professor cancela a aula do dia', () => {
     const naHora = await painel.listCheckinOptions(token);
     expect(naHora.ok === true && naHora.classes).toEqual([]);
 
-    const result = await painel.checkinAction(token, 'seg-1930-mma');
+    const result = await painel.checkinAction(token, ['seg-1930-mma']);
     expect(result.ok).toBe(false);
     expect(result.ok === false && result.reason).toBe('sem_aula_agora');
   });
@@ -356,7 +356,7 @@ describe('o aluno bate presença no horário personalizado', () => {
     expect(opcoes.ok).toBe(true);
     expect(opcoes.ok === true && opcoes.classes.map((item) => item.time)).toEqual(['18:30']);
 
-    const result = await painel.checkinAction(token, 'seg-1930-mma');
+    const result = await painel.checkinAction(token, ['seg-1930-mma']);
     expect(result.ok).toBe(true);
 
     // O ponto da coisa: é presença na turma, não um registro paralelo. Conta
@@ -398,7 +398,7 @@ describe('o aluno bate presença no horário personalizado', () => {
     const tarde = await painel.listCheckinOptions(token);
     expect(tarde.ok === true && tarde.classes).toEqual([]);
 
-    const result = await painel.checkinAction(token, 'seg-1930-mma');
+    const result = await painel.checkinAction(token, ['seg-1930-mma']);
     expect(result.ok).toBe(false);
     expect(result.ok === false && result.reason).toBe('sem_aula_agora');
   });

@@ -48,13 +48,13 @@ export function CheckinClient() {
    */
   const enviando = useRef(false);
 
-  const registrar = useCallback(async (codigo: string, classId: string) => {
+  const registrar = useCallback(async (codigo: string, classIds: readonly string[]) => {
     if (enviando.current) return;
     enviando.current = true;
 
     setPhase('enviando');
     try {
-      const response = await checkinAction(codigo, classId);
+      const response = await checkinAction(codigo, classIds);
       setResult(response);
       setPhase(response.ok ? 'ok' : 'erro');
     } catch {
@@ -106,12 +106,14 @@ export function CheckinClient() {
       if (options.classes.length === 0) {
         setResult({
           ok: false,
-          reason: 'sem_aula_agora',
+          reason: options.alreadyDone ? 'ja_registrado' : 'sem_aula_agora',
           // A mesma frase do servidor: o aluno não deve ler uma coisa quando a
           // tela recusa e outra quando o registro recusa.
-          message: options.nextClass
-            ? `Nenhuma das suas turmas está acontecendo agora. A próxima é ${options.nextClass}.`
-            : 'Você ainda não está em nenhuma turma. Fale com a recepção.',
+          message: options.alreadyDone
+            ? `Você já marcou presença em ${options.alreadyDone}. Bom treino!`
+            : options.nextClass
+              ? `Nenhuma das suas turmas está acontecendo agora. A próxima é ${options.nextClass}.`
+              : 'Você ainda não está em nenhuma turma. Fale com a recepção.',
         });
         setPhase('erro');
         return;
@@ -120,7 +122,7 @@ export function CheckinClient() {
       // Uma aula só: não há o que escolher.
       const unica = options.classes[0];
       if (options.classes.length === 1 && unica) {
-        await registrar(limpo, unica.classId);
+        await registrar(limpo, [unica.classId]);
         return;
       }
 
@@ -203,12 +205,31 @@ export function CheckinClient() {
               <path d="m5 13 4 4L19 7" />
             </svg>
           </span>
-          <h2 className="mt-5 text-2xl leading-none">Presença registrada</h2>
-          {result.classTitle ? (
+          <h2 className="mt-5 text-2xl leading-none">
+            {result.classes.length > 1
+              ? `${result.classes.length} presenças registradas`
+              : 'Presença registrada'}
+          </h2>
+
+          {/*
+            Uma linha por aula. Marcando duas de uma vez, "presença
+            registrada" sozinho deixaria dúvida sobre a segunda — e é
+            justamente a que ainda não aconteceu.
+          */}
+          {result.classes.length > 0 ? (
+            <ul className="mt-3 space-y-1">
+              {result.classes.map((aula) => (
+                <li key={aula.title + aula.time} className="text-sm text-muted">
+                  {aula.title} · {aula.time}
+                </li>
+              ))}
+            </ul>
+          ) : result.classTitle ? (
             <p className="mt-2 text-sm text-muted">
               {result.classTitle} · {saoPauloTimeString(result.at)}
             </p>
           ) : null}
+
           <p className="mt-4 text-sm text-muted">Bom treino!</p>
           <Link href="/painel" className="btn-primary mt-6 w-full">
             Voltar ao painel
@@ -216,43 +237,70 @@ export function CheckinClient() {
         </div>
       ) : null}
 
-      {/* Escolha da aula: só aparece quando há mais de uma no horário. */}
+      {/*
+        Mais de uma turma dele aberta agora.
+
+        A pergunta não é "qual aula?" — é "vai treinar as duas?". Quem faz MMA
+        às 19:30 e fica para o Jiu das 20:30 escaneia o cartaz uma vez só, na
+        chegada; mandá-lo voltar ao celular uma hora depois é o que fazia a
+        segunda aula ficar sem registro. O botão de cima resolve esse caso com
+        um toque, e os de baixo cobrem quem vai treinar só uma.
+      */}
       {phase === 'escolhendo' ? (
         <div className="panel p-6">
-          <h2 className="text-xl leading-none">Qual aula?</h2>
+          <h2 className="text-xl leading-none">
+            {opcoes.length === 2 ? 'Vai treinar as duas?' : 'Quais você vai treinar?'}
+          </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            Você tem mais de uma turma neste horário. Toque na que treinou.
+            Você tem {opcoes.length} turmas neste horário. Marque as duas de uma vez ou escolha
+            só a que vai fazer.
           </p>
 
-          <ul className="mt-5 space-y-2">
+          <ul className="mt-4 space-y-1.5">
+            {opcoes.map((option) => (
+              <li
+                key={option.classId}
+                className="flex items-baseline justify-between gap-3 rounded-lg bg-white/[.03] px-3 py-2"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm text-foreground">{option.title}</span>
+                  <span
+                    className={cn(
+                      'block truncate text-xs',
+                      option.hint === 'acontecendo agora' ? 'text-emerald-300' : 'text-muted/80',
+                    )}
+                  >
+                    {option.hint}
+                  </span>
+                </span>
+                <span className="shrink-0 font-display text-sm tabular-nums text-muted">
+                  {option.time}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <button
+            type="button"
+            onClick={() => void registrar(token, opcoes.map((option) => option.classId))}
+            disabled={phase !== 'escolhendo'}
+            className="btn-primary mt-5 w-full disabled:opacity-50"
+          >
+            Sim, vou treinar {opcoes.length === 2 ? 'as duas' : `as ${opcoes.length}`}
+          </button>
+
+          <p className="mt-4 text-xs text-muted">Ou marque só uma:</p>
+          <ul className="mt-2 space-y-2">
             {opcoes.map((option) => (
               <li key={option.classId}>
                 <button
                   type="button"
-                  onClick={() => void registrar(token, option.classId)}
+                  onClick={() => void registrar(token, [option.classId])}
                   disabled={phase !== 'escolhendo'}
-                  className="flex min-h-[60px] w-full items-center justify-between gap-3 rounded-xl border border-hairline bg-white/[.04] px-4 text-left transition-colors hover:border-crimson/50 hover:bg-crimson/[.07] disabled:opacity-50"
+                  className="flex min-h-[52px] w-full items-center justify-between gap-3 rounded-xl border border-hairline bg-white/[.04] px-4 text-left transition-colors hover:border-crimson/50 hover:bg-crimson/[.07] disabled:opacity-50"
                 >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-foreground">
-                      {option.title}
-                    </span>
-                    {option.level ? (
-                      <span className="block truncate text-xs text-muted">{option.level}</span>
-                    ) : null}
-                    {/*
-                      "acontecendo agora" / "terminou às 20:30": é o que separa
-                      a aula que o aluno acabou de fazer da seguinte, que já
-                      começou. O horário sozinho são dois números parecidos.
-                    */}
-                    <span
-                      className={cn(
-                        'mt-0.5 block truncate text-xs',
-                        option.hint === 'acontecendo agora' ? 'text-emerald-300' : 'text-muted/80',
-                      )}
-                    >
-                      {option.hint}
-                    </span>
+                  <span className="min-w-0 truncate text-sm text-foreground">
+                    Só {option.title}
                   </span>
                   <span className="shrink-0 font-display text-sm tabular-nums text-muted">
                     {option.time}

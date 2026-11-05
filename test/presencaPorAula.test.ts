@@ -267,6 +267,48 @@ describe('desfazer acerta a presença certa', () => {
     expect(await attendance.countCheckins(aluno.id)).toBe(1);
   });
 
+  /*
+   * O formulário da visão geral da tela de Presença não tem turma escolhida,
+   * e por um momento ele mandava o campo vazio. Vazio procura a trava
+   * `sem-turma`: o desfazer falhava com "não havia presença nesta aula" para
+   * um aluno que a tela mostrava presente. Agora a linha manda o `classId`
+   * da própria presença.
+   */
+  it('desfazer sem turma não apaga presença que tem turma', async () => {
+    await matricular(['seg-1930-mma']);
+    agora(SEGUNDA, '20:00');
+    await marcar('seg-1930-mma');
+
+    const semTurma = new FormData();
+    semTurma.set('studentId', aluno.id);
+    const falha = await adminActions.undoPresenceAction(semTurma);
+
+    expect(falha.ok).toBe(false);
+    expect(await attendance.countCheckins(aluno.id)).toBe(1);
+
+    // Com o id da turma da presença, apaga.
+    const comTurma = new FormData();
+    comTurma.set('studentId', aluno.id);
+    comTurma.set('classId', 'seg-1930-mma');
+    expect((await adminActions.undoPresenceAction(comTurma)).ok).toBe(true);
+    expect(await attendance.countCheckins(aluno.id)).toBe(0);
+  });
+
+  it('a presença sem turma é desfeita pelo campo vazio', async () => {
+    await matricular(['qui-0600-jj']);
+    agora(QUINTA, '10:00'); // fora de qualquer janela: grava sem turma
+
+    const marca = new FormData();
+    marca.set('studentId', aluno.id);
+    await adminActions.markPresenceAction(marca);
+    expect(await attendance.countCheckins(aluno.id)).toBe(1);
+
+    const desfaz = new FormData();
+    desfaz.set('studentId', aluno.id);
+    expect((await adminActions.undoPresenceAction(desfaz)).ok).toBe(true);
+    expect(await attendance.countCheckins(aluno.id)).toBe(0);
+  });
+
   it('recusa quando não há presença naquela aula', async () => {
     await matricular(['seg-1930-mma', 'seg-2030-jj']);
     agora(SEGUNDA, '21:00');

@@ -198,7 +198,14 @@ export function checkinInClass(
   return todays.get(userId)?.find((entry) => entry.classId === classId) ?? null;
 }
 
-/** `true` se o aluno tem ao menos uma presença hoje, em qualquer turma. */
+/**
+ * `true` se o aluno tem ao menos uma presença hoje, em **qualquer** turma.
+ *
+ * Granularidade de dia, de propósito: serve a quem pergunta "ele passou pela
+ * academia hoje?". Quem pergunta "ele fez esta aula?" usa
+ * {@link checkinInClass} — confundir as duas foi o que pintava o check verde
+ * na chamada da turma errada.
+ */
 export async function hasCheckedInToday(userId: string, now: Date): Promise<boolean> {
   const todays = await getTodayCheckins([userId], now);
   return (todays.get(userId)?.length ?? 0) > 0;

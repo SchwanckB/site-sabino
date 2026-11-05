@@ -123,6 +123,8 @@ export default async function PresencaPage({
         presentAt: entry ? saoPauloTimeString(entry.at) : null,
         presentSource: entry?.source ?? null,
         presentClass: entry?.classTitle ?? null,
+        presentClassId: entry?.classId ?? null,
+        openClassId: escolhida ? escolhida.id : (open[0]?.classId ?? null),
         elsewhere:
           entry === null && noutra
             ? `já marcou às ${saoPauloTimeString(noutra.at)}${noutra.classTitle ? ` em ${noutra.classTitle}` : ''}`

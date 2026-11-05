@@ -370,7 +370,21 @@ export interface PaymentPlanRecord {
 
 /** Resultado de uma tentativa de check-in. */
 export type CheckinResult =
-  | { readonly ok: true; readonly classTitle: string | null; readonly at: string }
+  | {
+      readonly ok: true;
+      /** Título da aula, ou os títulos juntos quando foi mais de uma. */
+      readonly classTitle: string | null;
+      readonly at: string;
+      /**
+       * Cada aula registrada nesta leitura do QR.
+       *
+       * É uma lista porque o aluno que faz MMA às 19:30 e fica para o Jiu das
+       * 20:30 marca as duas de uma vez, respondendo "sim" na pergunta do
+       * check-in. A tela de sucesso precisa confirmar as duas pelo nome — um
+       * "presença registrada" genérico deixaria dúvida sobre a segunda.
+       */
+      readonly classes: readonly { readonly title: string; readonly time: string }[];
+    }
   | {
       readonly ok: false;
       readonly reason:

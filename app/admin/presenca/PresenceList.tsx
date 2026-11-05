@@ -22,6 +22,21 @@ export interface PresenceRow {
   /** Turma a que a presença ficou vinculada. */
   readonly presentClass: string | null;
   /**
+   * Id da turma da presença, para o desfazer saber qual apagar.
+   *
+   * Sem ele, desfazer na visão geral procurava a trava `sem-turma` e devolvia
+   * "não havia presença nesta aula" para um aluno que a tela mostrava
+   * presente. `null` é legítimo: é a presença que ficou sem turma resolvida.
+   */
+  readonly presentClassId: string | null;
+  /**
+   * Turma do aluno aberta agora, se houver.
+   *
+   * Vai no formulário de marcar da visão geral para a presença nascer
+   * vinculada, em vez de depender da inferência pelo relógio lá dentro.
+   */
+  readonly openClassId: string | null;
+  /**
    * Presença de hoje em **outra** turma.
    *
    * Não marca esta chamada — presença é por aula realizada. Serve para o
@@ -340,8 +355,14 @@ export function PresenceList({
                   confirm={`Remover a presença de ${row.name}?`}
                 >
                   <input type="hidden" name="studentId" value={row.id} />
-                  {/* Qual presença some: o aluno pode ter outra em outra turma. */}
-                  {selected ? <input type="hidden" name="classId" value={selected.id} /> : null}
+                  {/*
+                    Qual presença some. Na chamada de uma turma é a dela; na
+                    visão geral é a turma da presença que a linha mostra — e
+                    não o campo vazio, que procuraria a trava `sem-turma`.
+                  */}
+                  {row.presentClassId ? (
+                    <input type="hidden" name="classId" value={row.presentClassId} />
+                  ) : null}
                   <SubmitButton className="btn-ghost text-xs" pendingLabel="…">
                     Desfazer
                   </SubmitButton>
@@ -349,7 +370,18 @@ export function PresenceList({
               ) : (
                 <ActionForm action={markPresenceAction} className="shrink-0">
                   <input type="hidden" name="studentId" value={row.id} />
-                  {selected ? <input type="hidden" name="classId" value={selected.id} /> : null}
+                  {/*
+                    Na visão geral vai a turma aberta do aluno: deixar em
+                    branco faria a presença nascer sem turma fora da janela, e
+                    presença sem turma some do relatório de frequência.
+                  */}
+                  {selected || row.openClassId ? (
+                    <input
+                      type="hidden"
+                      name="classId"
+                      value={selected ? selected.id : (row.openClassId ?? '')}
+                    />
+                  ) : null}
                   <SubmitButton className="btn-secondary text-xs" pendingLabel="…">
                     Marcar presente
                   </SubmitButton>
