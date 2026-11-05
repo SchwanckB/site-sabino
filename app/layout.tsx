@@ -38,6 +38,24 @@ export const metadata: Metadata = {
   publisher: siteConfig.legalName,
   formatDetection: { telephone: true, address: false, email: false },
   alternates: { canonical: '/' },
+
+  /*
+   * Atalho na tela de início do iPhone.
+   *
+   * `capable` abre o atalho em janela própria, sem a barra do Safari — é o que
+   * faz o painel parecer app e devolve a altura que a barra ocupava. O ícone
+   * vem de `app/apple-icon.png` pela convenção do App Router; o iOS não lê o
+   * manifesto para isso, e sem o arquivo ele desenha a inicial da URL num
+   * quadrado branco.
+   *
+   * `statusBarStyle` transparente deixa o fundo escuro do app subir até o
+   * relógio, em vez da faixa branca padrão.
+   */
+  appleWebApp: {
+    capable: true,
+    title: siteConfig.name,
+    statusBarStyle: 'black-translucent',
+  },
 };
 
 export const viewport: Viewport = {
