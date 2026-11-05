@@ -87,13 +87,22 @@ export function PresenceList({
   todayLabel,
   turmas,
   selected,
+  dia,
+  hoje,
+  minDate,
 }: {
   readonly rows: readonly PresenceRow[];
   readonly todayLabel: string;
   readonly turmas: readonly TurmaResumo[];
   /** Turma aberta para chamada, ou `null` na visão geral. */
   readonly selected: TurmaResumo | null;
+  /** Dia da chamada, `YYYY-MM-DD`. */
+  readonly dia: string;
+  readonly hoje: string;
+  /** Até onde o calendário deixa voltar. */
+  readonly minDate: string;
 }) {
+  const retroativo = dia !== hoje;
   const [filter, setFilter] = useState<Filter>(selected ? 'todos' : 'aula_agora');
   const [search, setSearch] = useState('');
   const [selecionados, setSelecionados] = useState<ReadonlySet<string>>(new Set());
@@ -174,13 +183,16 @@ export function PresenceList({
               {selected ? 'Trocar de turma' : 'Escolha a turma para fazer a chamada'}
             </p>
             {selected ? (
-              <Link href="/admin/presenca" className="btn-ghost text-xs">
+              <Link
+                href={retroativo ? `/admin/presenca?dia=${dia}` : '/admin/presenca'}
+                className="btn-ghost text-xs"
+              >
                 Ver a academia toda
               </Link>
             ) : null}
           </div>
 
-          <TurmaGrid turmas={deHoje} selected={selected} />
+          <TurmaGrid turmas={deHoje} selected={selected} dia={retroativo ? dia : null} />
 
           {deOutroDia.length > 0 ? (
             <details className="mt-3 group">
@@ -189,11 +201,55 @@ export function PresenceList({
                 semana
               </summary>
               <div className="mt-2">
-                <TurmaGrid turmas={deOutroDia} selected={selected} />
+                <TurmaGrid turmas={deOutroDia} selected={selected} dia={retroativo ? dia : null} />
               </div>
             </details>
           ) : null}
         </div>
+      ) : null}
+
+      {/*
+        O dia da chamada.
+
+        A presença lançada na hora é o caso comum, e por isso o seletor fica
+        discreto. Mas a chamada esquecida é o que mais some do sistema: a turma
+        da manhã que o professor lembra à tarde, ou no dia seguinte. Sem este
+        campo ela não tinha como entrar — a data saía sempre do relógio.
+      */}
+      <form method="get" className="mt-4 flex flex-wrap items-end gap-3">
+        {selected ? <input type="hidden" name="turma" value={selected.id} /> : null}
+
+        <label className="text-xs text-muted">
+          <span className="block">Dia da chamada</span>
+          <input
+            type="date"
+            name="dia"
+            defaultValue={dia}
+            max={hoje}
+            min={minDate}
+            className="mt-1 min-h-[44px] rounded-xl border border-hairline bg-white/[.04] px-3 text-sm text-foreground focus:border-crimson focus:outline-none"
+          />
+        </label>
+
+        <button type="submit" className="btn-secondary text-xs">
+          Ver este dia
+        </button>
+
+        {retroativo ? (
+          <Link
+            href={selected ? `/admin/presenca?turma=${selected.id}` : '/admin/presenca'}
+            className="btn-ghost text-xs"
+          >
+            Voltar para hoje
+          </Link>
+        ) : null}
+      </form>
+
+      {retroativo ? (
+        <p role="status" className="notice-warn mt-3 text-xs leading-relaxed">
+          Chamada de <strong className="text-foreground">{todayLabel}</strong>, não de hoje. A
+          presença entra com a data e o horário daquele treino.
+        </p>
       ) : null}
 
       {/* Chamada da turma escolhida ------------------------------------- */}
@@ -257,6 +313,7 @@ export function PresenceList({
         <ActionForm action={markPresenceBatchAction} className="mt-5">
           {/* A turma vai junto: é ela que tira a presença da dependência do relógio. */}
           {selected ? <input type="hidden" name="classId" value={selected.id} /> : null}
+          {retroativo ? <input type="hidden" name="date" value={dia} /> : null}
 
           <div className="panel flex flex-wrap items-center justify-between gap-4 p-4">
             <label className="flex min-h-[44px] cursor-pointer items-center gap-3 text-sm">
@@ -363,6 +420,7 @@ export function PresenceList({
                   {row.presentClassId ? (
                     <input type="hidden" name="classId" value={row.presentClassId} />
                   ) : null}
+                  {retroativo ? <input type="hidden" name="date" value={dia} /> : null}
                   <SubmitButton className="btn-ghost text-xs" pendingLabel="…">
                     Desfazer
                   </SubmitButton>
@@ -382,6 +440,7 @@ export function PresenceList({
                       value={selected ? selected.id : (row.openClassId ?? '')}
                     />
                   ) : null}
+                  {retroativo ? <input type="hidden" name="date" value={dia} /> : null}
                   <SubmitButton className="btn-secondary text-xs" pendingLabel="…">
                     Marcar presente
                   </SubmitButton>
@@ -399,10 +458,15 @@ export function PresenceList({
 function TurmaGrid({
   turmas,
   selected,
+  dia,
 }: {
   readonly turmas: readonly TurmaResumo[];
   readonly selected: TurmaResumo | null;
+  /** Dia da chamada, quando não é hoje — preservado ao trocar de turma. */
+  readonly dia: string | null;
 }) {
+  const comDia = (href: string): string =>
+    dia ? `${href}${href.includes('?') ? '&' : '?'}dia=${dia}` : href;
   if (turmas.length === 0) {
     return <p className="mt-2 text-sm text-muted">Nenhuma turma com aluno matriculado hoje.</p>;
   }
@@ -416,7 +480,7 @@ function TurmaGrid({
         return (
           <li key={turma.id} className="min-w-0">
             <Link
-              href={ativa ? '/admin/presenca' : `/admin/presenca?turma=${turma.id}`}
+              href={comDia(ativa ? '/admin/presenca' : `/admin/presenca?turma=${turma.id}`)}
               aria-current={ativa ? 'true' : undefined}
               className={cn(
                 'block min-w-0 rounded-xl border p-3 transition-colors',

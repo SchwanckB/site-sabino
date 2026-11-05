@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { PageHeader } from '@/components/app/PageHeader';
 
 import { requirePermission } from '@/lib/auth';
-import { checkinInClass, getTodayCheckins } from '@/lib/repositories/attendance';
+import { checkinInClass, getCheckinsOn } from '@/lib/repositories/attendance';
 import { listStudentsByStatus } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
 import { filterByUnit } from '@/types/domain';
@@ -11,7 +11,7 @@ import { getEffectiveSchedule } from '@/lib/schedule';
 import { weekdayLabels, weekdayShortLabels, type Weekday } from '@/data/seed';
 import { findOpenClasses, occursOnDate } from '@/utils/attendanceEngine';
 import { recurringOnly } from '@/utils/classOverrides';
-import { saoPauloDateString, saoPauloParts, saoPauloTimeString } from '@/utils/datetime';
+import { addDays, formatBr, saoPauloDateString, saoPauloTimeString } from '@/utils/datetime';
 
 import { PresenceList, type PresenceRow, type TurmaResumo } from './PresenceList';
 
@@ -21,12 +21,30 @@ export const dynamic = 'force-dynamic';
 export default async function PresencaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ turma?: string }>;
+  searchParams: Promise<{ turma?: string; dia?: string }>;
 }) {
   await requirePermission('aula');
 
   const now = new Date();
   const hoje = saoPauloDateString(now);
+
+  const { turma: turmaParam, dia: diaParam } = await searchParams;
+
+  /*
+   * O dia da chamada.
+   *
+   * Quase sempre hoje. O passado existe para a chamada que ninguém lançou na
+   * hora — a turma da manhã lembrada à tarde, ou no dia seguinte. Futuro não:
+   * presença é registro do que aconteceu, e uma data à frente só entra por
+   * engano de digitação. Até 60 dias atrás, que é o alcance da trava que
+   * impede lançar a mesma chamada duas vezes.
+   */
+  const limite = addDays(hoje, -60);
+  const dia =
+    diaParam && /^\d{4}-\d{2}-\d{2}$/.test(diaParam) && diaParam <= hoje && diaParam >= limite
+      ? diaParam
+      : hoje;
+  const retroativo = dia !== hoje;
 
   const scope = await getUnitScope();
 
@@ -39,14 +57,20 @@ export default async function PresencaPage({
   const students = filterByUnit(todos, scope);
   const classes = filterByUnit(schedule.classes, scope);
 
-  const checkins = await getTodayCheckins(
+  const checkins = await getCheckinsOn(
     students.map((student) => student.id),
-    now,
+    dia,
   );
 
-  const abertas = new Set(
-    findOpenClasses(classes, classes.map((slot) => slot.id), now).map((slot) => slot.classId),
-  );
+  // "Acontecendo agora" só faz sentido hoje. Numa chamada retroativa a marca
+  // seria sobre o relógio de agora, não sobre o dia que está sendo lançado.
+  const abertas = retroativo
+    ? new Set<string>()
+    : new Set(
+        findOpenClasses(classes, classes.map((slot) => slot.id), now).map(
+          (slot) => slot.classId,
+        ),
+      );
 
   /*
    * Turmas selecionáveis.
@@ -56,7 +80,7 @@ export default async function PresencaPage({
    * marca de "acontece hoje", que chega pelo id.
    */
   const doDia = new Set(
-    classes.filter((slot) => occursOnDate(slot, hoje)).map((slot) => slot.id),
+    classes.filter((slot) => occursOnDate(slot, dia)).map((slot) => slot.id),
   );
 
   const turmas: TurmaResumo[] = recurringOnly(classes)
@@ -84,7 +108,6 @@ export default async function PresencaPage({
       return a.label.localeCompare(b.label, 'pt-BR');
     });
 
-  const { turma: turmaParam } = await searchParams;
   const escolhida = turmas.find((item) => item.id === turmaParam) ?? null;
 
   /*
@@ -105,7 +128,7 @@ export default async function PresencaPage({
         ? checkinInClass(checkins, student.id, escolhida.id)
         : (doDiaDele[0] ?? null);
 
-      const open = findOpenClasses(classes, student.classIds, now);
+      const open = retroativo ? [] : findOpenClasses(classes, student.classIds, now);
 
       // Presença de hoje em outra turma: não marca esta chamada, mas explica
       // o aluno que já passou pela academia mais cedo.
@@ -134,8 +157,7 @@ export default async function PresencaPage({
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
-  const { day, month, year } = saoPauloParts(now);
-  const todayLabel = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+  const todayLabel = formatBr(dia);
 
   return (
     <div className="page-stack">
@@ -155,6 +177,9 @@ export default async function PresencaPage({
             todayLabel={todayLabel}
             turmas={turmas}
             selected={escolhida}
+            dia={dia}
+            hoje={hoje}
+            minDate={limite}
           />
         </div>
       )}

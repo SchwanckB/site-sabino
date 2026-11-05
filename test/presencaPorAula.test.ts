@@ -295,8 +295,10 @@ describe('desfazer acerta a presença certa', () => {
   });
 
   it('a presença sem turma é desfeita pelo campo vazio', async () => {
-    await matricular(['qui-0600-jj']);
-    agora(QUINTA, '10:00'); // fora de qualquer janela: grava sem turma
+    // Duas aulas no dia e nenhuma janela aberta: aí sim o servidor não tem
+    // como escolher, e a presença nasce sem turma.
+    await matricular(['seg-1930-mma', 'seg-2030-jj']);
+    agora(SEGUNDA, '23:00');
 
     const marca = new FormData();
     marca.set('studentId', aluno.id);
@@ -359,7 +361,12 @@ describe('chamada depois do horário', () => {
     expect(historico[0]?.source).toBe('lote');
   });
 
-  it('sem turma escolhida e fora da janela, a presença fica sem turma', async () => {
+  /*
+   * Sem turma escolhida e fora da janela, a aula sai da ficha do aluno. Este
+   * caso já gravou `classId: null` — o registro órfão que o relatório de
+   * frequência não conta. Com uma turma só no dia, não há o que adivinhar.
+   */
+  it('sem turma escolhida e fora da janela, usa a turma do aluno naquele dia', async () => {
     await matricular(['qui-0600-jj']);
     agora(QUINTA, '10:00');
 
@@ -369,10 +376,8 @@ describe('chamada depois do horário', () => {
 
     expect(result.ok).toBe(true);
 
-    // É o registro órfão que o relatório de frequência não conta. Documentado
-    // aqui para que a diferença entre os dois caminhos fique visível.
     const historico = await attendance.listCheckins(aluno.id, 5);
-    expect(historico[0]?.classId).toBeNull();
+    expect(historico[0]?.classId).toBe('qui-0600-jj');
   });
 
   it('turma que não existe na grade é recusada', async () => {
@@ -386,5 +391,162 @@ describe('chamada depois do horário', () => {
     const result = await adminActions.markPresenceBatchAction(form);
     expect(result.ok).toBe(false);
     expect(await attendance.countCheckins(aluno.id)).toBe(0);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Chamada atrasada, unidade e turma inferida pela ficha                      */
+/* -------------------------------------------------------------------------- */
+
+describe('chamada de um dia passado', () => {
+  /*
+   * O buraco que faltava: até aqui a data saía sempre do relógio, então a
+   * chamada lembrada no dia seguinte não tinha como entrar — e o dia do
+   * treino ficava vazio para sempre.
+   */
+  it('lança a presença de ontem com a data e o horário daquele treino', async () => {
+    await matricular(['seg-1930-mma']);
+    agora('2026-03-03', '09:00'); // terça de manhã, lançando a segunda
+
+    const form = new FormData();
+    form.append('studentIds', aluno.id);
+    form.set('classId', 'seg-1930-mma');
+    form.set('date', SEGUNDA);
+
+    expect((await adminActions.markPresenceBatchAction(form)).ok).toBe(true);
+
+    const historico = await attendance.listCheckins(aluno.id, 5);
+    expect(historico[0]?.date).toBe(SEGUNDA);
+    expect(historico[0]?.classId).toBe('seg-1930-mma');
+    // O instante cai dentro da segunda, no horário da aula.
+    expect(attendance.checkinInClass(
+      await attendance.getCheckinsOn([aluno.id], SEGUNDA),
+      aluno.id,
+      'seg-1930-mma',
+    )).not.toBeNull();
+  });
+
+  it('a presença de ontem não aparece na chamada de hoje', async () => {
+    await matricular(['seg-1930-mma']);
+    agora('2026-03-03', '09:00');
+
+    const form = new FormData();
+    form.append('studentIds', aluno.id);
+    form.set('classId', 'seg-1930-mma');
+    form.set('date', SEGUNDA);
+    await adminActions.markPresenceBatchAction(form);
+
+    const hoje = await attendance.getCheckinsOn([aluno.id], '2026-03-03');
+    expect(hoje.get(aluno.id) ?? []).toEqual([]);
+  });
+
+  it('não lança a mesma chamada atrasada duas vezes', async () => {
+    await matricular(['seg-1930-mma']);
+    agora('2026-03-03', '09:00');
+
+    const envio = () => {
+      const form = new FormData();
+      form.append('studentIds', aluno.id);
+      form.set('classId', 'seg-1930-mma');
+      form.set('date', SEGUNDA);
+      return adminActions.markPresenceBatchAction(form);
+    };
+
+    expect((await envio()).ok).toBe(true);
+    expect((await envio()).ok).toBe(false);
+    expect(await attendance.countCheckins(aluno.id)).toBe(1);
+  });
+
+  it('recusa data no futuro — é dedo errado no calendário, não chamada', async () => {
+    await matricular(['seg-1930-mma']);
+    agora(SEGUNDA, '20:00');
+
+    const form = new FormData();
+    form.set('studentId', aluno.id);
+    form.set('classId', 'seg-1930-mma');
+    form.set('date', '2026-03-09');
+
+    const result = await adminActions.markPresenceAction(form);
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('Data inválida');
+    expect(await attendance.countCheckins(aluno.id)).toBe(0);
+  });
+});
+
+describe('turma inferida pela ficha do aluno', () => {
+  /*
+   * Fora de qualquer janela e sem turma escolhida, a presença caía com
+   * `classId: null` — conta no total e no ranking, mas some do relatório de
+   * frequência. Tendo o aluno uma única turma naquele dia, não há o que
+   * adivinhar.
+   */
+  it('fora da janela, usa a única turma do aluno naquele dia', async () => {
+    await matricular(['qui-0600-jj']);
+    agora(QUINTA, '10:00');
+
+    const form = new FormData();
+    form.set('studentId', aluno.id);
+    expect((await adminActions.markPresenceAction(form)).ok).toBe(true);
+
+    const historico = await attendance.listCheckins(aluno.id, 5);
+    expect(historico[0]?.classId).toBe('qui-0600-jj');
+    expect(historico[0]?.classTitle).toBe('Jiu-Jitsu');
+  });
+
+  it('com duas turmas no mesmo dia, não chuta: fica sem turma', async () => {
+    await matricular(['seg-1930-mma', 'seg-2030-jj']);
+    agora(SEGUNDA, '23:00'); // depois de as duas janelas fecharem
+
+    const form = new FormData();
+    form.set('studentId', aluno.id);
+    expect((await adminActions.markPresenceAction(form)).ok).toBe(true);
+
+    const historico = await attendance.listCheckins(aluno.id, 5);
+    expect(historico[0]?.classId).toBeNull();
+  });
+
+  it('num dia sem aula dele, continua sem turma', async () => {
+    await matricular(['seg-1930-mma']);
+    agora('2026-03-07', '10:00'); // sábado
+
+    const form = new FormData();
+    form.set('studentId', aluno.id);
+    await adminActions.markPresenceAction(form);
+
+    const historico = await attendance.listCheckins(aluno.id, 5);
+    expect(historico[0]?.classId).toBeNull();
+  });
+});
+
+describe('aluno de outra academia', () => {
+  /*
+   * `markPresenceInClassAction` já recusava, o caminho em lote não. As duas
+   * gravam a mesma coisa, e uma trava que vale num botão e não no outro é uma
+   * trava que não existe.
+   */
+  it('não entra na turma da outra unidade, nem em lote', async () => {
+    await matricular(['seg-1930-mma']);
+    agora(SEGUNDA, '20:00');
+
+    const form = new FormData();
+    form.append('studentIds', aluno.id);
+    form.set('classId', 'terra-de-areia-1-2030-jj');
+
+    const result = await adminActions.markPresenceBatchAction(form);
+    expect(result.ok).toBe(false);
+    expect(await attendance.countCheckins(aluno.id)).toBe(0);
+  });
+
+  it('a mensagem individual explica o que fazer', async () => {
+    await matricular(['seg-1930-mma']);
+    agora(SEGUNDA, '20:00');
+
+    const form = new FormData();
+    form.set('studentId', aluno.id);
+    form.set('classId', 'terra-de-areia-1-2030-jj');
+
+    const result = await adminActions.markPresenceAction(form);
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('outra academia');
   });
 });

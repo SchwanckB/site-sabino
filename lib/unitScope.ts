@@ -16,20 +16,36 @@ import { toUnitScope, type UnitScope } from '@/types/domain';
  * permissão. Quem pode ver o painel já passou por `requireAdmin()`.
  */
 
-const COOKIE = 'sabino_unidade';
+/*
+ * O prefixo `__Host-` é uma trava que o navegador impõe, não o servidor: ele
+ * só aceita o cookie se vier por HTTPS, com `path=/` e **sem** `Domain`. Isso
+ * impede que um subdomínio qualquer da academia — um painel de terceiro, um
+ * site de evento — grave um cookie que o painel principal depois leria.
+ *
+ * Em desenvolvimento o prefixo não vale (não há HTTPS), e o nome sem prefixo é
+ * usado. São nomes diferentes, então a leitura tenta os dois: um cookie
+ * gravado antes desta mudança continua valendo até o professor trocar de
+ * unidade uma vez.
+ */
+const COOKIE_SEGURO = '__Host-sabino_unidade';
+const COOKIE_SIMPLES = 'sabino_unidade';
 const UM_ANO = 60 * 60 * 24 * 365;
+
+const emProducao = (): boolean => process.env.NODE_ENV === 'production';
+const nomeDoCookie = (): string => (emProducao() ? COOKIE_SEGURO : COOKIE_SIMPLES);
 
 export async function getUnitScope(): Promise<UnitScope> {
   const store = await cookies();
-  return toUnitScope(store.get(COOKIE)?.value);
+  const valor = store.get(nomeDoCookie())?.value ?? store.get(COOKIE_SIMPLES)?.value;
+  return toUnitScope(valor);
 }
 
 export async function setUnitScope(scope: UnitScope): Promise<void> {
   const store = await cookies();
-  store.set(COOKIE, scope, {
+  store.set(nomeDoCookie(), scope, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: emProducao(),
     path: '/',
     maxAge: UM_ANO,
   });

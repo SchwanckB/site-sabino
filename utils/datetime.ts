@@ -154,6 +154,43 @@ export function saoPauloDayRange(now: Date): { readonly start: number; readonly 
   return { start, end: start + 24 * 60 * 60 * 1000 };
 }
 
+/**
+ * Faixa de instantes de uma data civil (`YYYY-MM-DD`), em epoch ms.
+ *
+ * Irmã de {@link saoPauloDayRange}, para quando o dia vem escolhido e não do
+ * relógio — a chamada lançada no dia seguinte. O fuso entra escrito no literal
+ * em vez de somado à mão: São Paulo não tem horário de verão desde 2019, e um
+ * `-03:00` explícito é mais difícil de errar que três horas em milissegundos.
+ */
+export function saoPauloDayRangeOf(
+  civilDate: string,
+): { readonly start: number; readonly end: number } {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(civilDate)) {
+    throw new RangeError(`Data inválida: ${civilDate}`);
+  }
+
+  const start = new Date(`${civilDate}T00:00:00-03:00`).getTime();
+  return { start, end: start + 24 * 60 * 60 * 1000 };
+}
+
+/**
+ * Instante de uma data civil num horário do relógio da academia.
+ *
+ * Usado para datar uma presença lançada depois: a chamada de ontem às 20:30
+ * precisa de um instante **dentro de ontem**, senão ela cairia na faixa do dia
+ * em que foi digitada e apareceria na chamada de hoje.
+ */
+export function saoPauloInstant(civilDate: string, time: string): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(civilDate)) {
+    throw new RangeError(`Data inválida: ${civilDate}`);
+  }
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+    throw new RangeError(`Horário inválido: ${time}`);
+  }
+
+  return new Date(`${civilDate}T${time}:00-03:00`);
+}
+
 /** Segundos até a próxima meia-noite de São Paulo — TTL da trava de check-in. */
 export function secondsUntilSaoPauloMidnight(now: Date): number {
   // Segundos são iguais em qualquer fuso de offset inteiro, como o de São Paulo.

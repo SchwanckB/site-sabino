@@ -61,7 +61,7 @@ import {
   type PaymentMethod,
   type UserStatus,
 } from '@/types/domain';
-import { findOpenClasses } from '@/utils/attendanceEngine';
+import { findOpenClasses, occursOnDate } from '@/utils/attendanceEngine';
 import { formatBr, saoPauloDateString } from '@/utils/datetime';
 import { KIDS_TOTAL_DEGREES } from '@/utils/graduationEngine';
 import {
@@ -856,7 +856,9 @@ type PresenceOutcome =
   | 'nao_encontrado'
   | 'inativo'
   | 'sem_banco'
-  | 'turma_invalida';
+  | 'turma_invalida'
+  | 'outra_unidade'
+  | 'data_invalida';
 
 async function markPresent(
   student: Awaited<ReturnType<typeof getStudent>>,
@@ -873,9 +875,17 @@ async function markPresent(
    * Chamada feita depois do horário caía sempre nesse buraco.
    */
   chosenClassId?: string | null,
+  /** Dia do treino, quando a chamada está sendo lançada depois. */
+  onDate?: string | null,
 ): Promise<PresenceOutcome> {
   if (!student) return 'nao_encontrado';
   if (student.status !== 'ativo') return 'inativo';
+
+  const hoje = saoPauloDateString(now);
+  const dia = onDate && onDate.length > 0 ? onDate : hoje;
+
+  // Data do futuro não é chamada atrasada, é dedo errado no calendário.
+  if (!DATE_ONLY.test(dia) || dia > hoje) return 'data_invalida';
 
   const escolhida =
     chosenClassId && chosenClassId.length > 0
@@ -884,19 +894,56 @@ async function markPresent(
 
   if (chosenClassId && chosenClassId.length > 0 && !escolhida) return 'turma_invalida';
 
-  // Sem turma escolhida, a aula sai do horário: se houver turma do aluno na
-  // janela agora, a presença fica vinculada a ela.
-  const inferida = escolhida
-    ? null
-    : (findOpenClasses(schedule.classes, student.classIds, now)[0] ?? null);
+  /*
+   * Aluno de outra academia na turma desta.
+   *
+   * `markPresenceInClassAction` já recusava; o caminho em lote não, e as duas
+   * gravam a mesma coisa. Uma trava que vale num botão e não no outro é uma
+   * trava que não existe.
+   */
+  if (escolhida && escolhida.unit !== student.unit) return 'outra_unidade';
+
+  /*
+   * Sem turma escolhida, a aula sai do horário — e, fora de qualquer janela,
+   * da grade do próprio aluno naquele dia.
+   *
+   * O segundo passo entrou porque o primeiro deixava um buraco: chamada
+   * lançada depois do treino gravava `classId: null`, e presença sem turma
+   * conta no total e no ranking mas some do relatório de frequência. Se o
+   * aluno tem **uma** turma naquele dia, não há o que adivinhar. Tendo duas,
+   * continua nulo: chutar entre elas seria pior que deixar em branco.
+   */
+  let inferida: { readonly id: string; readonly title: string; readonly startTime: string } | null =
+    null;
+
+  if (!escolhida) {
+    const aberta = dia === hoje ? findOpenClasses(schedule.classes, student.classIds, now)[0] : null;
+
+    if (aberta) {
+      inferida = { id: aberta.classId, title: aberta.title, startTime: aberta.startTime };
+    } else {
+      const doDia = schedule.classes.filter(
+        (slot) => student.classIds.includes(slot.id) && occursOnDate(slot, dia),
+      );
+      const unica = doDia.length === 1 ? doDia[0] : null;
+      if (unica) {
+        inferida = { id: unica.id, title: unica.title, startTime: unica.startTime };
+      }
+    }
+  }
+
+  const turma = escolhida ?? inferida;
 
   const result = await recordCheckin(
     {
       student,
-      classId: escolhida?.id ?? inferida?.classId ?? null,
-      classTitle: escolhida?.title ?? inferida?.title ?? null,
+      classId: turma?.id ?? null,
+      classTitle: turma?.title ?? null,
       source,
       registeredBy: adminId,
+      ...(dia !== hoje
+        ? { onDate: dia, onTime: turma?.startTime ?? '12:00' }
+        : {}),
     },
     now,
   );
@@ -913,6 +960,13 @@ function presenceMessage(outcome: PresenceOutcome): ActionResult {
       return { ok: false, message: 'Este aluno já tem presença nesta aula hoje.' };
     case 'turma_invalida':
       return { ok: false, message: 'Turma não encontrada na grade.' };
+    case 'outra_unidade':
+      return {
+        ok: false,
+        message: 'Este aluno é de outra academia. Troque a unidade na ficha dele antes.',
+      };
+    case 'data_invalida':
+      return { ok: false, message: 'Data inválida. A chamada é de hoje ou de um dia passado.' };
     case 'inativo':
       return { ok: false, message: 'Aluno não está ativo.' };
     case 'sem_banco':
@@ -944,6 +998,7 @@ export async function markPresenceAction(form: FormData): Promise<ActionResult> 
     schedule,
     now,
     text(form, 'classId') || null,
+    text(form, 'date') || null,
   );
 
   refreshAdmin();
@@ -975,6 +1030,7 @@ export async function markPresenceBatchAction(form: FormData): Promise<ActionRes
   }
 
   const classId = text(form, 'classId') || null;
+  const onDate = text(form, 'date') || null;
 
   const now = new Date();
   const [students, schedule] = await Promise.all([getStudents(ids), getEffectiveSchedule(now)]);
@@ -993,6 +1049,7 @@ export async function markPresenceBatchAction(form: FormData): Promise<ActionRes
       schedule,
       now,
       classId,
+      onDate,
     );
     if (outcome === 'ok') registered += 1;
     else if (outcome === 'ja_registrado') already += 1;

@@ -6,7 +6,8 @@ import type { CheckinEntry, CheckinSource, StudentRecord } from '@/types/domain'
 import {
   saoPauloDateString,
   saoPauloDayRange,
-  saoPauloMonthString,
+  saoPauloDayRangeOf,
+  saoPauloInstant,
   secondsUntilSaoPauloMidnight,
 } from '@/utils/datetime';
 
@@ -35,6 +36,22 @@ export interface RecordCheckinInput {
   readonly classTitle: string | null;
   readonly source: CheckinSource;
   readonly registeredBy: string;
+  /**
+   * Dia da presença (`YYYY-MM-DD`), quando não é hoje.
+   *
+   * A chamada atrasada é o caso: o professor lembra na quinta que a turma da
+   * manhã de quarta não foi lançada. Sem isto a presença entrava com a data em
+   * que foi digitada, e o dia do treino ficava vazio para sempre.
+   */
+  readonly onDate?: string;
+  /**
+   * Horário do treino (`HH:mm`) na data retroativa — o início da turma.
+   *
+   * O instante gravado precisa cair **dentro** daquele dia: as presenças do
+   * dia são lidas por faixa de epoch no histórico, e um `at` de hoje colado
+   * numa data de ontem faria a presença de ontem aparecer na chamada de hoje.
+   */
+  readonly onTime?: string;
 }
 
 export type RecordCheckinOutcome =
@@ -53,9 +70,15 @@ export async function recordCheckin(
   if (!redis) return { ok: false, reason: 'sem_banco' };
 
   const { student } = input;
-  const date = saoPauloDateString(now);
-  const month = saoPauloMonthString(now);
-  const timestamp = now.toISOString();
+  const hoje = saoPauloDateString(now);
+
+  // Presença retroativa: a data e o instante vêm do treino, não do relógio.
+  const retroativa = input.onDate !== undefined && input.onDate !== hoje;
+  const date = retroativa && input.onDate ? input.onDate : hoje;
+  const quando = retroativa ? saoPauloInstant(date, input.onTime ?? '12:00') : now;
+
+  const month = date.slice(0, 7);
+  const timestamp = quando.toISOString();
 
   const entry: CheckinEntry = {
     at: timestamp,
@@ -66,11 +89,22 @@ export async function recordCheckin(
     registeredBy: input.registeredBy,
   };
 
-  // Trava atômica da aula: se já existe, nada mais acontece.
+  /*
+   * Trava atômica da aula: se já existe, nada mais acontece.
+   *
+   * A de hoje morre na virada do dia — depois disso a presença já está no
+   * histórico e é de lá que as telas leem. A de uma data passada precisa durar
+   * mais: ela é o que impede o professor de lançar a mesma chamada atrasada
+   * duas vezes, e isso não pode valer só até meia-noite.
+   */
+  const ttl = retroativa
+    ? 60 * 60 * 24 * 60
+    : secondsUntilSaoPauloMidnight(now) + 3600;
+
   const acquired = await redis.set(
     redisKeys.checkinLock(student.id, date, input.classId),
     JSON.stringify(entry),
-    { nx: true, ex: secondsUntilSaoPauloMidnight(now) + 3600 },
+    { nx: true, ex: ttl },
   );
 
   if (acquired === null) {
@@ -81,7 +115,7 @@ export async function recordCheckin(
 
   const tx = redis.multi();
   tx.zadd(redisKeys.checkins(student.id), {
-    score: now.getTime(),
+    score: quando.getTime(),
     member: JSON.stringify(entry),
   });
   tx.zincrby(redisKeys.rankAll(), 1, student.id);
@@ -151,11 +185,31 @@ export async function getTodayCheckins(
   userIds: readonly string[],
   now: Date,
 ): Promise<Map<string, CheckinEntry[]>> {
+  return readCheckinsInRange(userIds, saoPauloDayRange(now));
+}
+
+/**
+ * As presenças de uma data civil, por aluno.
+ *
+ * Mesma leitura de {@link getTodayCheckins} com o dia escolhido à mão — é o
+ * que permite ao professor abrir a chamada de ontem.
+ */
+export async function getCheckinsOn(
+  userIds: readonly string[],
+  civilDate: string,
+): Promise<Map<string, CheckinEntry[]>> {
+  return readCheckinsInRange(userIds, saoPauloDayRangeOf(civilDate));
+}
+
+async function readCheckinsInRange(
+  userIds: readonly string[],
+  range: { readonly start: number; readonly end: number },
+): Promise<Map<string, CheckinEntry[]>> {
   const redis = getRedis();
   const present = new Map<string, CheckinEntry[]>();
   if (!redis || userIds.length === 0) return present;
 
-  const { start, end } = saoPauloDayRange(now);
+  const { start, end } = range;
 
   const pipeline = redis.pipeline();
   for (const id of userIds) {

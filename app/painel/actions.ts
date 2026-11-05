@@ -230,6 +230,22 @@ export async function checkinAction(
 ): Promise<CheckinResult> {
   const user = await requireUser();
 
+  /*
+   * Teto de gravações por aluno.
+   *
+   * `listCheckinOptions` já tinha o dele, e esta não — mas é esta que escreve.
+   * Server Action é endpoint HTTP: sem teto, um laço contra ela consome o
+   * Redis da academia inteira de graça, e a trava por turma não ajuda porque
+   * cada tentativa recusada custa a leitura da grade do mesmo jeito.
+   *
+   * Vinte em cinco minutos: o aluno de duas aulas usa duas, e quem erra o QR
+   * várias vezes na porta ainda cabe folgado.
+   */
+  const quota = await consumeRateLimit('checkin:registrar', user.id, 20, 300);
+  if (!quota.allowed) {
+    return { ok: false, reason: 'erro', message: rateLimitMessage(quota.retryAfter) };
+  }
+
   const student = await getStudent(user.id);
   if (!student) {
     return { ok: false, reason: 'erro', message: 'Cadastro não encontrado.' };
