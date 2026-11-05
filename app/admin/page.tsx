@@ -85,6 +85,15 @@ export default async function AdminPage() {
   );
   const porAluno = new Map(historicos.map((h) => [h.id, h.entries]));
 
+  /*
+   * Graus liberados **nesta academia**.
+   *
+   * `dueIds` é o índice da rede inteira; o recorte de unidade vale para o
+   * número na faixa de indicadores como vale para todo o resto da tela.
+   */
+  const ativosNoRecorte = new Set(ids);
+  const grausLiberados = dueIds.filter((id) => ativosNoRecorte.has(id)).length;
+
   const retornos = await listFollowups('retorno');
 
   /**
@@ -306,7 +315,7 @@ export default async function AdminPage() {
           </p>
         </div>
       ) : (
-        <Dashboards rows={rows} showMoney={verDinheiro} />
+        <Dashboards rows={rows} showMoney={verDinheiro} dueGraduations={grausLiberados} />
       )}
     </div>
   );

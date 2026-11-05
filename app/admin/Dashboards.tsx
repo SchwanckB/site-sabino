@@ -59,6 +59,7 @@ const DIAS_SUMIDO = 21;
 export function Dashboards({
   rows,
   showMoney,
+  dueGraduations,
 }: {
   readonly rows: readonly DashboardRow[];
   /**
@@ -69,6 +70,14 @@ export function Dashboards({
    * em cima de dado que não foi lido seria pior que não mostrar nada.
    */
   readonly showMoney: boolean;
+  /**
+   * Alunos desta academia com grau liberado.
+   *
+   * Ocupa, na faixa do professor, o espaço das duas caixas de dinheiro que
+   * saíram. Não é enchimento: graduação é a única coisa da tela que acumula
+   * sozinha e some se ninguém olhar — o aluno não cobra o grau dele.
+   */
+  readonly dueGraduations: number;
 }) {
   const [recorte, setRecorte] = useState<Recorte>('todos');
   const [sexo, setSexo] = useState<Sexo>('todos');
@@ -149,11 +158,30 @@ export function Dashboards({
             />
           </>
         ) : (
-          <Stat
-            label="Treinando hoje"
-            value={String(filtrados.filter((r) => r.checkins30 > 0).length)}
-            hint="com treino nos últimos 30 dias"
-          />
+          /*
+            A faixa tem quatro colunas. Tirando as duas de dinheiro do
+            professor sobrava uma célula vazia — e célula vazia numa faixa
+            dividida por réguas lê-se como número que não carregou.
+          */
+          <>
+            <Stat
+              label="Treinando"
+              value={String(filtrados.filter((r) => r.checkins30 > 0).length)}
+              hint={`de ${filtrados.length} nos últimos 30 dias`}
+              tone={
+                filtrados.length > 0 &&
+                filtrados.filter((r) => r.checkins30 > 0).length / filtrados.length >= 0.7
+                  ? 'bom'
+                  : 'neutro'
+              }
+            />
+            <Stat
+              label="Graus liberados"
+              value={String(dueGraduations)}
+              hint={dueGraduations > 0 ? 'esperando a cerimônia' : 'ninguém no prazo'}
+              tone={dueGraduations > 0 ? 'destaque' : 'neutro'}
+            />
+          </>
         )}
         <Stat
           label="Treinos / 30d"

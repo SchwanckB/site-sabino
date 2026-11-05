@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 import { PageHeader } from '@/components/app/PageHeader';
 
@@ -161,7 +162,15 @@ export default async function PresencaPage({
 
   return (
     <div className="page-stack">
-      <PageHeader title="Presença" />
+      <PageHeader
+        title="Presença"
+        meta="Depois do treino: acertar a chamada de qualquer turma e de qualquer dia."
+        actions={
+          <Link href="/admin/aula" className="btn-secondary text-sm">
+            Abrir o modo aula
+          </Link>
+        }
+      />
 
       {students.length === 0 ? (
         <div className="panel px-6 py-16 text-center">

@@ -79,7 +79,10 @@ export default async function AulaPage({
   if (!escolhida) {
     return (
       <div className="page-stack">
-        <PageHeader title="Modo aula" />
+        <PageHeader
+          title="Modo aula"
+          meta="Durante o treino: cronômetro, chamada e diário da aula."
+        />
         <div className="panel px-5 py-10 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Nenhuma aula para abrir</p>
           <p className="mt-2 text-sm text-muted">
@@ -211,7 +214,15 @@ export default async function AulaPage({
 
   return (
     <div className="page-stack">
-      <PageHeader title="Modo aula" />
+      <PageHeader
+        title="Modo aula"
+        meta="Durante o treino: cronômetro, chamada e diário da aula."
+        actions={
+          <Link href="/admin/presenca" className="btn-secondary text-sm">
+            Lançar chamada de outro dia
+          </Link>
+        }
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">

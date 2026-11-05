@@ -172,118 +172,141 @@ export function PresenceList({
       </div>
 
       {/*
-        Os cartões de turma eram só leitura — mostravam "kids 8/12" e o
-        professor não tinha onde clicar para fazer a chamada daquela aula.
-        Agora cada um abre a chamada da turma.
+        Escolher a turma, e sair do caminho depois.
+
+        Eram dezesseis cartões fixos no topo: no celular o professor rolava
+        uma tela inteira antes do primeiro aluno, e ele já tinha escolhido a
+        turma. Com uma aberta, a grade vira uma linha recolhida — `details`
+        resolve sem estado nem JavaScript, e reabre no mesmo lugar.
       */}
       {turmas.length > 0 ? (
-        <div className="mt-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="panel-title">
-              {selected ? 'Trocar de turma' : 'Escolha a turma para fazer a chamada'}
-            </p>
-            {selected ? (
+        selected ? (
+          <div className="mt-4 rounded-xl border border-crimson/40 bg-crimson/[.06] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              <div className="min-w-0">
+                <p className="font-display text-lg uppercase leading-tight tracking-tight">
+                  {selected.weekdayLabel} {selected.startTime} · {selected.title}
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  <span className="tabular-nums text-foreground">
+                    {selected.presentes}/{selected.total}
+                  </span>{' '}
+                  na chamada
+                  {selected.happensToday
+                    ? ' · a presença entra vinculada a esta turma, mesmo depois do treino'
+                    : ''}
+                </p>
+              </div>
+
               <Link
                 href={retroativo ? `/admin/presenca?dia=${dia}` : '/admin/presenca'}
-                className="btn-ghost text-xs"
+                className="btn-ghost shrink-0 text-xs"
               >
                 Ver a academia toda
               </Link>
+            </div>
+
+            {!selected.happensToday ? (
+              /*
+                Marcar numa turma de outro dia grava com a data escolhida no
+                seletor. É legítimo — a turma pode ter treinado fora do dia
+                dela —, mas o relatório de frequência vai contar essa aula num
+                dia em que ela não acontece, e isso tem de estar escrito antes
+                do clique.
+              */
+              <p className="mt-2 rounded-lg bg-amber-500/[.08] px-3 py-2 text-xs leading-relaxed text-amber-300">
+                Esta turma não acontece em {todayLabel}. A presença será gravada nessa data
+                mesmo assim. Se o treino foi em outro dia, troque o dia abaixo.
+              </p>
             ) : null}
-          </div>
 
-          <TurmaGrid turmas={deHoje} selected={selected} dia={retroativo ? dia : null} />
-
-          {deOutroDia.length > 0 ? (
-            <details className="mt-3 group">
+            <details className="mt-3">
               <summary className="cursor-pointer list-none text-xs text-muted hover:text-foreground">
-                + {deOutroDia.length} turma{deOutroDia.length === 1 ? '' : 's'} de outro dia da
-                semana
+                Trocar de turma
               </summary>
-              <div className="mt-2">
-                <TurmaGrid turmas={deOutroDia} selected={selected} dia={retroativo ? dia : null} />
+              <div className="mt-3">
+                <TurmaGrid turmas={deHoje} selected={selected} dia={retroativo ? dia : null} />
+                {deOutroDia.length > 0 ? (
+                  <div className="mt-2">
+                    <TurmaGrid
+                      turmas={deOutroDia}
+                      selected={selected}
+                      dia={retroativo ? dia : null}
+                    />
+                  </div>
+                ) : null}
               </div>
             </details>
-          ) : null}
-        </div>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <p className="panel-title">Escolha a turma para fazer a chamada</p>
+
+            <TurmaGrid turmas={deHoje} selected={null} dia={retroativo ? dia : null} />
+
+            {deOutroDia.length > 0 ? (
+              <details className="mt-3">
+                <summary className="cursor-pointer list-none text-xs text-muted hover:text-foreground">
+                  + {deOutroDia.length} turma{deOutroDia.length === 1 ? '' : 's'} de outro dia da
+                  semana
+                </summary>
+                <div className="mt-2">
+                  <TurmaGrid turmas={deOutroDia} selected={null} dia={retroativo ? dia : null} />
+                </div>
+              </details>
+            ) : null}
+          </div>
+        )
       ) : null}
 
       {/*
         O dia da chamada.
 
-        A presença lançada na hora é o caso comum, e por isso o seletor fica
-        discreto. Mas a chamada esquecida é o que mais some do sistema: a turma
-        da manhã que o professor lembra à tarde, ou no dia seguinte. Sem este
-        campo ela não tinha como entrar — a data saía sempre do relógio.
+        Lançar na hora é o caso comum, e por isso o campo fica discreto — mas
+        a chamada esquecida é o que mais some do sistema: a turma da manhã
+        lembrada à tarde, ou no dia seguinte. Sem ele a data saía sempre do
+        relógio.
       */}
-      <form method="get" className="mt-4 flex flex-wrap items-end gap-3">
-        {selected ? <input type="hidden" name="turma" value={selected.id} /> : null}
+      <details className="mt-3" open={retroativo}>
+        <summary className="cursor-pointer list-none text-xs text-muted hover:text-foreground">
+          {retroativo ? `Chamada de ${todayLabel}` : 'Lançar a chamada de outro dia'}
+        </summary>
 
-        <label className="text-xs text-muted">
-          <span className="block">Dia da chamada</span>
-          <input
-            type="date"
-            name="dia"
-            defaultValue={dia}
-            max={hoje}
-            min={minDate}
-            className="mt-1 min-h-[44px] rounded-xl border border-hairline bg-white/[.04] px-3 text-sm text-foreground focus:border-crimson focus:outline-none"
-          />
-        </label>
+        <form method="get" className="mt-2 flex flex-wrap items-end gap-3">
+          {selected ? <input type="hidden" name="turma" value={selected.id} /> : null}
 
-        <button type="submit" className="btn-secondary text-xs">
-          Ver este dia
-        </button>
+          <label className="text-xs text-muted">
+            <span className="block">Dia</span>
+            <input
+              type="date"
+              name="dia"
+              defaultValue={dia}
+              max={hoje}
+              min={minDate}
+              className="mt-1 min-h-[44px] rounded-xl border border-hairline bg-white/[.04] px-3 text-sm text-foreground focus:border-crimson focus:outline-none"
+            />
+          </label>
 
-        {retroativo ? (
-          <Link
-            href={selected ? `/admin/presenca?turma=${selected.id}` : '/admin/presenca'}
-            className="btn-ghost text-xs"
-          >
-            Voltar para hoje
-          </Link>
-        ) : null}
-      </form>
+          <button type="submit" className="btn-secondary text-xs">
+            Ver este dia
+          </button>
+
+          {retroativo ? (
+            <Link
+              href={selected ? `/admin/presenca?turma=${selected.id}` : '/admin/presenca'}
+              className="btn-ghost text-xs"
+            >
+              Voltar para hoje
+            </Link>
+          ) : null}
+        </form>
+      </details>
 
       {retroativo ? (
         <p role="status" className="notice-warn mt-3 text-xs leading-relaxed">
-          Chamada de <strong className="text-foreground">{todayLabel}</strong>, não de hoje. A
-          presença entra com a data e o horário daquele treino.
+          Você está na chamada de <strong className="text-foreground">{todayLabel}</strong>, não
+          de hoje. A presença entra com a data e o horário daquele treino.
         </p>
-      ) : null}
-
-      {/* Chamada da turma escolhida ------------------------------------- */}
-      {selected ? (
-        <div
-          className={cn(
-            'mt-4 rounded-xl border p-4',
-            selected.happensToday
-              ? 'border-crimson/40 bg-crimson/[.06]'
-              : 'border-amber-500/40 bg-amber-500/[.06]',
-          )}
-        >
-          <p className="font-display text-lg uppercase leading-tight tracking-tight">
-            Chamada · {selected.weekdayLabel} {selected.startTime} · {selected.title}
-          </p>
-
-          {selected.happensToday ? (
-            <p className="mt-1 text-xs leading-relaxed text-muted">
-              A presença entra vinculada a esta turma, mesmo depois do horário do treino.
-            </p>
-          ) : (
-            /*
-              Marcar numa turma de outro dia grava com a data de HOJE. É
-              legítimo (a turma pode ter treinado fora do dia dela), mas o
-              relatório de frequência vai contar essa aula num dia em que ela
-              não acontece — e isso tem de estar escrito antes do clique.
-            */
-            <p className="mt-2 text-xs leading-relaxed text-amber-300">
-              Esta turma não acontece hoje. A presença será gravada com a data de{' '}
-              <strong>hoje</strong> vinculada a ela. Se o treino foi mesmo em outro dia, prefira
-              abrir a turma de hoje.
-            </p>
-          )}
-        </div>
       ) : null}
 
       <div role="group" aria-label="Filtrar lista" className="mt-4 flex flex-wrap gap-2">
