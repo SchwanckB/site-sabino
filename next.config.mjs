@@ -75,6 +75,37 @@ const CLERK_HOSTS = [
 const TURNSTILE_HOST = 'https://challenges.cloudflare.com';
 
 /**
+ * Google Tag Manager e o que ele carrega.
+ *
+ * `googletagmanager.com` serve o `gtm.js` e, depois, o `gtag/js` do GA4. Os
+ * domínios de `google-analytics` recebem os eventos; `doubleclick` e
+ * `google.com` entram pelos pixels de conversão que o próprio GA dispara.
+ *
+ * **Esta lista cobre o GA4, e só ele.** O contêiner é um lugar onde se
+ * adicionam tags sem tocar no código, e cada tag nova pode chamar um domínio
+ * que não está aqui — o navegador bloqueia, a tag não dispara e nada avisa.
+ * Foi assim que o `clerk.browser.js` caiu em produção (ver `test/csp.test.ts`).
+ * Ao ligar uma tag nova, conferir o console por "Refused to load".
+ */
+const GOOGLE_TAG_SCRIPT = ['https://www.googletagmanager.com'];
+
+const GOOGLE_TAG_CONNECT = [
+  'https://www.googletagmanager.com',
+  'https://*.googletagmanager.com',
+  'https://www.google-analytics.com',
+  'https://*.google-analytics.com',
+  'https://*.analytics.google.com',
+];
+
+const GOOGLE_TAG_IMG = [
+  'https://www.googletagmanager.com',
+  'https://www.google-analytics.com',
+  'https://*.google-analytics.com',
+  'https://www.google.com',
+  'https://*.g.doubleclick.net',
+];
+
+/**
  * O Fast Refresh do Next avalia código em tempo de execução, o que exige
  * 'unsafe-eval'. Liberar isso só em desenvolvimento mantém a produção estrita
  * — e evita que a própria CSP quebre o `npm run dev`, como quebrava.
@@ -84,12 +115,12 @@ const SCRIPT_EVAL = isDev ? " 'unsafe-eval'" : '';
 
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${SCRIPT_EVAL} ${CLERK_HOSTS.join(' ')} ${TURNSTILE_HOST}`,
+  `script-src 'self' 'unsafe-inline'${SCRIPT_EVAL} ${CLERK_HOSTS.join(' ')} ${TURNSTILE_HOST} ${GOOGLE_TAG_SCRIPT.join(' ')}`,
   "style-src 'self' 'unsafe-inline'",
   // img.clerk.com serve os avatares das contas.
-  "img-src 'self' data: blob: https://img.clerk.com https://*.clerk.com",
+  `img-src 'self' data: blob: https://img.clerk.com https://*.clerk.com ${GOOGLE_TAG_IMG.join(' ')}`,
   "font-src 'self' data:",
-  `connect-src 'self' ${CLERK_HOSTS.join(' ')} ${TURNSTILE_HOST} https://clerk-telemetry.com`,
+  `connect-src 'self' ${CLERK_HOSTS.join(' ')} ${TURNSTILE_HOST} https://clerk-telemetry.com ${GOOGLE_TAG_CONNECT.join(' ')}`,
   /*
    * Mapa do Google na seção "Onde estamos" + fluxos em iframe do Clerk.
    * O Turnstile roda dentro de um iframe próprio.

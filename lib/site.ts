@@ -14,6 +14,21 @@ export const siteConfig = {
   description:
     'Academia de Jiu-Jitsu e MMA em Três Cachoeiras e Terra de Areia/RS. Jiu-Jitsu adulto, MMA, turma feminina e Jiu-Jitsu infantil a partir dos 4 anos, com acompanhamento de graduação do primeiro dia em diante.',
 
+  /**
+   * Contêiner do Google Tag Manager.
+   *
+   * Em branco desliga a tag — é assim que uma cópia do projeto sobe sem
+   * mandar dado para a conta da academia. A variável de ambiente ganha do
+   * valor fixo para o caso de trocar de contêiner sem mexer em código.
+   *
+   * **Atenção ao adicionar tags dentro do contêiner:** a CSP do site é
+   * restritiva, e cada domínio novo que uma tag chamar precisa entrar em
+   * `next.config.mjs`. Sem isso o navegador bloqueia em silêncio — o GTM
+   * carrega, a tag não dispara, e nada avisa. Já aconteceu com o Clerk; ver
+   * `test/csp.test.ts`.
+   */
+  googleTagId: process.env.NEXT_PUBLIC_GTM_ID ?? 'GTM-MXDV88CS',
+
   /** Número oficial que aparece na logo. Formato internacional, só dígitos. */
   whatsappNumber: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '5551981691373',
   phoneDisplay: '(51) 98169-1373',

@@ -113,3 +113,49 @@ describe('CSP libera o host da Frontend API do Clerk', () => {
     expect(script).not.toContain('nao-e-dominio');
   });
 });
+
+/**
+ * Google Tag Manager.
+ *
+ * O contêiner é um lugar onde se adicionam tags sem tocar no código — e cada
+ * domínio novo que uma tag chamar precisa estar liberado aqui. Quando não
+ * está, o navegador bloqueia em silêncio: o GTM carrega, a tag não dispara, e
+ * nada no servidor denuncia. É o mesmo tipo de falha que derrubou o
+ * `clerk.browser.js` em produção, e o motivo de este arquivo existir.
+ */
+describe('CSP do Google Tag Manager', () => {
+  const chave = publishableKeyFor('clerk.exemplo.com.br', 'live');
+
+  it('libera o script do gtm.js', async () => {
+    const script = await directiveFor(chave, 'script-src');
+    expect(script).toContain('https://www.googletagmanager.com');
+  });
+
+  it('libera o envio dos eventos ao Google Analytics', async () => {
+    const connect = await directiveFor(chave, 'connect-src');
+
+    expect(connect).toContain('https://www.google-analytics.com');
+    expect(connect).toContain('https://*.analytics.google.com');
+    // O gtm.js busca a configuração do contêiner no próprio domínio dele.
+    expect(connect).toContain('https://www.googletagmanager.com');
+  });
+
+  it('libera os pixels, que vão por img e não por fetch', async () => {
+    const img = await directiveFor(chave, 'img-src');
+
+    expect(img).toContain('https://www.google-analytics.com');
+    expect(img).toContain('https://*.g.doubleclick.net');
+  });
+
+  /*
+   * O Clerk é o inquilino mais frágil da CSP: foi ele que caiu da última vez.
+   * Acrescentar o Google não pode ter empurrado nenhum host dele para fora.
+   */
+  it('não derruba o que o Clerk já precisava', async () => {
+    const script = await directiveFor(chave, 'script-src');
+
+    expect(script).toContain('https://clerk.exemplo.com.br');
+    expect(script).toContain('https://*.clerk.accounts.dev');
+    expect(script).toContain('https://challenges.cloudflare.com');
+  });
+});

@@ -5,6 +5,7 @@ import { Inter, Oswald } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 
+import { GoogleTag } from '@/components/app/GoogleTag';
 import { isClerkConfigured } from '@/lib/env';
 import { siteConfig, siteUrl } from '@/lib/site';
 
@@ -102,6 +103,7 @@ export default function RootLayout({
         {children}
         <Analytics />
         <SpeedInsights />
+        <GoogleTag />
       </body>
     </html>
   );
