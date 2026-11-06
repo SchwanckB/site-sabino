@@ -43,6 +43,7 @@ import {
   deleteStudent,
   getStudent,
   getStudents,
+  isDependentId,
   rejectStudent,
   setGraduationAnchors,
   setStudentStatus,
@@ -371,15 +372,36 @@ export async function deleteStudentAction(form: FormData): Promise<ActionResult>
     }
   }
 
+  /*
+   * O dependente não tem login para apagar.
+   *
+   * A ficha da criança pendura na conta do responsável e nunca existiu no
+   * Clerk. Chamar `deleteAccount` com um id `dep_…` bateria num 404 — que a
+   * função trata como "já não existe" e devolve `false`, levando a tela a
+   * dizer que o login não pôde ser removido. Uma falha inventada sobre uma
+   * conta que nunca houve.
+   */
+  const temLogin = !isDependentId(student.id);
+
   let loginApagado = false;
-  try {
-    loginApagado = await deleteAccount(student.id);
-  } catch (error) {
-    console.error('[admin] ficha apagada, mas a conta do Clerk continua', error);
+  if (temLogin) {
+    try {
+      loginApagado = await deleteAccount(student.id);
+    } catch (error) {
+      console.error('[admin] ficha apagada, mas a conta do Clerk continua', error);
+    }
   }
 
   refreshAdmin();
   revalidatePath('/admin/alunos');
+  revalidatePath('/painel', 'layout');
+
+  if (!temLogin) {
+    return {
+      ok: true,
+      message: `Cadastro de ${student.name} apagado. Ele some do perfil de quem o cadastrou.`,
+    };
+  }
 
   return {
     ok: true,

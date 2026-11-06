@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { BeltDisplay } from '@/components/app/BeltDisplay';
 import { Stat, StatStrip } from '@/components/app/PageHeader';
 import { weekdayLabels, type Weekday } from '@/data/seed';
+import { resolveActiveProfile } from '@/lib/activeProfile';
 import { getSessionUser } from '@/lib/auth';
 import { countCheckins, getTodayCheckins, listCheckins } from '@/lib/repositories/attendance';
 import { listGraduationHistory } from '@/lib/repositories/graduation';
@@ -12,7 +13,7 @@ import { getPaymentPlan } from '@/lib/repositories/payments';
 import { getStudent } from '@/lib/repositories/students';
 import { getEffectiveSchedule } from '@/lib/schedule';
 import { cn } from '@/lib/utils';
-import { CHECKIN_SOURCE_LABELS, beltLabel } from '@/types/domain';
+import { CHECKIN_SOURCE_LABELS, STATUS_LABELS, UNITS, beltLabel } from '@/types/domain';
 import {
   findNextClass,
   findOpenClasses,
@@ -30,6 +31,8 @@ import {
 import { occurrencesInMonth } from '@/utils/classReport';
 import { KIDS_TOTAL_DEGREES, getDegreeColor } from '@/utils/graduationEngine';
 import { formatCents, getPaymentSummary, PLAN_LABELS } from '@/utils/paymentEngine';
+
+import { ProfileSwitcher } from './ProfileSwitcher';
 
 export const metadata: Metadata = { title: 'Meu painel' };
 export const dynamic = 'force-dynamic';
@@ -51,8 +54,20 @@ export default async function PainelPage() {
   const user = await getSessionUser();
   if (!user) redirect('/entrar');
 
-  const student = await getStudent(user.id);
-  if (!student) redirect('/onboarding');
+  const own = await getStudent(user.id);
+
+  /*
+   * De quem é esta tela.
+   *
+   * O pai alterna entre a ficha dele e a do filho; tudo abaixo — frequência,
+   * graduação, mensalidade, check-in — passa a ser do perfil escolhido. A
+   * resolução valida o id contra a conta, então um cookie forjado cai no
+   * perfil próprio em silêncio.
+   */
+  const perfil = await resolveActiveProfile(user.id, own);
+  if (!perfil) redirect('/onboarding');
+
+  const student = perfil.student;
 
   const now = new Date();
 
@@ -173,9 +188,40 @@ export default async function PainelPage() {
   return (
     <div className="page-stack">
       <header>
-        <p className="eyebrow">Olá, {student.name.split(' ')[0]}</p>
-        <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Meu painel</h1>
+        <p className="eyebrow">
+          {perfil.isDependent ? 'Painel de' : 'Olá,'} {student.name.split(' ')[0]}
+        </p>
+        <h1 className="mt-2 text-3xl leading-none sm:text-4xl">
+          {perfil.isDependent ? `Painel de ${student.name.split(' ')[0]}` : 'Meu painel'}
+        </h1>
       </header>
+
+      {/*
+        O seletor só aparece quando há o que selecionar, ou quando dá para
+        cadastrar alguém. Para o aluno sozinho que nunca vai usar isso, some.
+      */}
+      {perfil.profiles.length > 1 || own !== null ? (
+        <ProfileSwitcher
+          profiles={perfil.profiles.map((item) => ({
+            id: item.id,
+            name: item.name,
+            detail:
+              item.id === user.id
+                ? 'Você'
+                : item.status === 'ativo'
+                  ? item.category === 'kids'
+                    ? 'Infantil'
+                    : 'Adulto'
+                  : STATUS_LABELS[item.status],
+            active: item.id === student.id,
+            ready: item.status === 'ativo',
+          }))}
+          canAdd={own !== null && own.guardianUserId === null}
+          units={UNITS}
+          defaultUnit={own?.unit ?? student.unit}
+          today={saoPauloDateString(now)}
+        />
+      ) : null}
 
       {avisos.length > 0 ? (
         <div role="status" className="space-y-2">

@@ -87,6 +87,30 @@ usado em caminho quente.
 
 ---
 
+### `dependents:{clerkId}` - Set
+
+Fichas que uma conta administra **alem da propria**.
+
+O pai treina nos adultos, o filho de seis anos treina no infantil e nao tem
+e-mail. Em vez de inventar um login para a crianca, a ficha dela pendura na
+conta dele e o painel alterna entre os perfis — o mesmo gesto que ja existe
+entre aluno e professor.
+
+- Membros: ids de ficha com prefixo `dep_`, que **nao** existem no Clerk
+- A ficha guarda o caminho de volta em `user:{dep_...}.guardianUserId`
+- Apagar a ficha remove o id deste set, no mesmo MULTI
+
+O prefixo `dep_` nao e enfeite: em todo o resto da aplicacao `id` de aluno e
+id do Clerk, e e por ele que se sabe, sem ir ao banco, que aquela ficha nao
+tem login — o que impede tentar apagar uma conta que nunca existiu.
+
+**O set e indice, nao autoridade.** A leitura confere o `guardianUserId` de
+cada ficha contra a conta antes de devolver: dali sai a lista de perfis que a
+pessoa pode assumir, e indice desatualizado nao pode virar acesso a ficha de
+outro.
+
+---
+
 ## 2. Check-in
 
 ### `checkin:{userId}:{YYYY-MM-DD}:{classId}` - String com TTL

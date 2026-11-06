@@ -68,6 +68,18 @@ export default async function AlunoPage({
   // A lista crua de datas vira tempo por faixa e intervalo entre graus.
   const timeline = buildTimeline(graduations, student.joinedAt, now);
 
+  /*
+   * De quem esta ficha pendura, quando ela não tem login próprio.
+   *
+   * O pai cadastrou o filho pela conta dele. Sem esta linha, a ficha da
+   * criança parece um cadastro órfão: sem e-mail de verdade, sem documento, e
+   * ninguém a quem perguntar. É também o que explica por que ela não aparece
+   * na tela de Contas.
+   */
+  const responsavel = student.guardianUserId
+    ? await getStudent(student.guardianUserId)
+    : null;
+
   const publicStudent = toPublicStudent(student, now);
   const isKids = student.category === 'kids';
   const summary = plan ? getPaymentSummary(plan, now) : null;
@@ -119,6 +131,26 @@ export default async function AlunoPage({
             <dt className="text-xs text-muted">E-mail</dt>
             <dd className="mt-0.5 break-words text-foreground">{student.email}</dd>
           </div>
+          {student.guardianUserId ? (
+            <div>
+              <dt className="text-xs text-muted">Cadastrado por</dt>
+              <dd className="mt-0.5 text-foreground">
+                {responsavel ? (
+                  <Link
+                    href={`/admin/alunos/${responsavel.id}`}
+                    className="hover:text-crimson"
+                  >
+                    {responsavel.name}
+                  </Link>
+                ) : (
+                  'Conta não encontrada'
+                )}
+                <span className="block text-xs text-muted">
+                  Sem login próprio — usa a conta de quem cadastrou
+                </span>
+              </dd>
+            </div>
+          ) : null}
           <div>
             <dt className="text-xs text-muted">Telefone</dt>
             <dd className="mt-0.5 text-foreground">{student.phone}</dd>

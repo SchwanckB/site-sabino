@@ -36,6 +36,15 @@ export function getRedis(): Redis | null {
 /** Chaves usadas pela aplicacao. Documentadas em docs/redis-schema.md. */
 export const redisKeys = {
   user: (clerkId: string) => `user:${clerkId}`,
+  /**
+   * Fichas que uma conta administra além da própria.
+   *
+   * O pai que treina e tem filho na turma infantil: a criança não tem e-mail,
+   * então a ficha dela pendura aqui em vez de ganhar um login inventado. Set,
+   * e não lista, porque a ordem não importa e o mesmo filho não entra duas
+   * vezes.
+   */
+  dependents: (guardianUserId: string) => `dependents:${guardianUserId}`,
   usersByStatus: (status: string) => `users:by-status:${status}`,
   /**
    * Trava de presença: **um aluno, um dia, uma turma**.

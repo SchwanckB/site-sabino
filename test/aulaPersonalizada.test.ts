@@ -60,6 +60,24 @@ vi.mock('@/lib/auth', () => ({
   isGestaoEmail: () => false,
 }));
 
+/*
+ * O check-in resolve o perfil ativo, que mora num cookie. Sem este stub o
+ * Vitest estoura com "cookies was called outside a request scope".
+ */
+let cookieJar = new Map<string, string>();
+
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) => {
+      const value = cookieJar.get(name);
+      return value === undefined ? undefined : { name, value };
+    },
+    set: (name: string, value: string) => {
+      cookieJar.set(name, value);
+    },
+  }),
+}));
+
 vi.mock('next/cache', () => ({
   revalidatePath: () => undefined,
   revalidateTag: () => undefined,
@@ -95,6 +113,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   mock.reset();
+  cookieJar = new Map();
   atual = aluno;
 });
 

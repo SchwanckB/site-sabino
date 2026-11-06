@@ -2,20 +2,32 @@
 
 import { revalidatePath } from 'next/cache';
 
+import type { ActionResult } from '@/components/app/ActionForm';
 import { weekdayLabels, type Weekday } from '@/data/seed';
+import { resolveActiveProfile, setActiveProfile } from '@/lib/activeProfile';
 import { requireUser } from '@/lib/auth';
+import { text } from '@/lib/formData';
 import { consumeRateLimit, rateLimitMessage } from '@/lib/rateLimit';
 import { getTodayCheckins, recordCheckin } from '@/lib/repositories/attendance';
 import { validateQrToken } from '@/lib/repositories/qr';
-import { getStudent } from '@/lib/repositories/students';
+import { createDependent, getStudent, listDependents } from '@/lib/repositories/students';
 import { getEffectiveScheduleFresh } from '@/lib/schedule';
-import type { CheckinResult } from '@/types/domain';
+import { CONSENT_VERSION, type CheckinResult } from '@/types/domain';
 import {
   findNextClass,
   findOpenClasses,
   formatMinutes,
   type ScheduledClass,
 } from '@/utils/attendanceEngine';
+import { validateDependent } from '@/utils/dependentValidation';
+
+/**
+ * Quantas fichas uma conta administra além da própria.
+ *
+ * Família grande cabe; cadastro em massa por engano, não. O limite é
+ * conversável com a recepção, que não tem teto.
+ */
+const MAX_DEPENDENTES = 6;
 
 /**
  * Check-in do aluno.
@@ -118,6 +130,23 @@ function estadoDaAula(slot: {
 }
 
 /**
+ * A ficha que o check-in vai usar.
+ *
+ * **Não é necessariamente a de quem logou.** O pai que treina e tem o filho
+ * pendurado na conta alterna de perfil no painel; com o perfil do filho
+ * aberto, o QR da parede registra a presença do filho. É o caso de uso
+ * inteiro: a criança não tem celular, e quem escaneia é o pai.
+ *
+ * `resolveActiveProfile` valida o cookie contra a conta, então o pior que um
+ * cookie forjado consegue é marcar a presença do próprio dono.
+ */
+async function fichaAtiva(userId: string) {
+  const own = await getStudent(userId);
+  const perfil = await resolveActiveProfile(userId, own);
+  return perfil?.student ?? null;
+}
+
+/**
  * Turmas do aluno abertas agora, na academia do cartaz lido.
  *
  * Fica separado do registro porque a tela precisa perguntar antes de gravar
@@ -141,7 +170,7 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
     return { ok: false, message: rateLimitMessage(quota.retryAfter) };
   }
 
-  const student = await getStudent(user.id);
+  const student = await fichaAtiva(user.id);
   if (!student) return { ok: false, message: 'Cadastro não encontrado.' };
   if (student.status !== 'ativo') {
     return { ok: false, message: 'Sua matrícula não está ativa. Fale com a recepção.' };
@@ -246,7 +275,7 @@ export async function checkinAction(
     return { ok: false, reason: 'erro', message: rateLimitMessage(quota.retryAfter) };
   }
 
-  const student = await getStudent(user.id);
+  const student = await fichaAtiva(user.id);
   if (!student) {
     return { ok: false, reason: 'erro', message: 'Cadastro não encontrado.' };
   }
@@ -378,4 +407,136 @@ export async function checkinAction(
     at: ultimoAt,
     classes: registradas,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Familiar pendurado na conta                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Cadastra um familiar na própria conta.
+ *
+ * O caso que motivou: o pai treina nos adultos, o filho de seis anos treina
+ * no infantil e não tem e-mail. Criar um login para a criança é pedir ao pai
+ * que invente uma caixa de entrada — e depois que ele lembre de duas senhas.
+ * Aqui a ficha da criança pendura na conta dele, e o painel alterna entre os
+ * perfis como já alterna entre aluno e professor.
+ *
+ * A ficha entra **pendente**, como qualquer outra: turma, faixa e mensalidade
+ * continuam sendo decisão de quem administra a academia. O que o cadastro
+ * dispensa é só o login.
+ *
+ * O responsável vem da ficha de quem cadastrou, e não de campos digitados:
+ * quem está logado *é* o responsável, e pedir o nome dele de novo seria
+ * pedir para errar.
+ */
+export async function registerDependentAction(form: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+
+  /*
+   * Teto de cadastros.
+   *
+   * Cada chamada grava uma ficha e um índice. Cinco em dez minutos cobre a
+   * família grande que entra toda de uma vez e ainda assim fecha a porta para
+   * um laço contra a action.
+   */
+  const quota = await consumeRateLimit('dependente', user.id, 5, 600);
+  if (!quota.allowed) {
+    return { ok: false, message: rateLimitMessage(quota.retryAfter) };
+  }
+
+  const responsavel = await getStudent(user.id);
+  if (!responsavel) {
+    return {
+      ok: false,
+      message: 'Termine o seu próprio cadastro antes de incluir alguém da família.',
+    };
+  }
+
+  // Dependente de dependente não existe: a ficha que já pendura numa conta
+  // não administra outras, senão o vínculo viraria uma árvore sem dono claro.
+  if (responsavel.guardianUserId !== null) {
+    return { ok: false, message: 'Este perfil não pode cadastrar outras pessoas.' };
+  }
+
+  const now = new Date();
+  const validation = validateDependent(
+    {
+      name: text(form, 'name'),
+      birthDate: text(form, 'birthDate'),
+      cpf: text(form, 'cpf'),
+      gender: text(form, 'gender'),
+      unit: text(form, 'unit') || responsavel.unit,
+    },
+    now,
+  );
+
+  if (!validation.valid) {
+    const primeiro = Object.values(validation.fieldErrors)[0];
+    return { ok: false, message: primeiro ?? 'Confira os dados e tente de novo.' };
+  }
+
+  const dados = validation.normalized;
+
+  const ja = await listDependents(user.id);
+  if (ja.length >= MAX_DEPENDENTES) {
+    return {
+      ok: false,
+      message: `Você já tem ${MAX_DEPENDENTES} pessoas na conta. Fale com a recepção para incluir mais.`,
+    };
+  }
+
+  // Mesmo nome e mesma data já na conta: é o dedo duplo no botão, não um
+  // irmão gêmeo homônimo.
+  if (ja.some((item) => item.name === dados.name && item.birthDate === dados.birthDate)) {
+    return { ok: false, message: `${dados.name} já está cadastrado na sua conta.` };
+  }
+
+  await createDependent(
+    user.id,
+    {
+      name: dados.name,
+      // O e-mail da conta: é por onde a academia fala com a família, e a
+      // ficha da criança não tem um próprio.
+      email: responsavel.email,
+      phone: responsavel.phone,
+      cpf: dados.cpf,
+      birthDate: dados.birthDate,
+      gender: dados.gender,
+      unit: dados.unit,
+      belt: 'branca',
+      // Quem está logado é o responsável — menor de idade herda os dados dele.
+      guardianName: dados.isMinor ? responsavel.name : null,
+      guardianPhone: dados.isMinor ? responsavel.phone : null,
+      guardianCpf: dados.isMinor ? responsavel.cpf : null,
+      docBlobKey: null,
+      // O consentimento é o da conta: foi esta pessoa que o deu, e é ela que
+      // responde pelo menor.
+      consentVersion: responsavel.consentVersion || CONSENT_VERSION,
+      consentAt: now.toISOString(),
+    },
+    now,
+  );
+
+  revalidatePath('/painel');
+  revalidatePath('/admin', 'layout');
+
+  return {
+    ok: true,
+    message: `${dados.name} foi enviado para aprovação. A recepção define turma e mensalidade.`,
+  };
+}
+
+/**
+ * Troca o perfil mostrado no painel.
+ *
+ * Não confere nada aqui de propósito: o cookie é lido por
+ * `resolveActiveProfile`, que valida o id contra a conta a cada requisição.
+ * Gravar o id de um aluno qualquer não dá acesso a nada — ele é descartado na
+ * volta e a tela abre no perfil próprio.
+ */
+export async function switchProfileAction(form: FormData): Promise<void> {
+  await requireUser();
+  await setActiveProfile(text(form, 'studentId'));
+  revalidatePath('/painel', 'layout');
 }

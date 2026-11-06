@@ -198,6 +198,19 @@ export interface StudentRecord {
   readonly guardianName: string | null;
   readonly guardianPhone: string | null;
   readonly guardianCpf: string | null;
+  /**
+   * Conta que administra esta ficha, quando ela não tem login próprio.
+   *
+   * O caso: o pai treina nos adultos, o filho de seis anos treina no infantil
+   * e não tem e-mail. Em vez de inventar um login para a criança, a ficha
+   * dela pendura na conta do pai — que alterna entre os perfis no painel, do
+   * mesmo jeito que já alterna entre aluno e professor.
+   *
+   * `null` na imensa maioria: é a ficha de quem entrou pelo cadastro do site
+   * e tem conta própria. Nessas, `id` **é** o id do Clerk. Na do dependente o
+   * `id` é sintético (`dep_…`), e é por aqui que se sabe de quem ele é.
+   */
+  readonly guardianUserId: string | null;
   /** ISO UTC da aprovação — âncora de graduação e de matrícula. */
   readonly joinedAt: string | null;
   readonly lastGraduationAt: string | null;

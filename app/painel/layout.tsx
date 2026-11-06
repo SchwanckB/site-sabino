@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { AppShell, type NavItem, type PrimaryAction } from '@/components/app/AppShell';
+import { resolveActiveProfile } from '@/lib/activeProfile';
 import { getSessionUser } from '@/lib/auth';
 import { isStaff } from '@/lib/roles';
 import { getStudent } from '@/lib/repositories/students';
@@ -19,15 +20,30 @@ export default async function PainelLayout({
   const user = await getSessionUser();
   if (!user) redirect('/entrar');
 
-  const student = await getStudent(user.id);
+  const own = await getStudent(user.id);
+
+  /*
+   * O painel é do **perfil ativo**, não necessariamente de quem logou.
+   *
+   * Uma conta pode administrar mais de uma ficha: o pai treina nos adultos e
+   * o filho de seis anos, sem e-mail, tem a ficha pendurada nela. Quem tem só
+   * dependente e nenhuma ficha própria — o pai que não treina — também entra
+   * aqui, e é por isso que a barreira olha o perfil resolvido e não `own`.
+   */
+  const perfil = await resolveActiveProfile(user.id, own);
+  const student = perfil?.student ?? null;
 
   // Professor que também treina tem ficha e vê o painel normalmente. Sem
   // ficha, mandá-lo para /onboarding seria absurdo — ele é o professor.
   if (isStaff(user.role)) {
     if (!student || student.status !== 'ativo') redirect('/admin');
   } else {
-    if (!student) redirect('/onboarding');
-    if (student.status !== 'ativo') redirect('/aguardando');
+    if (!own && !student) redirect('/onboarding');
+    if (!student || student.status !== 'ativo') {
+      // A própria ficha ainda pendente manda para a sala de espera; a de um
+      // dependente pendente, não — o responsável continua usando a dele.
+      redirect(own && own.status !== 'ativo' ? '/aguardando' : '/painel');
+    }
   }
 
   const items: NavItem[] = [

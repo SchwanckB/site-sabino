@@ -78,6 +78,7 @@ function rowToStudent(id: string, row: Record<string, unknown>): StudentRecord {
     guardianName: asNullableString(row['guardianName']),
     guardianPhone: asNullableString(row['guardianPhone']),
     guardianCpf: asNullableString(row['guardianCpf']),
+    guardianUserId: asNullableString(row['guardianUserId']),
     joinedAt: asNullableString(row['joinedAt']),
     lastGraduationAt: asNullableString(row['lastGraduationAt']),
     docBlobKey: asNullableString(row['docBlobKey']),
@@ -111,6 +112,7 @@ function studentToRow(student: StudentRecord): Record<string, string | number> {
     guardianName: student.guardianName ?? '',
     guardianPhone: student.guardianPhone ?? '',
     guardianCpf: student.guardianCpf ?? '',
+    guardianUserId: student.guardianUserId ?? '',
     joinedAt: student.joinedAt ?? '',
     lastGraduationAt: student.lastGraduationAt ?? '',
     docBlobKey: student.docBlobKey ?? '',
@@ -253,6 +255,7 @@ export async function createPendingStudent(
     | 'unit'
     | 'graduatesMonthly'
     | 'docKind'
+    | 'guardianUserId'
   > & {
     readonly degree?: number;
     /** Ausente em cadastro antigo e em teste: cai na unidade padrão. */
@@ -260,6 +263,8 @@ export async function createPendingStudent(
     readonly graduatesMonthly?: boolean;
     /** Ausente em cadastro antigo e em teste: assume documento de identidade. */
     readonly docKind?: DocumentKind;
+    /** Conta responsável, quando a ficha é de um dependente sem login. */
+    readonly guardianUserId?: string | null;
   },
   now: Date,
 ): Promise<StudentRecord> {
@@ -274,6 +279,7 @@ export async function createPendingStudent(
   const timestamp = now.toISOString();
   const student: StudentRecord = {
     ...input,
+    guardianUserId: input.guardianUserId ?? null,
     degree: input.degree ?? 0,
     unit: input.unit ?? DEFAULT_UNIT,
     graduatesMonthly: input.graduatesMonthly ?? true,
@@ -582,6 +588,12 @@ export async function deleteStudent(student: StudentRecord): Promise<void> {
     tx.srem(redisKeys.usersByStatus(status), student.id);
   }
 
+  // O vínculo some junto: dependente apagado não pode continuar aparecendo
+  // no seletor de perfil do responsável.
+  if (student.guardianUserId) {
+    tx.srem(redisKeys.dependents(student.guardianUserId), student.id);
+  }
+
   tx.zrem(redisKeys.graduationDue(), student.id);
   tx.zrem(redisKeys.paymentsDue(), student.id);
   tx.zrem(redisKeys.rankAll(), student.id);
@@ -593,6 +605,85 @@ export async function deleteStudent(student: StudentRecord): Promise<void> {
   }
 
   await tx.exec();
+}
+
+/* -------------------------------------------------------------------------- */
+/* Dependentes: a ficha de quem não tem login próprio                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Id de uma ficha sem conta no Clerk.
+ *
+ * O prefixo não é enfeite: em toda a aplicação `id` de aluno é id do Clerk, e
+ * `dep_` é o que permite olhar um id e saber que aquela ficha não tem login —
+ * sem ir ao banco perguntar. É o que impede, por exemplo, tentar apagar uma
+ * conta do Clerk que nunca existiu.
+ */
+export function isDependentId(id: string): boolean {
+  return id.startsWith('dep_');
+}
+
+function newDependentId(): string {
+  // 12 bytes em base36: espaço de colisão muito acima do número de alunos que
+  // qualquer academia vai ter, e curto o bastante para caber numa URL.
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  const sufixo = Array.from(bytes, (b) => b.toString(36).padStart(2, '0')).join('');
+  return `dep_${sufixo}`;
+}
+
+/**
+ * Cria a ficha de um dependente pendurada numa conta.
+ *
+ * Ela entra na fila de aprovação como qualquer outra: turma, faixa e
+ * mensalidade continuam sendo decisão de quem administra. O que muda é que
+ * não há login para criar, e o responsável já vem preenchido a partir da
+ * ficha de quem cadastrou.
+ */
+export async function createDependent(
+  guardianUserId: string,
+  input: Omit<
+    Parameters<typeof createPendingStudent>[0],
+    'id' | 'guardianUserId'
+  >,
+  now: Date,
+): Promise<StudentRecord> {
+  const redis = getRedis();
+  if (!redis) throw new Error('Banco de dados não configurado');
+
+  const student = await createPendingStudent(
+    { ...input, id: newDependentId(), guardianUserId },
+    now,
+  );
+
+  await redis.sadd(redisKeys.dependents(guardianUserId), student.id);
+  return student;
+}
+
+/** Ids das fichas que esta conta administra, sem a dela própria. */
+export async function listDependentIds(guardianUserId: string): Promise<string[]> {
+  const redis = getRedis();
+  if (!redis) return [];
+
+  const ids = await redis.smembers<string[]>(redisKeys.dependents(guardianUserId));
+  return Array.isArray(ids) ? ids.filter((id) => typeof id === 'string') : [];
+}
+
+/**
+ * As fichas que esta conta administra, já carregadas.
+ *
+ * Confere o `guardianUserId` de cada uma contra a conta: o índice é um set
+ * que pode ficar desatualizado se uma gravação falhar pela metade, e dali sai
+ * a lista de perfis que a pessoa pode assumir. Index desalinhado não pode
+ * virar acesso à ficha de outro.
+ */
+export async function listDependents(guardianUserId: string): Promise<StudentRecord[]> {
+  const ids = await listDependentIds(guardianUserId);
+  if (ids.length === 0) return [];
+
+  const fichas = await getStudents(ids);
+  return fichas
+    .filter((student) => student.guardianUserId === guardianUserId)
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }
 
 export { rowToStudent, studentToRow, isRecord };
