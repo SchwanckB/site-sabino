@@ -25,6 +25,7 @@ const TODAS: readonly Permission[] = [
   'matricula',
   'dinheiro',
   'horarios',
+  'aula_do_dia',
   'relatorios',
   'contas',
 ];
@@ -154,5 +155,33 @@ describe('ROLE_LABELS', () => {
     for (const role of ROLES) {
       expect(ROLE_LABELS[role as Role].length).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * `aula_do_dia` é a permissão que o professor ganhou depois.
+ *
+ * Remarcar o treino de hoje é decisão que ele toma no tatame, com a turma
+ * esperando — pedir para a gestão ali é pedir para não acontecer. Mudar a
+ * grade semanal continua sendo outra conversa: muda a janela de check-in de
+ * todo mundo e aparece no site público.
+ */
+describe('aula de um dia x grade da semana', () => {
+  it('o professor remarca o dia', () => {
+    expect(can('PROFESSOR', 'aula_do_dia')).toBe(true);
+  });
+
+  it('o professor não mexe na grade da semana', () => {
+    expect(can('PROFESSOR', 'horarios')).toBe(false);
+  });
+
+  it('a gestão faz as duas', () => {
+    expect(can('GESTAO', 'aula_do_dia')).toBe(true);
+    expect(can('GESTAO', 'horarios')).toBe(true);
+  });
+
+  it('o aluno não faz nenhuma', () => {
+    expect(can('ALUNO', 'aula_do_dia')).toBe(false);
+    expect(can('ALUNO', 'horarios')).toBe(false);
   });
 });

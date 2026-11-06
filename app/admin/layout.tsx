@@ -58,7 +58,8 @@ export default async function AdminLayout({
     { href: '/admin/planos', label: 'Planos', icon: 'plano', group: 'Dinheiro', needs: 'dinheiro' },
     { href: '/admin/reajuste', label: 'Reajuste em lote', short: 'Reajuste', icon: 'dinheiro', group: 'Dinheiro', needs: 'dinheiro' },
 
-    { href: '/admin/horarios', label: 'Horários', icon: 'horarios', group: 'Academia', needs: 'horarios' },
+    // O professor vê o item, e lá dentro só a parte de remarcar o dia.
+    { href: '/admin/horarios', label: 'Horários', icon: 'horarios', group: 'Academia', needs: 'aula_do_dia' },
     { href: '/admin/relatorios', label: 'Relatórios', icon: 'grafico', group: 'Academia', needs: 'relatorios' },
     { href: '/admin/qr', label: 'QR da recepção', icon: 'qr', group: 'Academia', needs: 'aula' },
     { href: '/admin/contas', label: 'Contas', icon: 'conta', group: 'Academia', needs: 'contas' },

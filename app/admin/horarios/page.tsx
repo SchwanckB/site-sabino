@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/app/PageHeader';
 
 import { weekdayLabels, type Weekday } from '@/data/seed';
 import { requirePermission } from '@/lib/auth';
+import { can } from '@/lib/roles';
 import { listUpcomingClassOverrides } from '@/lib/repositories/classOverrides';
 import { getEditableSchedule } from '@/lib/repositories/scheduleAdmin';
 import { getUnitScope } from '@/lib/unitScope';
@@ -17,7 +18,13 @@ export const metadata: Metadata = { title: 'Horários' };
 export const dynamic = 'force-dynamic';
 
 export default async function HorariosPage() {
-  await requirePermission('horarios');
+  /*
+   * O professor entra para remarcar o treino de hoje; a grade semanal é da
+   * gestão. Duas telas seriam duas listas das mesmas turmas — aqui é a mesma
+   * tela, e o bloco de cima só aparece para quem pode mexer na regra.
+   */
+  const admin = await requirePermission('aula_do_dia');
+  const podeGrade = can(admin.role, 'horarios');
 
   const now = new Date();
   const today = saoPauloDateString(now);
@@ -74,25 +81,40 @@ export default async function HorariosPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        title="Horários"
-        meta="Esta grade também define a janela de check-in de cada aluno."
+        title={podeGrade ? 'Horários' : 'Aula de um dia'}
+        meta={
+          podeGrade
+            ? 'Esta grade também define a janela de check-in de cada aluno.'
+            : 'Remarque ou cancele o treino de um dia. A grade da semana é da gestão.'
+        }
       />
 
-      <ScheduleEditor classes={classes} scope={scope} marks={marks} />
+      {podeGrade ? (
+        <>
+          <ScheduleEditor classes={classes} scope={scope} marks={marks} />
 
-      {/*
-        Régua antes das exceções: a grade acima é a regra, e o que vem abaixo
-        são as quebras dela. Sem o corte, as duas listas de horário pareciam a
-        mesma coisa continuando.
-      */}
-      <div className="border-t border-hairline pt-6">
+          {/*
+            Régua antes das exceções: a grade acima é a regra, e o que vem
+            abaixo são as quebras dela. Sem o corte, as duas listas de horário
+            pareciam a mesma coisa continuando.
+          */}
+          <div className="border-t border-hairline pt-6">
+            <CustomClassEditor
+              classes={classes}
+              overrides={overrides}
+              today={today}
+              scope={scope}
+            />
+          </div>
+        </>
+      ) : (
         <CustomClassEditor
           classes={classes}
           overrides={overrides}
           today={today}
           scope={scope}
         />
-      </div>
+      )}
     </div>
   );
 }

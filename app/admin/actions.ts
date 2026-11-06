@@ -1433,7 +1433,7 @@ export async function markFollowupAction(form: FormData): Promise<ActionResult> 
  * decide presença. O que precisa se refazer é só o painel.
  */
 export async function saveClassOverrideAction(form: FormData): Promise<ActionResult> {
-  const auth = await authorize('horarios');
+  const auth = await authorize('aula_do_dia');
   if (!auth.ok) return auth;
 
   const classId = text(form, 'classId');
@@ -1475,7 +1475,7 @@ export async function saveClassOverrideAction(form: FormData): Promise<ActionRes
 }
 
 export async function deleteClassOverrideAction(form: FormData): Promise<ActionResult> {
-  const auth = await authorize('horarios');
+  const auth = await authorize('aula_do_dia');
   if (!auth.ok) return auth;
 
   const id = text(form, 'id');

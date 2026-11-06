@@ -38,8 +38,17 @@ export type Permission =
   | 'matricula'
   /** Financeiro, caixa, planos, mensalidade e reajuste. */
   | 'dinheiro'
-  /** Grade de horários e aula de um dia só. */
+  /** Grade de horários — a regra semanal da academia. */
   | 'horarios'
+  /**
+   * Aula de um dia só: remarcar para outro horário, ou cancelar.
+   *
+   * Separada de `horarios` porque são decisões de tamanho diferente. Mudar a
+   * grade muda a janela de check-in de todo mundo, toda semana, e aparece no
+   * site — é da gestão. "Hoje o MMA é mais cedo" é o professor resolvendo o
+   * dia dele, e ele precisa resolver isso no tatame, não pedindo para alguém.
+   */
+  | 'aula_do_dia'
   /** Frequência por turma e as planilhas para baixar. */
   | 'relatorios'
   /** Quem entra no painel e com qual permissão. */
@@ -52,6 +61,7 @@ const GESTAO_PERMISSIONS: readonly Permission[] = [
   'matricula',
   'dinheiro',
   'horarios',
+  'aula_do_dia',
   'relatorios',
   'contas',
 ];
@@ -59,13 +69,22 @@ const GESTAO_PERMISSIONS: readonly Permission[] = [
 /*
  * O professor fica com o tatame.
  *
- * Fora da lista estão as três coisas que custam dinheiro ou mudam a regra da
+ * Fora da lista estão as coisas que custam dinheiro ou mudam a regra da
  * academia: mensalidade (incluindo a aprovação da matrícula, que define o
  * valor), a grade de horários e os acessos. Relatórios saem junto porque a
  * planilha de financeiro está lá e as outras duas levam dado pessoal do aluno
  * para fora do sistema.
+ *
+ * `aula_do_dia` entra, e `horarios` não: remarcar o treino de hoje é decisão
+ * que ele toma no tatame, com a turma esperando. Mudar a grade semanal é
+ * outra conversa — muda a janela de check-in de todo mundo e aparece no site.
  */
-const PROFESSOR_PERMISSIONS: readonly Permission[] = ['aula', 'alunos', 'calendario'];
+const PROFESSOR_PERMISSIONS: readonly Permission[] = [
+  'aula',
+  'alunos',
+  'calendario',
+  'aula_do_dia',
+];
 
 const BY_ROLE: Readonly<Record<Role, readonly Permission[]>> = {
   GESTAO: GESTAO_PERMISSIONS,
