@@ -407,3 +407,143 @@ describe('os limites da turma avulsa', () => {
     expect(await attendance.countCheckins('user_a')).toBe(1);
   });
 });
+
+describe('chamada atrasada da avulsa', () => {
+  /*
+   * O caso real: ninguém abriu o celular no sábado.
+   *
+   * O treino aconteceu, o professor lembra quem veio e volta na segunda para
+   * lançar. A aula avulsa não está na grade e não é "aula de hoje" — então a
+   * tela precisa alcançá-la em qualquer dia, e a presença precisa cair no
+   * **sábado**. Gravar na segunda poria a presença num dia em que a turma não
+   * existe, e o relatório da aula ficaria vazio para sempre.
+   */
+  const SEGUNDA = '2026-03-09';
+
+  async function avulsaId() {
+    const aula = (await oneOff.listOneOffClasses())[0];
+    if (!aula) throw new Error('avulsa nao criada');
+    return aula.id;
+  }
+
+  it('o professor alcança a avulsa na segunda e a presença cai no sábado', async () => {
+    agora(SEXTA, '10:00');
+    await criarSabado();
+    await criarAluno('user_a', []);
+
+    agora(SEGUNDA, '19:00');
+
+    const id = await avulsaId();
+
+    // A aula continua na grade efetiva dias depois — é o que a tela percorre.
+    const efetiva = await schedule.getEffectiveScheduleFresh(new Date());
+    expect(efetiva.classes.some((slot) => slot.id === id)).toBe(true);
+
+    const form = new FormData();
+    form.set('studentId', 'user_a');
+    form.set('classId', id);
+    const result = await adminActions.markPresenceInClassAction(form);
+    expect(result.ok).toBe(true);
+
+    // No sábado, sim; na segunda, não.
+    const noSabado = await attendance.getCheckinsOn(['user_a'], SABADO);
+    expect(noSabado.get('user_a')).toHaveLength(1);
+    expect(noSabado.get('user_a')?.[0]?.classId).toBe(id);
+
+    const naSegunda = await attendance.getCheckinsOn(['user_a'], SEGUNDA);
+    expect(naSegunda.get('user_a') ?? []).toEqual([]);
+
+    // E conta no total do aluno como qualquer outra presença.
+    expect(await attendance.countCheckins('user_a')).toBe(1);
+  });
+
+  it('a hora gravada é a do início da aula, não a do lançamento', async () => {
+    agora(SEXTA, '10:00');
+    await criarSabado();
+    await criarAluno('user_a', []);
+
+    agora(SEGUNDA, '19:00');
+    const form = new FormData();
+    form.set('studentId', 'user_a');
+    form.set('classId', await avulsaId());
+    await adminActions.markPresenceInClassAction(form);
+
+    const entradas = (await attendance.getCheckinsOn(['user_a'], SABADO)).get('user_a') ?? [];
+    expect(entradas[0]?.at).toBe(em(SABADO, '09:00').toISOString());
+  });
+
+  it('lançar duas vezes não duplica', async () => {
+    agora(SEXTA, '10:00');
+    await criarSabado();
+    await criarAluno('user_a', []);
+
+    agora(SEGUNDA, '19:00');
+    const form = () => {
+      const f = new FormData();
+      f.set('studentId', 'user_a');
+      f.set('classId', '');
+      return f;
+    };
+
+    const id = await avulsaId();
+    const primeiro = form();
+    primeiro.set('classId', id);
+    expect((await adminActions.markPresenceInClassAction(primeiro)).ok).toBe(true);
+
+    const segundo = form();
+    segundo.set('classId', id);
+    const repetido = await adminActions.markPresenceInClassAction(segundo);
+    expect(repetido.message).toContain('já');
+    expect(await attendance.countCheckins('user_a')).toBe(1);
+  });
+
+  it('desfazer na segunda apaga a presença do sábado', async () => {
+    agora(SEXTA, '10:00');
+    await criarSabado();
+    await criarAluno('user_a', []);
+
+    agora(SEGUNDA, '19:00');
+    const id = await avulsaId();
+
+    const marcar = new FormData();
+    marcar.set('studentId', 'user_a');
+    marcar.set('classId', id);
+    await adminActions.markPresenceInClassAction(marcar);
+
+    /*
+     * O `date` vem do formulário aqui, e não da aula: desfazer é por dia e
+     * turma, e sem ele a ação procuraria a presença de hoje — que não existe —
+     * e o professor clicaria em "Desfazer" sem nada acontecer.
+     */
+    const desfazer = new FormData();
+    desfazer.set('studentId', 'user_a');
+    desfazer.set('classId', id);
+    desfazer.set('date', SABADO);
+    const result = await adminActions.undoPresenceAction(desfazer);
+    expect(result.ok).toBe(true);
+
+    expect(await attendance.countCheckins('user_a')).toBe(0);
+
+    // E dá para lançar de novo: o travamento do dia saiu junto.
+    const denovo = new FormData();
+    denovo.set('studentId', 'user_a');
+    denovo.set('classId', id);
+    expect((await adminActions.markPresenceInClassAction(denovo)).ok).toBe(true);
+  });
+
+  it('aluno de outra academia não entra nem pela chamada manual', async () => {
+    agora(SEXTA, '10:00');
+    await criarSabado();
+    await criarAluno('user_terra', [], 'terra-de-areia');
+
+    agora(SEGUNDA, '19:00');
+    const form = new FormData();
+    form.set('studentId', 'user_terra');
+    form.set('classId', await avulsaId());
+
+    const result = await adminActions.markPresenceInClassAction(form);
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('outra academia');
+    expect(await attendance.countCheckins('user_terra')).toBe(0);
+  });
+});

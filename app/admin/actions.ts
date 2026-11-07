@@ -1757,6 +1757,18 @@ export async function markPresenceInClassAction(form: FormData): Promise<ActionR
     };
   }
 
+  /*
+   * A data sai da **aula**, não do relógio.
+   *
+   * A turma avulsa e a ocorrência remarcada carregam `onlyOnDate`. Abrindo o
+   * treino de sábado numa segunda para lançar a chamada esquecida, gravar com
+   * `new Date()` poria a presença na segunda — numa turma que não acontece
+   * na segunda. Derivar daqui, e não de um campo do formulário, torna o erro
+   * impossível: o servidor lê a data na própria aula.
+   */
+  const now = new Date();
+  const diaDaAula = slot.onlyOnDate ?? saoPauloDateString(now);
+
   const result = await recordCheckin(
     {
       student,
@@ -1764,8 +1776,11 @@ export async function markPresenceInClassAction(form: FormData): Promise<ActionR
       classTitle: slot.title,
       source: 'manual',
       registeredBy: admin.id,
+      ...(diaDaAula !== saoPauloDateString(now)
+        ? { onDate: diaDaAula, onTime: slot.startTime }
+        : {}),
     },
-    new Date(),
+    now,
   );
 
   refreshAdmin();

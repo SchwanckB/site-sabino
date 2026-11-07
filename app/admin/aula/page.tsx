@@ -6,7 +6,7 @@ import { requirePermission } from '@/lib/auth';
 import {
   checkinInClass,
   countCheckins,
-  getTodayCheckins,
+  getCheckinsOn,
 } from '@/lib/repositories/attendance';
 import { listClassLog } from '@/lib/repositories/classLog';
 import { getPaymentPlans } from '@/lib/repositories/payments';
@@ -19,7 +19,7 @@ import { UNIT_SHORT, filterByUnit } from '@/types/domain';
 import { findOpenClasses, occursOnDate } from '@/utils/attendanceEngine';
 import { attendeesOf, belongsToClass } from '@/utils/classAttendees';
 import { recurringOnly } from '@/utils/classOverrides';
-import { saoPauloDateString, saoPauloTimeString } from '@/utils/datetime';
+import { formatBr, saoPauloDateString, saoPauloTimeString } from '@/utils/datetime';
 import { getKidsGraduationStatus } from '@/utils/graduationEngine';
 import { getPaymentSummary } from '@/utils/paymentEngine';
 import { buildHaystack } from '@/utils/searchText';
@@ -68,13 +68,38 @@ export default async function AulaPage({
     (a, b) => a.weekday - b.weekday || a.startTime.localeCompare(b.startTime),
   );
 
-  // A turma escolhida vem primeiro da lista de hoje, para a aula remarcada
-  // abrir com o horário de hoje e não com o da grade.
+  /*
+   * Turmas avulsas num bloco próprio.
+   *
+   * Elas não são da grade — `recurringOnly` as descarta — e só entram em
+   * `doDia` na data delas. Sem esta lista, o professor que quisesse fazer a
+   * chamada do treino de sábado às duas da tarde, ou na segunda seguinte,
+   * não tinha como abrir a aula: a tela dizia "nenhuma aula para abrir" e o
+   * seletor de fallback só oferecia a grade.
+   */
+  const avulsas = classes
+    .filter((slot) => slot.openToAll === true && slot.onlyOnDate !== undefined)
+    .sort((a, b) => (b.onlyOnDate ?? '').localeCompare(a.onlyOnDate ?? ''));
+
+  /*
+   * Qual aula a tela abre.
+   *
+   * A escolha explícita (`?turma=`) é procurada na grade inteira, e não só
+   * na lista de hoje: é o que permite abrir o sábado avulso em qualquer dia
+   * para lançar a chamada atrasada. A lista de hoje vem primeiro para a aula
+   * remarcada abrir com o horário de hoje, e não com o da grade.
+   *
+   * Sem escolha, abre a que está acontecendo. Não havendo nenhuma, abre a
+   * turma avulsa de hoje — ela é a única que o professor não tem outro
+   * caminho para alcançar, e num dia de avulsa é ela que ele veio ver.
+   */
   const { turma } = await searchParams;
   const escolhida =
     doDia.find((slot) => slot.id === turma) ??
     outrasTurmas.find((slot) => slot.id === turma) ??
+    avulsas.find((slot) => slot.id === turma) ??
     doDia.find((slot) => slot.id === abertas[0]?.classId) ??
+    doDia.find((slot) => slot.openToAll === true) ??
     null;
 
   if (!escolhida) {
@@ -110,6 +135,13 @@ export default async function AulaPage({
           querer rever o diário ou lançar uma presença atrasada. Mandar ele
           "escolher na lista de hoje" quando essa lista está vazia é um beco.
         */}
+        {avulsas.length > 0 ? (
+          <div className="mt-5 text-left">
+            <p className="panel-title">Turmas avulsas</p>
+            <SeletorDeTurma turmas={avulsas} atual={null} scope={scope} comData />
+          </div>
+        ) : null}
+
         {outrasTurmas.length > 0 ? (
           <div className="mt-5 text-left">
             <p className="panel-title">Abrir outra turma</p>
@@ -121,9 +153,20 @@ export default async function AulaPage({
     );
   }
 
+  /*
+   * O dia desta chamada.
+   *
+   * Quase sempre hoje. A turma avulsa e a ocorrência remarcada carregam a
+   * data na própria aula, e é dela que a chamada sai: abrindo o treino de
+   * sábado numa segunda, ler as presenças de hoje mostraria a lista vazia e o
+   * professor marcaria todo mundo de novo.
+   */
+  const diaDaAula = escolhida.onlyOnDate ?? hoje;
+  const retroativa = diaDaAula !== hoje;
+
   const ids = students.map((student) => student.id);
   const [checkins, plans, diario] = await Promise.all([
-    getTodayCheckins(ids, now),
+    getCheckinsOn(ids, diaDaAula),
     // A marca de "devendo" na lista da aula é dinheiro: para o professor a
     // mensalidade não é nem lida. Ver `lib/roles.ts`.
     verDinheiro ? getPaymentPlans(ids) : new Map(),
@@ -247,18 +290,43 @@ export default async function AulaPage({
         <span
           className={cn(
             'shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold',
-            emAndamento ? 'bg-crimson text-foreground' : 'bg-white/[.07] text-muted',
+            emAndamento
+              ? 'bg-crimson text-foreground'
+              : retroativa
+                ? 'bg-amber-500/20 text-amber-300'
+                : 'bg-white/[.07] text-muted',
           )}
         >
-          {emAndamento ? 'Acontecendo agora' : 'Fora do horário'}
+          {emAndamento
+            ? 'Acontecendo agora'
+            : retroativa
+              ? `Chamada de ${formatBr(diaDaAula)}`
+              : 'Fora do horário'}
         </span>
       </div>
 
       {doDia.length > 1 ? <SeletorDeTurma turmas={doDia} atual={escolhida.id} scope={scope} /> : null}
 
+      {/*
+        As avulsas ficam sempre à mão, e não só quando a tela abre vazia: é
+        aqui que o professor chega depois do treino de sábado para lançar a
+        chamada, com a aula da noite já aberta na frente dele.
+      */}
+      {avulsas.length > 0 ? (
+        <div>
+          <p className="panel-title">Turmas avulsas</p>
+          <SeletorDeTurma turmas={avulsas} atual={escolhida.id} scope={scope} comData />
+        </div>
+      ) : null}
+
       <div className="grid gap-3 lg:grid-cols-[1fr_20rem]">
         <section className="panel panel-pad min-w-0">
-          <ClassRoster classId={escolhida.id} rows={matriculados} guests={convidados} />
+          <ClassRoster
+            classId={escolhida.id}
+            rows={matriculados}
+            guests={convidados}
+            date={retroativa ? diaDaAula : null}
+          />
         </section>
 
         <div className="min-w-0 space-y-3">
@@ -280,6 +348,7 @@ function SeletorDeTurma({
   atual,
   scope,
   comDia = false,
+  comData = false,
 }: {
   readonly turmas: readonly {
     id: string;
@@ -287,10 +356,19 @@ function SeletorDeTurma({
     startTime: string;
     weekday: number;
     unit: string;
+    onlyOnDate?: string;
   }[];
   readonly atual: string | null;
   readonly scope: string;
+  /** Prefixa o dia da semana: usado na grade, onde a turma se repete. */
   readonly comDia?: boolean;
+  /**
+   * Prefixa a data: usado na turma avulsa, que acontece uma vez.
+   *
+   * "Sáb 09:00" não distingue dois treinos de sábado em semanas diferentes, e
+   * é exatamente isso que a lista de avulsas tem.
+   */
+  readonly comData?: boolean;
 }) {
   return (
     <div role="group" aria-label="Turmas de hoje" className="mt-4 flex flex-wrap gap-2">
@@ -306,6 +384,7 @@ function SeletorDeTurma({
               : 'border-hairline bg-white/[.04] text-muted hover:text-foreground',
           )}
         >
+          {comData && slot.onlyOnDate ? `${formatBr(slot.onlyOnDate).slice(0, 5)} ` : ''}
           {comDia ? `${weekdayShortLabels[slot.weekday as Weekday]} ` : ''}
           {slot.startTime} · {slot.title}
           {scope === 'todas' ? ` · ${UNIT_SHORT[slot.unit as 'tres-cachoeiras']}` : ''}

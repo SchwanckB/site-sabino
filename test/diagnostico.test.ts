@@ -10,6 +10,26 @@ import { UpstashMock } from './upstashMock';
  * falhando", e mostrar a mensagem real do servidor.
  */
 
+/*
+ * O Clerk entra mocado, e não pela rede.
+ *
+ * `checkClerk` chama `clerkClient().users.getCount()`. Com uma chave de
+ * mentira isso vira uma requisição de verdade para clerk.com, que demora o
+ * que a rede quiser: os dois testes que caem aqui estouravam o limite de 5s
+ * de forma intermitente, e uma suíte que falha por rede é uma suíte que
+ * ninguém mais lê. O que se está testando é a tradução do erro em mensagem,
+ * não a conectividade.
+ */
+vi.mock('@clerk/nextjs/server', () => ({
+  clerkClient: async () => ({
+    users: {
+      getCount: async () => {
+        throw new Error('Unauthenticated');
+      },
+    },
+  }),
+}));
+
 const mock = new UpstashMock();
 let endpoint = { url: '', token: '' };
 

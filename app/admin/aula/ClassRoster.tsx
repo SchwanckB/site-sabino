@@ -50,11 +50,21 @@ export function ClassRoster({
   classId,
   rows,
   guests,
+  date,
 }: {
   readonly classId: string;
   readonly rows: readonly RosterRow[];
   /** Alunos ativos de fora da turma, para a presença avulsa. */
   readonly guests: readonly RosterRow[];
+  /**
+   * Dia da chamada, quando não é hoje. `null` no caso comum.
+   *
+   * A turma avulsa e a remarcada carregam a própria data: aberta numa
+   * segunda, a chamada do sábado precisa desfazer a presença **daquele**
+   * sábado. Marcar não usa este campo — o servidor tira a data da própria
+   * aula, o que é mais seguro que confiar no formulário.
+   */
+  readonly date: string | null;
 }) {
   const [search, setSearch] = useState('');
   const [addingGuest, setAddingGuest] = useState(false);
@@ -113,7 +123,7 @@ export function ClassRoster({
       ) : (
         <ul className="mt-4 space-y-2">
           {visiveis.map((row) => (
-            <RosterItem key={row.id} classId={classId} row={row} />
+            <RosterItem key={row.id} classId={classId} row={row} date={date} />
           ))}
         </ul>
       )}
@@ -131,7 +141,7 @@ export function ClassRoster({
             {convidados.length > 0 ? (
               <ul className="mt-3 space-y-2">
                 {convidados.map((row) => (
-                  <RosterItem key={row.id} classId={classId} row={row} />
+                  <RosterItem key={row.id} classId={classId} row={row} date={date} />
                 ))}
               </ul>
             ) : (
@@ -167,9 +177,11 @@ export function ClassRoster({
 function RosterItem({
   classId,
   row,
+  date,
 }: {
   readonly classId: string;
   readonly row: RosterRow;
+  readonly date: string | null;
 }) {
   return (
     <li
@@ -201,6 +213,7 @@ function RosterItem({
             <input type="hidden" name="studentId" value={row.id} />
             {/* Qual presença do dia some: o aluno pode ter outra em outra turma. */}
             <input type="hidden" name="classId" value={classId} />
+            {date ? <input type="hidden" name="date" value={date} /> : null}
             <SubmitButton className="btn-ghost text-xs" pendingLabel="…">
               Desfazer
             </SubmitButton>
