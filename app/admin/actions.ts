@@ -45,9 +45,12 @@ import {
   getStudent,
   getStudents,
   isDependentId,
+  linkDependent,
+  listStudentsByStatus,
   rejectStudent,
   setGraduationAnchors,
   setStudentStatus,
+  unlinkDependent,
   updateStudent,
 } from '@/lib/repositories/students';
 import { getEffectiveSchedule, getSchedule } from '@/lib/schedule';
@@ -1888,5 +1891,120 @@ export async function deleteOneOffClassAction(form: FormData): Promise<ActionRes
   return {
     ok: true,
     message: 'Turma avulsa removida. As presenças já lançadas nela continuam no histórico.',
+  };
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Vínculo de responsável: a ficha de quem já treina, pendurada numa conta    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Candidatos a responsável de uma ficha.
+ *
+ * Conta própria (id do Clerk, não `dep_`), ativa, da mesma academia, e que
+ * não seja ela mesma um dependente — vínculo não encadeia. A mesma unidade é
+ * uma escolha de recorte, não de segurança: pai e filho na mesma academia é o
+ * caso de todos, e oferecer a base inteira num campo de busca é o caminho
+ * curto para vincular a pessoa errada.
+ */
+export async function listGuardianCandidatesAction(
+  studentId: string,
+): Promise<readonly { id: string; name: string; email: string }[]> {
+  const auth = await authorize('matricula');
+  if (!auth.ok) return [];
+
+  const student = await getStudent(studentId);
+  if (!student) return [];
+
+  const ativos = await listStudentsByStatus('ativo');
+
+  return ativos
+    .filter(
+      (item) =>
+        item.id !== student.id &&
+        item.unit === student.unit &&
+        item.guardianUserId === null &&
+        !isDependentId(item.id),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+    .map((item) => ({ id: item.id, name: item.name, email: item.email }));
+}
+
+/**
+ * Vincula a ficha a uma conta de responsável.
+ *
+ * Gestão, e não professor: quem recebe o vínculo passa a ver a ficha inteira
+ * daquele aluno — frequência, graduação, mensalidade — e a marcar presença por
+ * ele. É uma concessão de acesso aos dados de outra pessoa, quase sempre de um
+ * menor, e a decisão é de quem administra a academia. Foi o que ficou
+ * combinado: nem todo responsável treina, então não dá para o próprio
+ * responsável se conceder o vínculo.
+ */
+export async function linkGuardianAction(form: FormData): Promise<ActionResult> {
+  const auth = await authorize('matricula');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
+
+  const student = await getStudent(text(form, 'studentId'));
+  if (!student) return { ok: false, message: 'Aluno não encontrado.' };
+
+  const guardian = await getStudent(text(form, 'guardianId'));
+  if (!guardian) {
+    return { ok: false, message: 'Escolha uma conta de responsável na lista.' };
+  }
+
+  const result = await linkDependent(student, guardian, new Date());
+  if (!result.ok) return { ok: false, message: result.message };
+
+  await audit(
+    admin,
+    'vinculo.criado',
+    student,
+    `ficha vinculada à conta de ${guardian.name} (${guardian.email})`,
+  );
+
+  refreshAdmin();
+  return {
+    ok: true,
+    message: `${student.name.split(' ')[0]} agora aparece no painel de ${guardian.name.split(' ')[0]}, que alterna entre os perfis na própria tela.`,
+  };
+}
+
+export async function unlinkGuardianAction(form: FormData): Promise<ActionResult> {
+  const auth = await authorize('matricula');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
+
+  const student = await getStudent(text(form, 'studentId'));
+  if (!student) return { ok: false, message: 'Aluno não encontrado.' };
+
+  if (student.guardianUserId === null) {
+    return { ok: false, message: 'Esta ficha não está vinculada a nenhuma conta.' };
+  }
+
+  const anterior = await getStudent(student.guardianUserId);
+  await unlinkDependent(student, new Date());
+
+  await audit(
+    admin,
+    'vinculo.removido',
+    student,
+    `vínculo com ${anterior?.name ?? student.guardianUserId} desfeito`,
+  );
+
+  refreshAdmin();
+
+  /*
+   * O aviso importa: a ficha sem login próprio fica sem ninguém que a acesse
+   * pelo site. Às vezes é exatamente o que se quer — o aluno fez 18 anos e vai
+   * abrir a conta dele. Deixar isso implícito é o caminho para a recepção
+   * desfazer o vínculo "para testar" e a família perder o acesso sem entender.
+   */
+  return {
+    ok: true,
+    message: isDependentId(student.id)
+      ? `Vínculo desfeito. ${student.name.split(' ')[0]} não tem login próprio, então nenhuma conta enxerga esta ficha agora.`
+      : 'Vínculo desfeito. O aluno continua acessando pela conta dele.',
   };
 }

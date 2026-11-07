@@ -36,6 +36,11 @@ export type AuditAction =
   | 'pagamento.desfeito'
   | 'graduacao.desfeita'
   | 'presenca.removida'
+  /** Ficha pendurada numa conta de responsável, ou soltada dela. */
+  | 'vinculo.criado'
+  | 'vinculo.removido'
+  /** Perfil liberado, ocultado ou editado pela gestão. */
+  | 'perfil.moderado'
   | 'papel.alterado';
 
 export interface AuditEntry {

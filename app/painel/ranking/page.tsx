@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
+import { resolveActiveProfile } from '@/lib/activeProfile';
 import { getSessionUser } from '@/lib/auth';
 import { getRanking, getRankingPosition } from '@/lib/repositories/attendance';
-import { getStudents } from '@/lib/repositories/students';
+import { getStudent, getStudents } from '@/lib/repositories/students';
 import { saoPauloMonthString } from '@/utils/datetime';
 import { shortName } from '@/utils/roster';
 
@@ -21,11 +22,22 @@ export default async function RankingPage() {
   const now = new Date();
   const month = saoPauloMonthString(now);
 
+  /*
+   * "Minha posição" é a do perfil ativo, não a de quem logou.
+   *
+   * O pai que troca para o perfil do filho vinha vendo a própria colocação
+   * destacada na lista — e o filho, que talvez esteja em segundo lugar, sem
+   * destaque nenhum. Quem abre o ranking pelo perfil da criança quer ver a
+   * criança.
+   */
+  const perfil = await resolveActiveProfile(user.id, await getStudent(user.id));
+  const euId = perfil?.student.id ?? user.id;
+
   const [doMes, geral, posicaoMes, posicaoGeral] = await Promise.all([
     getRanking({ month, limit: TOP }),
     getRanking({ limit: TOP }),
-    getRankingPosition(user.id, { month }),
-    getRankingPosition(user.id),
+    getRankingPosition(euId, { month }),
+    getRankingPosition(euId),
   ]);
 
   // Uma leitura só para os dois recortes.
@@ -45,7 +57,7 @@ export default async function RankingPage() {
           name: shortName(student.name),
           belt: student.belt,
           score: row.score,
-          isMe: row.userId === user.id,
+          isMe: row.userId === euId,
         };
       })
       .filter((entry): entry is RankingEntry => entry !== null)

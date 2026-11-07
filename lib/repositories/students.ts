@@ -659,6 +659,109 @@ export async function createDependent(
   return student;
 }
 
+/**
+ * Pendura numa conta a ficha de quem **já** treina.
+ *
+ * `createDependent` serve para quem ainda não existe. Este é o caso mais
+ * comum numa academia que já roda há anos: a criança foi matriculada na
+ * recepção muito antes de o pai ter conta no site, e agora ele quer ver a
+ * frequência dela sem decorar um segundo login. Nada no histórico muda — a
+ * ficha é a mesma, com as presenças, os graus e a mensalidade dela.
+ *
+ * Isto é concessão de acesso, não cadastro: quem ganha o vínculo passa a ver
+ * a ficha inteira e a marcar presença por aquele aluno. Por isso a decisão é
+ * da gestão, e por isso as recusas aqui são explícitas em vez de silenciosas.
+ */
+export type LinkResult =
+  | { readonly ok: true; readonly student: StudentRecord }
+  | { readonly ok: false; readonly message: string };
+
+export async function linkDependent(
+  student: StudentRecord,
+  guardian: StudentRecord,
+  now: Date,
+): Promise<LinkResult> {
+  const redis = getRedis();
+  if (!redis) return { ok: false, message: 'Banco de dados não configurado.' };
+
+  if (student.id === guardian.id) {
+    return { ok: false, message: 'Uma ficha não pode ser dependente de si mesma.' };
+  }
+
+  // Vínculo não encadeia. Com A → B → C, trocar de perfil ficaria ambíguo e
+  // o dono de A acabaria vendo C sem ninguém ter decidido isso.
+  if (guardian.guardianUserId !== null) {
+    return {
+      ok: false,
+      message: `${guardian.name} não tem login próprio — a ficha dele já é administrada por outra conta.`,
+    };
+  }
+
+  // O responsável precisa ter conta no Clerk: é a conta que vai assumir o
+  // perfil. Uma ficha `dep_` não tem login para onde apontar.
+  if (isDependentId(guardian.id)) {
+    return {
+      ok: false,
+      message: `${guardian.name} não tem conta no site. O responsável precisa se cadastrar primeiro.`,
+    };
+  }
+
+  if (student.guardianUserId === guardian.id) {
+    return { ok: false, message: `Já está vinculado a ${guardian.name}.` };
+  }
+
+  const anterior = student.guardianUserId;
+
+  const atualizado: StudentRecord = {
+    ...student,
+    guardianUserId: guardian.id,
+    updatedAt: now.toISOString(),
+  };
+
+  const tx = redis.multi();
+  tx.hset(redisKeys.user(student.id), studentToRow(atualizado));
+  tx.sadd(redisKeys.dependents(guardian.id), student.id);
+  // Trocar de responsável tem de limpar o anterior, ou a ficha apareceria no
+  // seletor de perfil das duas contas.
+  if (anterior && anterior !== guardian.id) {
+    tx.srem(redisKeys.dependents(anterior), student.id);
+  }
+  await tx.exec();
+
+  return { ok: true, student: atualizado };
+}
+
+/**
+ * Desfaz o vínculo.
+ *
+ * A ficha continua existindo e continua treinando; o que ela perde é a conta
+ * que a enxergava. Para a ficha sem login próprio isto a deixa sem ninguém
+ * que a acesse pelo site — o que é aceitável e às vezes é o ponto: o aluno
+ * fez 18 anos e vai abrir a conta dele.
+ */
+export async function unlinkDependent(
+  student: StudentRecord,
+  now: Date,
+): Promise<StudentRecord> {
+  const redis = getRedis();
+  if (!redis) throw new Error('Banco de dados não configurado');
+
+  const atualizado: StudentRecord = {
+    ...student,
+    guardianUserId: null,
+    updatedAt: now.toISOString(),
+  };
+
+  const tx = redis.multi();
+  tx.hset(redisKeys.user(student.id), studentToRow(atualizado));
+  if (student.guardianUserId) {
+    tx.srem(redisKeys.dependents(student.guardianUserId), student.id);
+  }
+  await tx.exec();
+
+  return atualizado;
+}
+
 /** Ids das fichas que esta conta administra, sem a dela própria. */
 export async function listDependentIds(guardianUserId: string): Promise<string[]> {
   const redis = getRedis();

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
+import { resolveActiveProfile } from '@/lib/activeProfile';
 import { getSessionUser } from '@/lib/auth';
 import { listEvents } from '@/lib/repositories/calendar';
 import { getStudent } from '@/lib/repositories/students';
@@ -32,8 +33,18 @@ export default async function CalendarioDoAlunoPage() {
   const user = await getSessionUser();
   if (!user) redirect('/entrar');
 
-  const student = await getStudent(user.id);
-  if (!student) redirect('/onboarding');
+  /*
+   * O calendário é do perfil ativo.
+   *
+   * Com `getStudent(user.id)` o pai que trocou para o perfil do filho via as
+   * aulas **dele** — a do adulto às 20:30 em vez da infantil às 18:30 —, e a
+   * graduação prevista também era a dele. Toda tela do painel tem de sair da
+   * mesma resolução; é o que a barra de perfis promete.
+   */
+  const perfil = await resolveActiveProfile(user.id, await getStudent(user.id));
+  if (!perfil) redirect('/onboarding');
+
+  const student = perfil.student;
 
   const now = new Date();
   const today = saoPauloDateString(now);

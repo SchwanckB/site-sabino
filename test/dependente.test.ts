@@ -361,3 +361,198 @@ describe('apagar o dependente', () => {
     expect(perfil?.profiles).toHaveLength(1);
   });
 });
+
+describe('vincular quem já treina', () => {
+  /*
+   * A academia rodava muito antes do site.
+   *
+   * A criança foi matriculada na recepção, tem anos de presença e graus na
+   * ficha, e o pai só agora fez conta. `registerDependentAction` não serve:
+   * criaria uma segunda ficha e jogaria o histórico fora. O que falta é
+   * pendurar a ficha que já existe na conta dele.
+   *
+   * O vínculo é concessão de acesso — quem o recebe vê a ficha inteira e
+   * marca presença por aquele aluno —, então é da gestão e as recusas são
+   * explícitas.
+   */
+
+  /** Matricula uma ficha qualquer, com id próprio e nome dado. */
+  async function matricularOutro(id: string, name: string, over: Record<string, unknown> = {}) {
+    const quando = em('2026-02-01', '12:00');
+    const pendente = await students.createPendingStudent(
+      {
+        id,
+        name,
+        email: `${id}@teste.com`,
+        phone: '51999990000',
+        cpf: '52998224725',
+        birthDate: '2015-04-10',
+        belt: 'branca',
+        gender: 'masculino' as const,
+        unit: 'tres-cachoeiras' as const,
+        guardianName: null,
+        guardianPhone: null,
+        guardianCpf: null,
+        docBlobKey: null,
+        consentVersion: 'lgpd-2026-01',
+        consentAt: '2026-02-01T12:00:00.000Z',
+        ...over,
+      },
+      quando,
+    );
+
+    return students.approveStudent(
+      pendente,
+      { classIds: [], belt: 'branca', degree: 0, notes: '' },
+      quando,
+    );
+  }
+
+  function vincular(studentId: string, guardianId: string) {
+    const form = new FormData();
+    form.set('studentId', studentId);
+    form.set('guardianId', guardianId);
+    return adminActions.linkGuardianAction(form);
+  }
+
+  it('a ficha antiga passa a aparecer no painel do pai, com o histórico', async () => {
+    const fichaPai = await matricularTitular(pai, ['seg-2030-jj']);
+    await matricularOutro('user_pedro', 'Pedro Antigo');
+
+    agora(SEGUNDA, '10:00');
+
+    // Presença lançada antes do vínculo: é o histórico que não pode se perder.
+    const pedro = await students.getStudent('user_pedro');
+    if (!pedro) throw new Error('sem ficha');
+    await attendance.recordCheckin(
+      {
+        student: pedro,
+        classId: 'seg-1930-mma',
+        classTitle: 'MMA',
+        source: 'manual',
+        registeredBy: 'user_admin',
+      },
+      new Date(),
+    );
+
+    const result = await vincular('user_pedro', pai.id);
+    expect(result.ok).toBe(true);
+
+    const perfil = await activeProfile.resolveActiveProfile(pai.id, fichaPai);
+    expect(perfil?.profiles.map((item) => item.id)).toEqual([pai.id, 'user_pedro']);
+
+    // Mesma ficha, mesmo id, mesma presença.
+    expect(await attendance.countCheckins('user_pedro')).toBe(1);
+  });
+
+  it('o pai assume o perfil vinculado e o painel é do filho', async () => {
+    const fichaPai = await matricularTitular(pai, ['seg-2030-jj']);
+    await matricularOutro('user_pedro', 'Pedro Antigo');
+    agora(SEGUNDA, '10:00');
+    await vincular('user_pedro', pai.id);
+
+    atual = pai;
+    const form = new FormData();
+    form.set('studentId', 'user_pedro');
+    await painel.switchProfileAction(form);
+
+    const perfil = await activeProfile.resolveActiveProfile(pai.id, fichaPai);
+    expect(perfil?.student.id).toBe('user_pedro');
+    expect(perfil?.isDependent).toBe(true);
+  });
+
+  it('vínculo não encadeia: um dependente não pode ser responsável', async () => {
+    await matricularTitular(pai, []);
+    await matricularOutro('user_pedro', 'Pedro Antigo');
+    agora(SEGUNDA, '10:00');
+
+    await vincular('user_pedro', pai.id);
+
+    // Pedro agora é dependente; pendurar outra ficha nele deixaria a troca de
+    // perfil ambígua e daria ao dono da conta do pai o acesso a um terceiro.
+    await matricularOutro('user_ana', 'Ana Antiga');
+    const result = await vincular('user_ana', 'user_pedro');
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('não tem login próprio');
+    expect(await students.listDependentIds('user_pedro')).toEqual([]);
+  });
+
+  it('a ficha não é dependente de si mesma', async () => {
+    await matricularTitular(pai, []);
+    agora(SEGUNDA, '10:00');
+
+    const result = await vincular(pai.id, pai.id);
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('de si mesma');
+  });
+
+  it('trocar de responsável tira a ficha do seletor do anterior', async () => {
+    const fichaPai = await matricularTitular(pai, []);
+    const fichaOutro = await matricularTitular(estranho, []);
+    await matricularOutro('user_pedro', 'Pedro Antigo');
+    agora(SEGUNDA, '10:00');
+
+    await vincular('user_pedro', pai.id);
+    await vincular('user_pedro', estranho.id);
+
+    const doPai = await activeProfile.resolveActiveProfile(pai.id, fichaPai);
+    expect(doPai?.profiles.map((item) => item.id)).toEqual([pai.id]);
+
+    const doOutro = await activeProfile.resolveActiveProfile(estranho.id, fichaOutro);
+    expect(doOutro?.profiles.map((item) => item.id)).toEqual([estranho.id, 'user_pedro']);
+  });
+
+  it('desfazer solta a ficha, e o histórico fica', async () => {
+    const fichaPai = await matricularTitular(pai, []);
+    await matricularOutro('user_pedro', 'Pedro Antigo');
+    agora(SEGUNDA, '10:00');
+    await vincular('user_pedro', pai.id);
+
+    const form = new FormData();
+    form.set('studentId', 'user_pedro');
+    const result = await adminActions.unlinkGuardianAction(form);
+    expect(result.ok).toBe(true);
+
+    const perfil = await activeProfile.resolveActiveProfile(pai.id, fichaPai);
+    expect(perfil?.profiles.map((item) => item.id)).toEqual([pai.id]);
+
+    const pedro = await students.getStudent('user_pedro');
+    expect(pedro?.guardianUserId).toBeNull();
+    expect(pedro?.status).toBe('ativo');
+  });
+
+  it('desfazer o vínculo de ficha sem login avisa que ninguém mais a acessa', async () => {
+    await matricularTitular(pai, []);
+    agora(SEGUNDA, '10:00');
+    await painel.registerDependentAction(formularioDoFilho());
+
+    const filho = (await students.listDependents(pai.id))[0];
+    if (!filho) throw new Error('sem dependente');
+
+    const form = new FormData();
+    form.set('studentId', filho.id);
+    const result = await adminActions.unlinkGuardianAction(form);
+
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain('nenhuma conta enxerga');
+  });
+
+  it('a lista de candidatos exclui dependentes, outra academia e a própria ficha', async () => {
+    await matricularTitular(pai, []);
+    await matricularOutro('user_pedro', 'Pedro Antigo');
+    await matricularOutro('user_longe', 'Longe Daqui', { unit: 'terra-de-areia' });
+    agora(SEGUNDA, '10:00');
+
+    // O filho sem login nunca pode ser responsável de ninguém.
+    await painel.registerDependentAction(formularioDoFilho());
+
+    const candidatos = await adminActions.listGuardianCandidatesAction('user_pedro');
+    const ids = candidatos.map((item) => item.id);
+
+    expect(ids).toContain(pai.id);
+    expect(ids).not.toContain('user_pedro'); // a própria ficha
+    expect(ids).not.toContain('user_longe'); // outra academia
+    expect(ids.some((id) => id.startsWith('dep_'))).toBe(false);
+  });
+});

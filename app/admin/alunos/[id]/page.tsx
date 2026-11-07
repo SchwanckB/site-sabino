@@ -11,7 +11,7 @@ import { countCheckins, listCheckins } from '@/lib/repositories/attendance';
 import { listGraduationHistory } from '@/lib/repositories/graduation';
 import { buildTimeline, formatSpan } from '@/utils/graduationTimeline';
 import { getPaymentPlan, listPaymentHistory } from '@/lib/repositories/payments';
-import { getStudent, toPublicStudent } from '@/lib/repositories/students';
+import { getStudent, isDependentId, toPublicStudent } from '@/lib/repositories/students';
 import { getSchedule } from '@/lib/schedule';
 import { cn } from '@/lib/utils';
 import {
@@ -23,8 +23,10 @@ import {
 import { daysBetween, formatBr, saoPauloDateString } from '@/utils/datetime';
 import { formatCents, getPaymentSummary, PLAN_LABELS } from '@/utils/paymentEngine';
 
+import { listGuardianCandidatesAction } from '../../actions';
 import type { ClassOption } from '../../ClassPicker';
 import { DeleteStudentForm } from './DeleteStudentForm';
+import { GuardianLink, type GuardianCandidate } from './GuardianLink';
 import { StudentEditor } from './StudentEditor';
 
 export const metadata: Metadata = { title: 'Ficha do aluno' };
@@ -79,6 +81,15 @@ export default async function AlunoPage({
   const responsavel = student.guardianUserId
     ? await getStudent(student.guardianUserId)
     : null;
+
+  /*
+   * Candidatos a responsável, só quando a tela vai oferecer o vínculo.
+   *
+   * É uma varredura dos alunos ativos; o professor não vê esta seção, e sem a
+   * guarda ele pagaria a leitura por nada em toda ficha que abrisse.
+   */
+  const candidatos: GuardianCandidate[] =
+    podeMatricula && !responsavel ? [...(await listGuardianCandidatesAction(student.id))] : [];
 
   const publicStudent = toPublicStudent(student, now);
   const isKids = student.category === 'kids';
@@ -202,6 +213,24 @@ export default async function AlunoPage({
           <p className="mt-5 text-xs text-crimson">Sem arquivo anexado.</p>
         )}
       </section>
+
+      {/*
+        Vínculo com a conta de um responsável — só para a gestão.
+
+        Dar a uma conta acesso à ficha de outra pessoa é decisão de quem
+        administra a academia, não do professor e muito menos do próprio
+        responsável: nem todo responsável treina, e boa parte das fichas é de
+        menores.
+      */}
+      {podeMatricula ? (
+        <GuardianLink
+          studentId={student.id}
+          studentName={student.name}
+          hasOwnLogin={!isDependentId(student.id)}
+          current={responsavel ? { id: responsavel.id, name: responsavel.name } : null}
+          candidates={candidatos}
+        />
+      ) : null}
 
       {/* Resumo rápido ----------------------------------------------------- */}
       <div
