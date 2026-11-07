@@ -7,7 +7,7 @@ import { listEvents } from '@/lib/repositories/calendar';
 import { listStudentsByStatus } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
 import { filterByUnit } from '@/types/domain';
-import { getSchedule } from '@/lib/schedule';
+import { getEffectiveSchedule } from '@/lib/schedule';
 import { saoPauloDateString, saoPauloParts } from '@/utils/datetime';
 import { listKidsAgenda, type KidsStudent } from '@/utils/graduationEngine';
 import type { PredictedGraduation, RecurringClass } from '@/utils/calendarMonth';
@@ -26,7 +26,15 @@ export default async function CalendarioPage() {
   const scope = await getUnitScope();
 
   const [schedule, eventos, todos] = await Promise.all([
-    getSchedule(),
+    /*
+     * Grade **efetiva**: com as aulas remarcadas e as turmas avulsas.
+     *
+     * Lendo a grade crua, o calendário mostrava a turma no horário normal no
+     * dia em que ela foi remarcada, e não mostrava o treino de sábado. É a
+     * tela onde o professor confere o mês — mostrar a grade teórica ali é
+     * mostrar o que não vai acontecer.
+     */
+    getEffectiveSchedule(now),
     listEvents(),
     listStudentsByStatus('ativo'),
   ]);

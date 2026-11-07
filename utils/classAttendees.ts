@@ -44,3 +44,18 @@ export function attendeesOf<T extends AttendeeStudent>(
 ): T[] {
   return students.filter((student) => belongsToClass(student, slot));
 }
+
+/**
+ * As aulas deste aluno — a mesma regra, pelo outro lado.
+ *
+ * As turmas da ficha dele, mais as abertas da academia dele. É o que o
+ * calendário e o painel precisam: sem a segunda parte, o aluno via o treino
+ * de sábado como "próxima aula" e não o encontrava no calendário, que é
+ * justamente onde se procura "o que tem neste sábado".
+ */
+export function classesForStudent<T extends AttendeeClass>(
+  classes: readonly T[],
+  student: AttendeeStudent,
+): T[] {
+  return classes.filter((slot) => belongsToClass(student, slot));
+}

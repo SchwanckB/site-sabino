@@ -5,10 +5,11 @@ import { getSessionUser } from '@/lib/auth';
 import { listEvents } from '@/lib/repositories/calendar';
 import { getStudent } from '@/lib/repositories/students';
 import { getEffectiveSchedule } from '@/lib/schedule';
+import { classesForStudent } from '@/utils/classAttendees';
 import { recurringOnly } from '@/utils/classOverrides';
 import { saoPauloDateString, saoPauloParts } from '@/utils/datetime';
 import { getKidsGraduationStatus } from '@/utils/graduationEngine';
-import type { PredictedGraduation, RecurringClass } from '@/utils/calendarMonth';
+import type { DatedEvent, PredictedGraduation, RecurringClass } from '@/utils/calendarMonth';
 
 import { StudentCalendar } from './StudentCalendar';
 
@@ -39,16 +40,33 @@ export default async function CalendarioDoAlunoPage() {
 
   const [schedule, eventos] = await Promise.all([getEffectiveSchedule(now), listEvents()]);
 
-  const minhas = schedule.classes.filter((slot) => student.classIds.includes(slot.id));
+  // As turmas da ficha dele, mais as abertas da academia dele. A regra é a
+  // mesma da chamada do professor — ver `utils/classAttendees`.
+  const minhas = classesForStudent(schedule.classes, student);
 
   /*
    * A grade projetada no mês vem das turmas recorrentes.
    *
    * A ocorrência personalizada é a mesma turma em outro horário num dia só —
    * entrando aqui, ela viraria uma aula semanal a mais. O que ela precisa
-   * trazer para o calendário é a exceção daquele dia, e isso vem abaixo em
-   * `canceladas` e nas próprias ocorrências datadas.
+   * trazer para o calendário é a exceção daquele dia, e isso vem de
+   * `canceledDates` e das próprias ocorrências datadas.
+   *
+   * A turma avulsa entra por fora, como evento do dia: por `recurringOnly`
+   * ela seria descartada, e sem ele viraria uma aula de todo sábado.
    */
+  const avulsas: DatedEvent[] = minhas
+    .filter((slot) => slot.openToAll === true && slot.onlyOnDate !== undefined)
+    .map((slot) => ({
+      id: slot.id,
+      date: slot.onlyOnDate as string,
+      title: slot.title,
+      kind: 'evento' as const,
+      time: slot.startTime,
+      note: `Aula aberta · ${slot.startTime} às ${slot.endTime}${slot.level ? ` · ${slot.level}` : ''}`,
+      closesAcademy: false,
+    }));
+
   const classes: RecurringClass[] = recurringOnly(minhas).map((slot) => ({
     id: slot.id,
     weekday: slot.weekday,
@@ -120,7 +138,7 @@ export default async function CalendarioDoAlunoPage() {
         </p>
       </header>
 
-      {classes.length === 0 && eventos.length === 0 ? (
+      {classes.length === 0 && eventos.length === 0 && avulsas.length === 0 ? (
         <div className="panel px-6 py-16 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Nada marcado ainda</p>
           <p className="mt-2 text-sm text-muted">
@@ -130,7 +148,7 @@ export default async function CalendarioDoAlunoPage() {
       ) : (
         <StudentCalendar
           classes={classes}
-          events={eventos}
+          events={[...eventos, ...avulsas]}
           graduations={graduations}
           canceledDates={canceledDates}
           today={today}
