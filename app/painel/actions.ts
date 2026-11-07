@@ -9,6 +9,16 @@ import { requireUser } from '@/lib/auth';
 import { text } from '@/lib/formData';
 import { consumeRateLimit, rateLimitMessage } from '@/lib/rateLimit';
 import { getTodayCheckins, recordCheckin } from '@/lib/repositories/attendance';
+import {
+  deleteProfileImage,
+  uploadProfileImage,
+} from '@/lib/repositories/profileMedia';
+import {
+  getProfile,
+  sanitizeBio,
+  saveOwnProfile,
+  visibilityNotice,
+} from '@/lib/repositories/profiles';
 import { validateQrToken } from '@/lib/repositories/qr';
 import { createDependent, getStudent, listDependents } from '@/lib/repositories/students';
 import { getEffectiveScheduleFresh } from '@/lib/schedule';
@@ -551,4 +561,142 @@ export async function switchProfileAction(form: FormData): Promise<void> {
   await requireUser();
   await setActiveProfile(text(form, 'studentId'));
   revalidatePath('/painel', 'layout');
+}
+
+/* -------------------------------------------------------------------------- */
+/* Perfil do aluno: o que ele escolhe mostrar aos colegas                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Tudo aqui opera no **perfil ativo**, não em quem logou.
+ *
+ * É o que permite ao pai montar o perfil do filho de seis anos, que não tem
+ * login. E é por isso que `fichaAtiva` é a única porta: ela valida o cookie
+ * contra as fichas daquela conta, então ninguém edita o perfil de um terceiro
+ * trocando um id.
+ */
+export async function saveProfileAction(form: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+
+  const quota = await consumeRateLimit('perfil:salvar', user.id, 20, 300);
+  if (!quota.allowed) return { ok: false, message: rateLimitMessage(quota.retryAfter) };
+
+  const student = await fichaAtiva(user.id);
+  if (!student) return { ok: false, message: 'Perfil não encontrado.' };
+
+  const escolha = text(form, 'visibility');
+  if (escolha !== 'publico' && escolha !== 'privado') {
+    return { ok: false, message: 'Escolha se o perfil é público ou privado.' };
+  }
+
+  const bio = sanitizeBio(text(form, 'bio'));
+
+  const salvo = await saveOwnProfile(student.id, { visibility: escolha, bio }, new Date());
+
+  revalidatePath('/painel/perfil');
+  revalidatePath('/painel/comunidade');
+
+  /*
+   * A resposta diz se o perfil está realmente no ar.
+   *
+   * "Salvo" seria mentira útil para o menor: ele marca público, a gestão ainda
+   * não liberou, e ele passa a semana se perguntando por que os colegas não o
+   * acham. `visibilityNotice` responde exatamente isso.
+   */
+  const pendencia = visibilityNotice(salvo, student, new Date());
+
+  return {
+    ok: true,
+    message:
+      pendencia === null
+        ? 'Perfil salvo e visível para os colegas da academia.'
+        : `Perfil salvo. ${pendencia}`,
+  };
+}
+
+/**
+ * Envia a foto ou o banner.
+ *
+ * A imagem é reprocessada e gravada no Blob **privado**: ela sai por uma rota
+ * que confere a sessão e a visibilidade a cada requisição, e não por uma URL
+ * pública que continuaria funcionando depois de o perfil ser privado. Ver
+ * `lib/repositories/profileMedia.ts` — a razão está escrita lá.
+ */
+export async function uploadProfileImageAction(form: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+
+  /*
+   * Teto apertado de propósito.
+   *
+   * Cada chamada reprocessa uma imagem de até 8 MB com o `sharp` — é a action
+   * mais cara da aplicação em CPU e memória. Dez em cinco minutos cobre quem
+   * está escolhendo entre três fotos e fecha a porta para um laço.
+   */
+  const quota = await consumeRateLimit('perfil:imagem', user.id, 10, 300);
+  if (!quota.allowed) return { ok: false, message: rateLimitMessage(quota.retryAfter) };
+
+  const student = await fichaAtiva(user.id);
+  if (!student) return { ok: false, message: 'Perfil não encontrado.' };
+
+  const kind = text(form, 'kind');
+  if (kind !== 'avatar' && kind !== 'banner') {
+    return { ok: false, message: 'Imagem inválida.' };
+  }
+
+  const file = form.get('file');
+  if (!(file instanceof File)) return { ok: false, message: 'Selecione uma imagem.' };
+
+  const result = await uploadProfileImage(student.id, kind, file);
+  if (!result.ok) return { ok: false, message: result.error };
+
+  const anterior = await getProfile(student.id);
+
+  await saveOwnProfile(
+    student.id,
+    kind === 'avatar' ? { avatarKey: result.blobKey } : { bannerKey: result.blobKey },
+    new Date(),
+  );
+
+  // A troca grava com sufixo novo, então o arquivo antigo fica órfão no Blob.
+  // Apagar depois da gravação: se a ordem fosse ao contrário, uma falha no
+  // meio deixaria o perfil apontando para um arquivo que não existe mais.
+  await deleteProfileImage(kind === 'avatar' ? anterior?.avatarKey ?? null : anterior?.bannerKey ?? null);
+
+  revalidatePath('/painel/perfil');
+  revalidatePath('/painel/comunidade');
+
+  return {
+    ok: true,
+    message: kind === 'avatar' ? 'Foto atualizada.' : 'Banner atualizado.',
+  };
+}
+
+export async function removeProfileImageAction(form: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+
+  const quota = await consumeRateLimit('perfil:imagem', user.id, 10, 300);
+  if (!quota.allowed) return { ok: false, message: rateLimitMessage(quota.retryAfter) };
+
+  const student = await fichaAtiva(user.id);
+  if (!student) return { ok: false, message: 'Perfil não encontrado.' };
+
+  const kind = text(form, 'kind');
+  if (kind !== 'avatar' && kind !== 'banner') {
+    return { ok: false, message: 'Imagem inválida.' };
+  }
+
+  const atual = await getProfile(student.id);
+  const chave = kind === 'avatar' ? atual?.avatarKey ?? null : atual?.bannerKey ?? null;
+
+  await saveOwnProfile(
+    student.id,
+    kind === 'avatar' ? { avatarKey: null } : { bannerKey: null },
+    new Date(),
+  );
+  await deleteProfileImage(chave);
+
+  revalidatePath('/painel/perfil');
+  revalidatePath('/painel/comunidade');
+
+  return { ok: true, message: kind === 'avatar' ? 'Foto removida.' : 'Banner removido.' };
 }

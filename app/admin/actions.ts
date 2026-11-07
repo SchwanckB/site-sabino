@@ -32,6 +32,7 @@ import {
   undoLastPayment,
 } from '@/lib/repositories/payments';
 import { removePlan, resetPlansToSeed, upsertPlan } from '@/lib/repositories/plansAdmin';
+import { moderateProfile } from '@/lib/repositories/profiles';
 import { saveAcademySettings } from '@/lib/repositories/settings';
 import {
   getEditableSchedule,
@@ -2006,5 +2007,100 @@ export async function unlinkGuardianAction(form: FormData): Promise<ActionResult
     message: isDependentId(student.id)
       ? `Vínculo desfeito. ${student.name.split(' ')[0]} não tem login próprio, então nenhuma conta enxerga esta ficha agora.`
       : 'Vínculo desfeito. O aluno continua acessando pela conta dele.',
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Perfis: liberar os de menores e moderar o que fica visível                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Libera o perfil de um menor para os colegas.
+ *
+ * É consentimento, e por isso é da gestão: **nem todo responsável tem conta
+ * aqui**. A criança foi matriculada na recepção, o pai não treina e nunca
+ * abriu o site — não há adulto do lado dela para marcar essa caixa. Quem
+ * responde pela academia responde por isso.
+ *
+ * O que se libera é foto, banner e bio. Faixa, graus e frequência já estão no
+ * ranking, que é visível aos colegas desde sempre.
+ */
+export async function approveMinorProfileAction(form: FormData): Promise<ActionResult> {
+  const auth = await authorize('perfis');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
+
+  const student = await getStudent(text(form, 'studentId'));
+  if (!student) return { ok: false, message: 'Aluno não encontrado.' };
+
+  const liberar = text(form, 'approved') === '1';
+
+  await moderateProfile(student.id, { minorApproved: liberar }, new Date());
+
+  await audit(
+    admin,
+    'perfil.moderado',
+    student,
+    liberar ? 'perfil de menor liberado' : 'liberação do perfil de menor revogada',
+  );
+
+  refreshAdmin();
+  revalidatePath('/painel/comunidade');
+
+  return {
+    ok: true,
+    message: liberar
+      ? `Perfil de ${student.name.split(' ')[0]} liberado para os colegas.`
+      : `Liberação revogada. O perfil de ${student.name.split(' ')[0]} saiu da comunidade.`,
+  };
+}
+
+/**
+ * Oculta — ou devolve — um perfil.
+ *
+ * Vence qualquer escolha do aluno: é a moderação. O motivo é gravado e
+ * aparece para o próprio aluno na tela de perfil dele, porque "meu perfil
+ * sumiu" sem explicação vira uma ligação para a recepção e uma desconfiança
+ * que ninguém precisa.
+ */
+export async function hideProfileAction(form: FormData): Promise<ActionResult> {
+  const auth = await authorize('perfis');
+  if (!auth.ok) return auth;
+  const admin = auth.user;
+
+  const student = await getStudent(text(form, 'studentId'));
+  if (!student) return { ok: false, message: 'Aluno não encontrado.' };
+
+  const ocultar = text(form, 'hidden') === '1';
+  const motivo = text(form, 'reason');
+
+  if (ocultar && motivo.trim().length === 0) {
+    return {
+      ok: false,
+      message: 'Escreva o motivo. Ele aparece para o aluno, que é quem precisa corrigir.',
+    };
+  }
+
+  await moderateProfile(
+    student.id,
+    { hidden: ocultar, hiddenReason: ocultar ? motivo : '' },
+    new Date(),
+  );
+
+  await audit(
+    admin,
+    'perfil.moderado',
+    student,
+    ocultar ? `perfil ocultado: ${motivo}` : 'perfil devolvido à comunidade',
+  );
+
+  refreshAdmin();
+  revalidatePath('/painel/comunidade');
+
+  return {
+    ok: true,
+    message: ocultar
+      ? 'Perfil ocultado. O aluno vê o motivo na tela dele.'
+      : 'Perfil devolvido. Ele volta a aparecer se o aluno o tiver como público.',
   };
 }

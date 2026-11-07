@@ -47,6 +47,16 @@ export const redisKeys = {
   dependents: (guardianUserId: string) => `dependents:${guardianUserId}`,
   usersByStatus: (status: string) => `users:by-status:${status}`,
   /**
+   * Perfil do aluno para os colegas: foto, banner, bio e visibilidade.
+   *
+   * Hash separado de `user:`, de propósito. A ficha é o que a academia
+   * administra — CPF, documento, mensalidade, observação de lesão — e é lida
+   * em toda tela do admin. O perfil é o que o aluno escolhe mostrar, e é lido
+   * por outros alunos. Separar significa que montar a lista da comunidade não
+   * carrega o CPF de ninguém para a memória.
+   */
+  profile: (studentId: string) => `profile:${studentId}`,
+  /**
    * Trava de presença: **um aluno, um dia, uma turma**.
    *
    * Já foi `checkin:${userId}:${isoDate}`, uma por dia. Com ela, quem treinava

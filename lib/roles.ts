@@ -52,7 +52,23 @@ export type Permission =
   /** Frequência por turma e as planilhas para baixar. */
   | 'relatorios'
   /** Quem entra no painel e com qual permissão. */
-  | 'contas';
+  | 'contas'
+  /**
+   * Perfis dos alunos: liberar os de menores e ocultar o que não cabe.
+   *
+   * Separada de `alunos` porque não é a ficha — é o que fica visível para os
+   * outros alunos. Duas decisões moram aqui, e as duas são da gestão.
+   *
+   * A primeira é consentimento. Perfil de menor só vai ao ar depois de alguém
+   * da academia liberar, porque **nem todo responsável tem conta aqui** para
+   * dar esse consentimento: a criança foi matriculada na recepção, o pai não
+   * treina e nunca abriu o site. Deixar o próprio perfil decidir publicaria a
+   * foto de uma criança sem nenhum adulto no caminho.
+   *
+   * A segunda é moderação. Foto ou bio que não cabe precisa sair rápido, e
+   * responder por isso é de quem administra a academia.
+   */
+  | 'perfis';
 
 const GESTAO_PERMISSIONS: readonly Permission[] = [
   'aula',
@@ -64,6 +80,7 @@ const GESTAO_PERMISSIONS: readonly Permission[] = [
   'aula_do_dia',
   'relatorios',
   'contas',
+  'perfis',
 ];
 
 /*
