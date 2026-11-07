@@ -89,6 +89,18 @@ export interface ScheduledClass {
    * turma não vai ter.
    */
   readonly skipDates?: readonly string[];
+  /**
+   * Aula aberta a quem aparecer, sem estar na ficha de ninguém.
+   *
+   * É a turma avulsa: o treino de sábado que a academia abriu nesta semana e
+   * que não existe na grade. Sem turma na grade não há matrícula para
+   * conferir — e exigir que o professor ponha a aula na ficha de trinta
+   * alunos para um sábado é o mesmo que não ter a aula.
+   *
+   * Na grade normal o campo é ausente, e a matrícula continua sendo o que
+   * impede o aluno de marcar presença em turma que não é dele.
+   */
+  readonly openToAll?: boolean;
 }
 
 /**
@@ -144,13 +156,20 @@ export interface UpcomingClass {
   readonly custom: boolean;
 }
 
+/**
+ * As aulas que valem para este aluno.
+ *
+ * Normalmente são as da ficha dele. A turma avulsa entra por fora: ela é
+ * aberta, e por isso vale mesmo para quem não tem turma nenhuma atribuída —
+ * daí a lista de matrícula vazia não poder mais encerrar a conta antes da
+ * hora, como encerrava.
+ */
 function assigned(
   classes: readonly ScheduledClass[],
   assignedIds: readonly string[],
 ): ScheduledClass[] {
-  if (assignedIds.length === 0) return [];
   const allowed = new Set(assignedIds);
-  return classes.filter((item) => allowed.has(item.id));
+  return classes.filter((item) => item.openToAll === true || allowed.has(item.id));
 }
 
 /**

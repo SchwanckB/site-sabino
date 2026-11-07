@@ -6,12 +6,15 @@ import { weekdayLabels, type Weekday } from '@/data/seed';
 import { requirePermission } from '@/lib/auth';
 import { can } from '@/lib/roles';
 import { listUpcomingClassOverrides } from '@/lib/repositories/classOverrides';
+import { listUpcomingOneOffClasses } from '@/lib/repositories/oneOffClasses';
+import { listStudentsByStatus } from '@/lib/repositories/students';
 import { getEditableSchedule } from '@/lib/repositories/scheduleAdmin';
 import { getUnitScope } from '@/lib/unitScope';
 import { filterByUnit } from '@/types/domain';
 import { formatBr, saoPauloDateString, weekdayOf } from '@/utils/datetime';
 
 import { CustomClassEditor, type CustomClassView } from './CustomClassEditor';
+import { OneOffEditor, type OneOffView } from './OneOffEditor';
 import { ScheduleEditor } from './ScheduleEditor';
 
 export const metadata: Metadata = { title: 'Horários' };
@@ -31,6 +34,32 @@ export default async function HorariosPage() {
 
   const scope = await getUnitScope();
   const classes = filterByUnit(await getEditableSchedule(), scope);
+
+  /*
+   * Turmas avulsas e quantos alunos cada uma alcança.
+   *
+   * O número não é enfeite: a aula é aberta a todo aluno ativo da unidade, e
+   * ver "aberta a 34 alunos" antes de criar é o que diz ao professor que ele
+   * não precisa pôr a aula na ficha de ninguém.
+   */
+  const [avulsasBrutas, ativos] = await Promise.all([
+    listUpcomingOneOffClasses(now),
+    listStudentsByStatus('ativo'),
+  ]);
+
+  const avulsas: OneOffView[] = filterByUnit(avulsasBrutas, scope).map((aula) => ({
+    id: aula.id,
+    dateLabel: formatBr(aula.date),
+    weekdayLabel: weekdayLabels[weekdayOf(aula.date) as Weekday],
+    startTime: aula.startTime,
+    endTime: aula.endTime,
+    title: aula.title,
+    level: aula.level,
+    teacher: aula.teacher,
+    unit: aula.unit,
+    isToday: aula.date === today,
+    elegiveis: ativos.filter((student) => student.unit === aula.unit).length,
+  }));
 
   // As exceções guardam só o id da turma. O título e o horário normal vêm da
   // grade aqui, e não do banco: turma renomeada aparece com o nome novo.
@@ -106,14 +135,24 @@ export default async function HorariosPage() {
               scope={scope}
             />
           </div>
+
+          <div className="border-t border-hairline pt-6">
+            <OneOffEditor aulas={avulsas} today={today} scope={scope} />
+          </div>
         </>
       ) : (
-        <CustomClassEditor
-          classes={classes}
-          overrides={overrides}
-          today={today}
-          scope={scope}
-        />
+        <>
+          <CustomClassEditor
+            classes={classes}
+            overrides={overrides}
+            today={today}
+            scope={scope}
+          />
+
+          <div className="border-t border-hairline pt-6">
+            <OneOffEditor aulas={avulsas} today={today} scope={scope} />
+          </div>
+        </>
       )}
     </div>
   );

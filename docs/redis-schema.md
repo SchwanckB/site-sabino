@@ -87,6 +87,29 @@ usado em caminho quente.
 
 ---
 
+### `schedule:oneoff` - String (JSON)
+
+Turmas **avulsas**: a aula que nao existe na grade e acontece num dia so. O
+treino de sabado de manha aberto nesta semana, o seminario, o treino extra
+antes do campeonato.
+
+E o oposto de `schedule:overrides`. La a turma existe na grade e muda de
+horario num dia, e o check-in continua restrito a quem a tem na ficha. Aqui
+nao ha turma na grade, logo nao ha matricula para conferir: a aula e **aberta
+a todo aluno ativo da unidade** — "quem for marca presenca sem precisar por
+na ficha de cada um".
+
+- `{ classes: OneOffClass[], updatedAt }`
+- Id `avulsa-{YYYY-MM-DD}-{HHmm}`: salvar o mesmo dia e horario substitui
+- Entra na grade efetiva como `ClassSlot` com `onlyOnDate` e `openToAll`
+- Retencao de 90 dias, mais longa que a das excecoes: a presenca daquele
+  sabado aponta para este id, e a chamada retroativa pode vir semanas depois
+
+A grade (`schedule:classes`) **nunca** e escrita: o sabado avulso nao vira
+horario fixo e a landing continua anunciando a grade de verdade.
+
+---
+
 ### `dependents:{clerkId}` - Set
 
 Fichas que uma conta administra **alem da propria**.

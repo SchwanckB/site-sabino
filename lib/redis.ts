@@ -73,6 +73,16 @@ export const redisKeys = {
   scheduleClasses: () => 'schedule:classes',
   /** Aulas personalizadas: a turma em outro horário, numa data só. */
   scheduleOverrides: () => 'schedule:overrides',
+  /**
+   * Turmas avulsas: a aula que não existe na grade e acontece num dia só.
+   *
+   * O treino de sábado de manhã aberto nesta semana. Chave separada de
+   * `schedule:overrides` porque são coisas diferentes: a exceção muda uma
+   * turma que existe, esta cria uma que não existe — e, sem turma na grade,
+   * não há matrícula para conferir, logo a aula é aberta a todo aluno ativo
+   * da unidade.
+   */
+  scheduleOneOff: () => 'schedule:oneoff',
   landingPlans: () => 'landing:plans',
   calendarEvents: () => 'calendar:events',
   classLog: (classId: string) => 'class:log:' + classId,

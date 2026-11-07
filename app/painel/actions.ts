@@ -12,7 +12,7 @@ import { getTodayCheckins, recordCheckin } from '@/lib/repositories/attendance';
 import { validateQrToken } from '@/lib/repositories/qr';
 import { createDependent, getStudent, listDependents } from '@/lib/repositories/students';
 import { getEffectiveScheduleFresh } from '@/lib/schedule';
-import { CONSENT_VERSION, type CheckinResult } from '@/types/domain';
+import { CONSENT_VERSION, filterByUnit, type CheckinResult } from '@/types/domain';
 import {
   findNextClass,
   findOpenClasses,
@@ -195,6 +195,16 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
   ]);
 
   /*
+   * Só as aulas da academia dele.
+   *
+   * Na grade normal a matrícula já garantia isso: ninguém tem na ficha turma
+   * de outra unidade. A turma avulsa não tem matrícula — `openToAll` casa com
+   * qualquer aluno —, e sem este recorte o aluno de Terra de Areia via o
+   * treino aberto de Três Cachoeiras na lista de check-in.
+   */
+  const daUnidade = filterByUnit(schedule.classes, student.unit);
+
+  /*
    * As aulas abertas **que ele ainda não marcou**.
    *
    * Com turmas encostadas de hora em hora, quem faz MMA às 19:30 e Jiu às
@@ -207,7 +217,7 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
    * registra sozinha.
    */
   const jaMarcadas = new Set((doDia.get(student.id) ?? []).map((entry) => entry.classId));
-  const abertas = findOpenClasses(schedule.classes, student.classIds, now);
+  const abertas = findOpenClasses(daUnidade, student.classIds, now);
   const pendentes = abertas.filter((slot) => !jaMarcadas.has(slot.classId));
 
   return {
@@ -221,7 +231,7 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
     })),
     nextClass:
       pendentes.length === 0
-        ? proximaAulaEmTexto(schedule.classes, student.classIds, now)
+        ? proximaAulaEmTexto(daUnidade, student.classIds, now)
         : null,
     /*
      * Havia aula aberta, mas ele já marcou todas. É diferente de "nenhuma
@@ -306,6 +316,8 @@ export async function checkinAction(
 
   const now = new Date();
   const schedule = await getEffectiveScheduleFresh(now);
+  // Mesmo recorte da listagem: a aula aberta de outra academia não é dele.
+  const daUnidade = filterByUnit(schedule.classes, student.unit);
 
   /*
    * A turma escolhida é reconferida contra as que estão abertas agora.
@@ -314,7 +326,7 @@ export async function checkinAction(
    * bastaria trocar o valor no formulário para marcar presença numa aula de
    * outro dia. É aqui que a janela de horário e a matrícula são impostas.
    */
-  const abertas = findOpenClasses(schedule.classes, student.classIds, now);
+  const abertas = findOpenClasses(daUnidade, student.classIds, now);
 
   // Só as abertas que ele pediu, na ordem da grade. `Set` porque o mesmo id
   // repetido no formulário não pode virar duas tentativas.
@@ -330,7 +342,7 @@ export async function checkinAction(
       };
     }
 
-    const proxima = proximaAulaEmTexto(schedule.classes, student.classIds, now);
+    const proxima = proximaAulaEmTexto(daUnidade, student.classIds, now);
     return {
       ok: false,
       reason: 'sem_aula_agora',

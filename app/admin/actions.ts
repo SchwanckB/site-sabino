@@ -21,6 +21,7 @@ import {
   upsertRecurringCost,
 } from '@/lib/repositories/cashbook';
 import { removeClassOverride, upsertClassOverride } from '@/lib/repositories/classOverrides';
+import { removeOneOffClass, upsertOneOffClass } from '@/lib/repositories/oneOffClasses';
 import { saveClassLog } from '@/lib/repositories/classLog';
 import { clearFollowup, isFollowupKind, markFollowup } from '@/lib/repositories/followups';
 import { registerDegree, promoteBelt, undoLastDegree } from '@/lib/repositories/graduation';
@@ -63,6 +64,7 @@ import {
   type UserStatus,
 } from '@/types/domain';
 import { findOpenClasses, occursOnDate } from '@/utils/attendanceEngine';
+import { belongsToClass } from '@/utils/classAttendees';
 import { formatBr, saoPauloDateString } from '@/utils/datetime';
 import { KIDS_TOTAL_DEGREES } from '@/utils/graduationEngine';
 import {
@@ -1737,7 +1739,14 @@ export async function markPresenceInClassAction(form: FormData): Promise<ActionR
   if (!student) return { ok: false, message: 'Aluno não encontrado.' };
   if (student.status !== 'ativo') return { ok: false, message: 'Aluno não está ativo.' };
 
-  const schedule = await getSchedule();
+  /*
+   * Grade **efetiva**, e não a crua.
+   *
+   * A turma avulsa e a aula remarcada não existem em `schedule:classes` — de
+   * propósito, para a grade da semana não ser tocada. Lendo a grade crua, a
+   * chamada do sábado avulso devolvia "Turma não encontrada".
+   */
+  const schedule = await getEffectiveSchedule(new Date());
   const slot = schedule.classes.find((item) => item.id === classId) ?? null;
   if (!slot) return { ok: false, message: 'Turma não encontrada.' };
 
@@ -1767,10 +1776,17 @@ export async function markPresenceInClassAction(form: FormData): Promise<ActionR
       : { ok: false, message: 'Banco de dados não configurado.' };
   }
 
-  const avulso = !student.classIds.includes(slot.id);
+  /*
+   * "Presença avulsa" é o aluno marcado numa turma que não é dele.
+   *
+   * Na turma avulsa isso não existe: ela é aberta, ninguém a tem na ficha, e
+   * chamar todo mundo de avulso faria a tela gritar uma exceção que é a
+   * regra. `belongsToClass` conhece as duas situações.
+   */
+  const foraDaTurma = !belongsToClass(student, slot);
   return {
     ok: true,
-    message: avulso
+    message: foraDaTurma
       ? `Presença avulsa de ${student.name} em ${slot.title}.`
       : `${student.name} presente.`,
   };
@@ -1795,4 +1811,67 @@ export async function saveClassLogAction(form: FormData): Promise<ActionResult> 
 
   refreshAdmin();
   return { ok: true, message: 'Aula registrada no diário.' };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Turma avulsa: a aula que não existe na grade                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Cria uma turma que acontece num dia só e é aberta a quem aparecer.
+ *
+ * O treino de sábado de manhã que a academia resolveu abrir nesta semana. É
+ * diferente da aula personalizada: lá a turma existe na grade e muda de
+ * horário, e o check-in continua restrito a quem a tem na ficha. Aqui não há
+ * turma na grade, logo não há matrícula para conferir — e exigir que o
+ * professor ponha o sábado na ficha de trinta alunos é o mesmo que não ter
+ * o sábado.
+ *
+ * A grade semanal não é tocada: o sábado avulso não vira horário fixo, e a
+ * landing page continua anunciando a grade de verdade.
+ */
+export async function saveOneOffClassAction(form: FormData): Promise<ActionResult> {
+  const auth = await authorize('aula_do_dia');
+  if (!auth.ok) return auth;
+
+  const now = new Date();
+  const result = await upsertOneOffClass(
+    {
+      date: text(form, 'date'),
+      startTime: text(form, 'startTime'),
+      endTime: text(form, 'endTime'),
+      title: text(form, 'title'),
+      modality: text(form, 'modality'),
+      level: text(form, 'level'),
+      unit: text(form, 'unit'),
+      teacher: text(form, 'teacher'),
+    },
+    now,
+  );
+
+  if (!result.ok) return { ok: false, message: result.error };
+
+  refreshAdmin();
+
+  const { aula } = result;
+  return {
+    ok: true,
+    message: `${aula.title} marcada para ${formatBr(aula.date)}, ${aula.startTime} às ${aula.endTime}. Qualquer aluno ativo da academia pode marcar presença — o check-in abre uma hora antes.`,
+  };
+}
+
+export async function deleteOneOffClassAction(form: FormData): Promise<ActionResult> {
+  const auth = await authorize('aula_do_dia');
+  if (!auth.ok) return auth;
+
+  const id = text(form, 'id');
+  if (id.length === 0) return { ok: false, message: 'Turma avulsa inválida.' };
+
+  await removeOneOffClass(id, new Date());
+
+  refreshAdmin();
+  return {
+    ok: true,
+    message: 'Turma avulsa removida. As presenças já lançadas nela continuam no histórico.',
+  };
 }

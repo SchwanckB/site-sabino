@@ -17,6 +17,7 @@ import { getUnitScope } from '@/lib/unitScope';
 import { cn } from '@/lib/utils';
 import { UNIT_SHORT, filterByUnit } from '@/types/domain';
 import { findOpenClasses, occursOnDate } from '@/utils/attendanceEngine';
+import { attendeesOf, belongsToClass } from '@/utils/classAttendees';
 import { recurringOnly } from '@/utils/classOverrides';
 import { saoPauloDateString, saoPauloTimeString } from '@/utils/datetime';
 import { getKidsGraduationStatus } from '@/utils/graduationEngine';
@@ -194,13 +195,18 @@ export default async function AulaPage({
     };
   };
 
-  const matriculados = students
-    .filter((student) => student.classIds.includes(escolhida.id))
+  /*
+   * A chamada da turma avulsa é a academia da unidade inteira.
+   *
+   * Ela não existe na grade, então ninguém a tem na ficha: filtrar por
+   * matrícula devolveria uma lista vazia justamente na aula aberta.
+   */
+  const matriculados = attendeesOf(students, escolhida)
     .map((student) => toRow(student, false))
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
   const convidados = students
-    .filter((student) => !student.classIds.includes(escolhida.id))
+    .filter((student) => !belongsToClass(student, escolhida))
     .map((student) => toRow(student, true))
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 

@@ -11,6 +11,7 @@ import { filterByUnit } from '@/types/domain';
 import { getEffectiveSchedule } from '@/lib/schedule';
 import { weekdayLabels, weekdayShortLabels, type Weekday } from '@/data/seed';
 import { findOpenClasses, occursOnDate } from '@/utils/attendanceEngine';
+import { attendeesOf } from '@/utils/classAttendees';
 import { recurringOnly } from '@/utils/classOverrides';
 import { addDays, formatBr, saoPauloDateString, saoPauloTimeString } from '@/utils/datetime';
 
@@ -76,23 +77,39 @@ export default async function PresencaPage({
   /*
    * Turmas selecionáveis.
    *
-   * A lista é das recorrentes, uma linha por turma: a ocorrência personalizada
-   * é a mesma turma em outro horário e entraria duas vezes. O que ela traz é a
-   * marca de "acontece hoje", que chega pelo id.
+   * As recorrentes entram uma vez cada: a ocorrência personalizada é a mesma
+   * turma em outro horário e apareceria duas vezes. O que ela traz é a marca
+   * de "acontece hoje", que chega pelo id.
+   *
+   * A turma avulsa entra à parte. Ela só existe naquela data — `recurringOnly`
+   * a descartaria junto com as ocorrências personalizadas — e é justamente
+   * nela que o professor precisa clicar no sábado em que a abriu.
    */
   const doDia = new Set(
     classes.filter((slot) => occursOnDate(slot, dia)).map((slot) => slot.id),
   );
 
-  const turmas: TurmaResumo[] = recurringOnly(classes)
+  const avulsasDoDia = classes.filter(
+    (slot) => slot.openToAll === true && occursOnDate(slot, dia),
+  );
+
+  const turmas: TurmaResumo[] = [...avulsasDoDia, ...recurringOnly(classes)]
     .map((slot) => {
-      const matriculados = students.filter((student) => student.classIds.includes(slot.id));
+      const matriculados = attendeesOf(students, slot);
+      const avulsa = slot.openToAll === true;
+
       return {
         id: slot.id,
-        label: `${weekdayShortLabels[slot.weekday as Weekday]} ${slot.startTime} · ${slot.title}`,
-        weekdayLabel: weekdayLabels[slot.weekday as Weekday],
+        label: avulsa
+          ? `${formatBr(slot.onlyOnDate ?? dia).slice(0, 5)} ${slot.startTime} · ${slot.title}`
+          : `${weekdayShortLabels[slot.weekday as Weekday]} ${slot.startTime} · ${slot.title}`,
+        weekdayLabel: avulsa
+          ? `Avulsa de ${formatBr(slot.onlyOnDate ?? dia)}`
+          : weekdayLabels[slot.weekday as Weekday],
         startTime: slot.startTime,
         title: slot.title,
+        unit: slot.unit,
+        openToAll: avulsa,
         openNow: abertas.has(slot.id),
         happensToday: doDia.has(slot.id),
         total: matriculados.length,
@@ -118,9 +135,7 @@ export default async function PresencaPage({
    * é a presença **naquela aula**. Sem turma é a visão da academia inteira, e
    * aí "presente" é qualquer presença de hoje — a pergunta ali é outra.
    */
-  const base = escolhida
-    ? students.filter((student) => student.classIds.includes(escolhida.id))
-    : students;
+  const base = escolhida ? attendeesOf(students, escolhida) : students;
 
   const rows: PresenceRow[] = base
     .map((student) => {

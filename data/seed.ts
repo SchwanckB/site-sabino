@@ -201,7 +201,20 @@ export interface ClassSlot {
    * marcas valem igual.
    */
   readonly canceledDates?: readonly string[];
+  /**
+   * Aula aberta a **todo aluno ativo da unidade**, sem precisar estar na
+   * ficha dele.
+   *
+   * Só a turma avulsa usa isto (ver `lib/repositories/oneOffClasses.ts`): ela
+   * não existe na grade, então não há matrícula para conferir. Na grade
+   * normal a matrícula é justamente o que impede o aluno de marcar presença
+   * numa turma que não é dele, e por isso o campo é ausente lá.
+   */
+  readonly openToAll?: boolean;
 }
+
+/** Ids de modalidade, para validar entrada vinda de formulário. */
+export const MODALITY_IDS: readonly ModalityId[] = ['jiu-jitsu', 'mma', 'kids'];
 
 export interface Schedule {
   readonly classes: readonly ClassSlot[];

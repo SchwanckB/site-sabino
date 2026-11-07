@@ -54,6 +54,14 @@ export interface TurmaResumo {
   readonly weekdayLabel: string;
   readonly startTime: string;
   readonly title: string;
+  readonly unit: string;
+  /**
+   * `true` na turma avulsa: a aula de um dia só, aberta a quem aparecer.
+   *
+   * A chamada dela é a academia da unidade inteira, e não os matriculados —
+   * ela não existe na grade, então ninguém a tem na ficha.
+   */
+  readonly openToAll: boolean;
   readonly openNow: boolean;
   /** `false` quando a turma é de outro dia da semana. */
   readonly happensToday: boolean;
@@ -192,9 +200,11 @@ export function PresenceList({
                     {selected.presentes}/{selected.total}
                   </span>{' '}
                   na chamada
-                  {selected.happensToday
-                    ? ' · a presença entra vinculada a esta turma, mesmo depois do treino'
-                    : ''}
+                  {selected.openToAll
+                    ? ' · turma avulsa, aberta a todo aluno ativo da academia'
+                    : selected.happensToday
+                      ? ' · a presença entra vinculada a esta turma, mesmo depois do treino'
+                      : ''}
                 </p>
               </div>
 

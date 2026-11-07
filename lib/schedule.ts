@@ -8,6 +8,10 @@ import { CACHE_TAGS, PUBLIC_REVALIDATE_SECONDS } from '@/lib/cacheTags';
 import { seedSchedule, type ClassSlot, type ModalityId, type Schedule, type Weekday } from '@/data/seed';
 import { getRedis, redisKeys } from '@/lib/redis';
 import { listUpcomingClassOverrides } from '@/lib/repositories/classOverrides';
+import {
+  listOneOffClasses,
+  toClassSlot as oneOffToClassSlot,
+} from '@/lib/repositories/oneOffClasses';
 import { toUnitId } from '@/types/domain';
 import { applyClassOverrides } from '@/utils/classOverrides';
 
@@ -189,16 +193,38 @@ export async function getSchedule(): Promise<Schedule> {
  */
 async function merge(schedule: Schedule, now: Date): Promise<Schedule> {
   try {
-    const overrides = await listUpcomingClassOverrides(now);
-    if (overrides.length === 0) return schedule;
+    /*
+     * As avulsas entram **todas**, inclusive as que já passaram.
+     *
+     * Cada uma é presa à própria data por `onlyOnDate`, então uma antiga não
+     * abre check-in em dia nenhum — mas precisa continuar existindo na grade
+     * para a chamada retroativa do sábado passado encontrar a turma. Sem
+     * isso, lançar a presença esquecida devolvia "turma não encontrada". O
+     * repositório já poda o que passou de noventa dias.
+     */
+    const [overrides, avulsas] = await Promise.all([
+      listUpcomingClassOverrides(now),
+      listOneOffClasses(),
+    ]);
 
-    return {
-      ...schedule,
-      classes: sortClasses(applyClassOverrides(schedule.classes, overrides)),
-    };
+    if (overrides.length === 0 && avulsas.length === 0) return schedule;
+
+    /*
+     * As avulsas entram **depois** das exceções, e não antes.
+     *
+     * `applyClassOverrides` mexe na grade da semana — fura o dia da turma
+     * remarcada e cria a ocorrência nova. A turma avulsa não tem nada na
+     * grade para furar: ela é uma aula a mais naquele dia, e passar por
+     * aquela mescla só faria o código procurar uma turma-base que não
+     * existe.
+     */
+    const comExcecoes = applyClassOverrides(schedule.classes, overrides);
+    const comAvulsas = [...comExcecoes, ...avulsas.map(oneOffToClassSlot)];
+
+    return { ...schedule, classes: sortClasses(comAvulsas) };
   } catch (error) {
     // Exceção ilegível não derruba o treino: todo mundo cai no horário normal.
-    console.error('[schedule] falha ao aplicar as aulas personalizadas', error);
+    console.error('[schedule] falha ao aplicar as aulas do dia', error);
     return schedule;
   }
 }
