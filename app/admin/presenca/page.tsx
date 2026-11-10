@@ -3,6 +3,8 @@ import Link from 'next/link';
 
 import { PageHeader } from '@/components/app/PageHeader';
 
+import { DayPicker } from './DayPicker';
+
 import { requirePermission } from '@/lib/auth';
 import { checkinInClass, getCheckinsOn } from '@/lib/repositories/attendance';
 import { listStudentsByStatus } from '@/lib/repositories/students';
@@ -215,6 +217,12 @@ export default async function PresencaPage({
         }
       />
 
+      {/*
+        O dia vem antes da turma, porque é a primeira decisão de quem abre esta
+        tela para consertar a chamada de ontem.
+      */}
+      <DayPicker dia={dia} hoje={hoje} minDate={limite} turma={turmaParam} />
+
       {students.length === 0 ? (
         <div className="panel px-6 py-16 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Nenhum aluno ativo</p>
@@ -231,7 +239,6 @@ export default async function PresencaPage({
             selected={escolhida}
             dia={dia}
             hoje={hoje}
-            minDate={limite}
           />
         </div>
       )}

@@ -97,7 +97,6 @@ export function PresenceList({
   selected,
   dia,
   hoje,
-  minDate,
 }: {
   readonly rows: readonly PresenceRow[];
   readonly todayLabel: string;
@@ -107,8 +106,6 @@ export function PresenceList({
   /** Dia da chamada, `YYYY-MM-DD`. */
   readonly dia: string;
   readonly hoje: string;
-  /** Até onde o calendário deixa voltar. */
-  readonly minDate: string;
 }) {
   const retroativo = dia !== hoje;
   const [filter, setFilter] = useState<Filter>(selected ? 'todos' : 'aula_agora');
@@ -270,47 +267,14 @@ export function PresenceList({
       ) : null}
 
       {/*
-        O dia da chamada.
+        O seletor de dia saiu daqui para o topo da tela (`DayPicker`).
 
-        Lançar na hora é o caso comum, e por isso o campo fica discreto — mas
-        a chamada esquecida é o que mais some do sistema: a turma da manhã
-        lembrada à tarde, ou no dia seguinte. Sem ele a data saía sempre do
-        relógio.
+        Ele vivia num `<details>` fechado, abaixo da grade de turmas, com
+        resumo em cinza de 12px — e acertar a chamada de ontem, que é o motivo
+        de esta tela existir, custava seis passos. Lá em cima "Ontem" é um
+        toque, e o aviso de retroatividade fica na mesma linha do controle que
+        o causou.
       */}
-      <details className="mt-3" open={retroativo}>
-        <summary className="cursor-pointer list-none text-xs text-muted hover:text-foreground">
-          {retroativo ? `Chamada de ${todayLabel}` : 'Lançar a chamada de outro dia'}
-        </summary>
-
-        <form method="get" className="mt-2 flex flex-wrap items-end gap-3">
-          {selected ? <input type="hidden" name="turma" value={selected.id} /> : null}
-
-          <label className="text-xs text-muted">
-            <span className="block">Dia</span>
-            <input
-              type="date"
-              name="dia"
-              defaultValue={dia}
-              max={hoje}
-              min={minDate}
-              className="mt-1 min-h-[44px] rounded-xl border border-hairline bg-white/[.04] px-3 text-sm text-foreground focus:border-crimson focus:outline-none"
-            />
-          </label>
-
-          <button type="submit" className="btn-secondary text-xs">
-            Ver este dia
-          </button>
-
-          {retroativo ? (
-            <Link
-              href={selected ? `/admin/presenca?turma=${selected.id}` : '/admin/presenca'}
-              className="btn-ghost text-xs"
-            >
-              Voltar para hoje
-            </Link>
-          ) : null}
-        </form>
-      </details>
 
       {retroativo ? (
         <p role="status" className="notice-warn mt-3 text-xs leading-relaxed">
