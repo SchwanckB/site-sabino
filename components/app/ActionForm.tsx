@@ -60,7 +60,7 @@ export function ActionForm({
             'mt-3 rounded-lg px-3 py-2 text-xs leading-relaxed',
             state.ok
               ? 'bg-emerald-500/10 text-emerald-300'
-              : 'bg-crimson/10 text-crimson',
+              : 'bg-crimson/10 text-accent',
           )}
         >
           {state.message}

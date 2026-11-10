@@ -54,7 +54,7 @@ function Field({
       {hint ? <p className="mt-1 text-xs text-muted">{hint}</p> : null}
       <div className="mt-2">{children}</div>
       {error ? (
-        <p id={`${name}-erro`} role="alert" className="mt-1.5 text-xs text-crimson">
+        <p id={`${name}-erro`} role="alert" className="mt-1.5 text-xs text-accent">
           {error}
         </p>
       ) : null}
@@ -413,7 +413,7 @@ export function OnboardingForm({
           </span>
         </label>
         {errors['consent'] ? (
-          <p role="alert" className="mt-1.5 text-xs text-crimson">
+          <p role="alert" className="mt-1.5 text-xs text-accent">
             {errors['consent']}
           </p>
         ) : null}

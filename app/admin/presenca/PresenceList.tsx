@@ -156,7 +156,7 @@ export function PresenceList({
     <div>
       <div className="panel flex flex-wrap items-center justify-between gap-4 p-4">
         <p aria-live="polite" className="text-sm text-muted">
-          <span className="font-display text-2xl leading-none text-crimson tabular-nums">
+          <span className="font-display text-2xl leading-none text-accent tabular-nums">
             {presentCount}
           </span>{' '}
           {selected
@@ -541,7 +541,7 @@ function TurmaGrid({
                 />
               </div>
               {turma.openNow ? (
-                <p className="mt-1.5 text-[11px] text-crimson">acontecendo agora</p>
+                <p className="mt-1.5 text-[11px] text-accent">acontecendo agora</p>
               ) : null}
             </Link>
           </li>

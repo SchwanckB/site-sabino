@@ -65,7 +65,7 @@ export function ApprovalCard({
               ? 'badge-late'
               : student.status === 'inativo'
                 ? 'badge-neutral'
-                : 'badge border-crimson/40 bg-crimson/15 text-crimson'
+                : 'badge border-crimson/40 bg-crimson/15 text-accent'
           }
         >
           {STATUS_LABELS[student.status]}
@@ -78,7 +78,7 @@ export function ApprovalCard({
       */}
       {student.status === 'recusado' && student.rejectionReason ? (
         <p className="notice-late mt-4 text-xs leading-relaxed">
-          <span className="font-semibold text-crimson">Recusado antes:</span>{' '}
+          <span className="font-semibold text-accent">Recusado antes:</span>{' '}
           {student.rejectionReason}
         </p>
       ) : null}
@@ -170,7 +170,7 @@ export function ApprovalCard({
           ) : null}
         </div>
       ) : (
-        <p className="mt-5 rounded-lg bg-crimson/10 px-3 py-2 text-xs text-crimson">
+        <p className="mt-5 rounded-lg bg-crimson/10 px-3 py-2 text-xs text-accent">
           Este cadastro não tem nenhum arquivo anexado.
         </p>
       )}

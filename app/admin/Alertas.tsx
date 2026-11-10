@@ -68,7 +68,7 @@ export function Alertas({
 
                   <Link
                     href={`/admin/alunos/${item.id}`}
-                    className="min-w-0 flex-1 truncate text-foreground hover:text-crimson"
+                    className="min-w-0 flex-1 truncate text-foreground hover:text-accent"
                   >
                     {item.name}
                   </Link>
@@ -152,13 +152,13 @@ export function Alertas({
                   href={`/admin/alunos/${item.id}`}
                   className="group flex min-h-[44px] items-center justify-between gap-3 py-2 text-sm"
                 >
-                  <span className="min-w-0 truncate text-foreground group-hover:text-crimson">
+                  <span className="min-w-0 truncate text-foreground group-hover:text-accent">
                     {item.name}
                   </span>
                   <span
                     className={cn(
                       'shrink-0 text-xs',
-                      item.overdue ? 'font-semibold text-crimson' : 'text-muted',
+                      item.overdue ? 'font-semibold text-accent' : 'text-muted',
                     )}
                   >
                     {item.overdue

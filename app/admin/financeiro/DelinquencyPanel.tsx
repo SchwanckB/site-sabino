@@ -103,7 +103,7 @@ export function DelinquencyPanel({
               <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
                 <Link
                   href={`/admin/alunos/${row.id}`}
-                  className="min-w-0 truncate text-sm text-foreground hover:text-crimson"
+                  className="min-w-0 truncate text-sm text-foreground hover:text-accent"
                 >
                   {row.name}
                 </Link>

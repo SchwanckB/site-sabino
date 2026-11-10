@@ -149,7 +149,7 @@ export default async function AlunoPage({
                 {responsavel ? (
                   <Link
                     href={`/admin/alunos/${responsavel.id}`}
-                    className="hover:text-crimson"
+                    className="hover:text-accent"
                   >
                     {responsavel.name}
                   </Link>
@@ -210,7 +210,7 @@ export default async function AlunoPage({
             Abrir {DOCUMENT_KIND_SHORT[publicStudent.docKind].toLowerCase()}
           </a>
         ) : (
-          <p className="mt-5 text-xs text-crimson">Sem arquivo anexado.</p>
+          <p className="mt-5 text-xs text-accent">Sem arquivo anexado.</p>
         )}
       </section>
 
@@ -241,7 +241,7 @@ export default async function AlunoPage({
       >
         <div className="panel p-4">
           <p className="text-xs text-muted">Total de treinos</p>
-          <p className="mt-1 font-display text-3xl leading-none tabular-nums text-crimson">
+          <p className="mt-1 font-display text-3xl leading-none tabular-nums text-accent">
             {total}
           </p>
         </div>
@@ -422,7 +422,7 @@ export default async function AlunoPage({
       */}
       {podeMatricula ? (
       <section className="mt-10 rounded-2xl border border-crimson/40 bg-crimson/[.05] p-5 sm:p-6">
-        <h2 className="text-lg normal-case tracking-normal text-crimson">Apagar cadastro</h2>
+        <h2 className="text-lg normal-case tracking-normal text-accent">Apagar cadastro</h2>
         <p className="mt-2 text-sm leading-relaxed text-muted">
           Remove em definitivo a ficha, o histórico de presenças e graduações, a mensalidade,
           o arquivo anexado e a conta de login. <strong className="text-foreground">Não

@@ -72,7 +72,7 @@ export function ClassPicker({
 
   if (daUnidade.length === 0) {
     return (
-      <p className="mt-3 text-xs text-crimson">
+      <p className="mt-3 text-xs text-accent">
         {classOptions.length === 0
           ? 'Nenhuma turma na grade. Cadastre os horários antes de matricular.'
           : `Nenhuma turma cadastrada em ${UNIT_LABELS[unit]}. Cadastre os horários desta academia primeiro.`}

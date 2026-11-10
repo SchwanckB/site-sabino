@@ -1,18 +1,41 @@
 'use client';
 
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import {
+  AnimatePresence,
+  motion,
+  useReducedMotion,
+  useScroll,
+  useSpring,
+} from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
 import { AccessLinksMobile, AccessMenu } from '@/components/landing/AccessMenu';
+import { useActiveSection } from '@/components/landing/useActiveSection';
 import { navLinks, siteConfig, whatsappLink, whatsappMessages } from '@/lib/site';
 import { cn } from '@/lib/utils';
+
+const navHrefs = navLinks.map((link) => link.href);
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const reduceMotion = useReducedMotion();
+  const activeSection = useActiveSection(navHrefs);
+
+  /*
+   * Progresso da leitura.
+   *
+   * A mola tira o serrilhado do scroll por toque, que chega em saltos. Sem
+   * ela a barra "pula" a cada evento em vez de correr.
+   */
+  const { scrollYProgress } = useScroll();
+  const progress = useSpring(scrollYProgress, {
+    stiffness: 180,
+    damping: 30,
+    restDelta: 0.001,
+  });
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -48,6 +71,16 @@ export function Header() {
           : 'border-b border-transparent bg-transparent',
       )}
     >
+      {/*
+        Barra de progresso na borda de baixo do cabeçalho. Só aparece depois de
+        sair do topo: parada em zero ela só somaria um traço sem significado.
+      */}
+      <motion.div
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-gradient-to-r from-crimson to-accent"
+        style={{ scaleX: progress, opacity: scrolled ? 1 : 0 }}
+      />
+
       <div className="container-page flex h-20 items-center justify-between gap-4">
         <Link
           href="/"
@@ -67,16 +100,41 @@ export function Header() {
 
         <nav aria-label="Navegacao principal" className="hidden lg:block">
           <ul className="flex items-center gap-1">
-            {navLinks.map((link) => (
-              <li key={link.href}>
-                <a
-                  href={link.href}
-                  className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium text-muted transition-colors duration-300 hover:text-foreground"
-                >
-                  {link.label}
-                </a>
-              </li>
-            ))}
+            {navLinks.map((link) => {
+              const isActive = activeSection === link.href;
+
+              return (
+                <li key={link.href}>
+                  <a
+                    href={link.href}
+                    aria-current={isActive ? 'true' : undefined}
+                    className={cn(
+                      'relative inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium transition-colors',
+                      isActive ? 'text-foreground' : 'text-muted hover:text-foreground',
+                    )}
+                  >
+                    {link.label}
+                    {/*
+                      Um único elemento com `layoutId` desliza entre os itens em
+                      vez de cinco sublinhados acendendo e apagando: o traço
+                      acompanha a leitura, e o olho segue o movimento.
+                    */}
+                    {isActive ? (
+                      <motion.span
+                        aria-hidden="true"
+                        layoutId="nav-ativo"
+                        className="absolute inset-x-3 -bottom-0.5 h-0.5 rounded-full bg-accent"
+                        transition={
+                          reduceMotion
+                            ? { duration: 0 }
+                            : { type: 'spring', stiffness: 380, damping: 32 }
+                        }
+                      />
+                    ) : null}
+                  </a>
+                </li>
+              );
+            })}
           </ul>
         </nav>
 
@@ -157,8 +215,17 @@ export function Header() {
                       <a
                         href={link.href}
                         onClick={closeMenu}
-                        className="flex min-h-[56px] items-center font-display text-2xl uppercase tracking-tight text-foreground transition-colors hover:text-crimson"
+                        aria-current={activeSection === link.href ? 'true' : undefined}
+                        className={cn(
+                          'flex min-h-[56px] items-center gap-3 font-display text-2xl uppercase tracking-tight transition-colors',
+                          activeSection === link.href
+                            ? 'text-accent'
+                            : 'text-foreground hover:text-accent',
+                        )}
                       >
+                        {activeSection === link.href ? (
+                          <span aria-hidden="true" className="h-5 w-0.5 rounded-full bg-accent" />
+                        ) : null}
                         {link.label}
                       </a>
                     </motion.li>

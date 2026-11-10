@@ -233,7 +233,7 @@ export function CustomClassEditor({
                 <span
                   className={cn(
                     'font-display text-base tabular-nums',
-                    item.canceled ? 'text-crimson line-through' : null,
+                    item.canceled ? 'text-accent line-through' : null,
                   )}
                 >
                   {item.startTime} às {item.endTime}
@@ -267,7 +267,7 @@ export function CustomClassEditor({
                 }
               >
                 <input type="hidden" name="id" value={item.id} />
-                <SubmitButton className="btn-ghost text-xs text-crimson" pendingLabel="…">
+                <SubmitButton className="btn-ghost text-xs text-accent" pendingLabel="…">
                   {item.canceled ? 'Desfazer cancelamento' : 'Remover'}
                 </SubmitButton>
               </ActionForm>

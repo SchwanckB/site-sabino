@@ -69,8 +69,9 @@ export function Plans({ plans }: { readonly plans: readonly Plan[] }) {
 
               <h3 className="text-2xl leading-none">{plan.name}</h3>
 
+              {/* O preço fica sob o h1 da página: é dado, não manchete. */}
               <p className="mt-5 flex items-baseline gap-1.5">
-                <span className="font-display text-5xl leading-none text-foreground">
+                <span className="font-display text-4xl leading-none text-foreground sm:text-5xl">
                   {plan.priceLabel}
                 </span>
                 <span className="text-sm text-muted">{plan.periodLabel}</span>
@@ -86,7 +87,7 @@ export function Plans({ plans }: { readonly plans: readonly Plan[] }) {
                       viewBox="0 0 20 20"
                       className={cn(
                         'mt-0.5 h-4 w-4 shrink-0',
-                        plan.highlighted ? 'text-crimson' : 'text-muted',
+                        plan.highlighted ? 'text-accent' : 'text-muted',
                       )}
                       fill="none"
                       stroke="currentColor"

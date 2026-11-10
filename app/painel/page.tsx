@@ -237,7 +237,7 @@ export default async function PainelPage() {
                 <p
                   className={cn(
                     'text-sm font-semibold',
-                    aviso.tone === 'late' ? 'text-crimson' : 'text-amber-300',
+                    aviso.tone === 'late' ? 'text-accent' : 'text-amber-300',
                   )}
                 >
                   {aviso.title}

@@ -94,7 +94,7 @@ export function RankingBoard({
                       <p
                         className={cn(
                           'mt-2 w-full truncate text-center text-sm font-medium',
-                          degrau.entrada.isMe ? 'text-crimson' : 'text-foreground',
+                          degrau.entrada.isMe ? 'text-accent' : 'text-foreground',
                         )}
                         title={degrau.entrada.name}
                       >
@@ -149,7 +149,7 @@ export function RankingBoard({
                     <span
                       className={cn(
                         'block truncate text-sm',
-                        item.isMe ? 'font-semibold text-crimson' : 'text-foreground',
+                        item.isMe ? 'font-semibold text-accent' : 'text-foreground',
                       )}
                     >
                       {item.isMe ? 'Você' : item.name}
@@ -168,7 +168,7 @@ export function RankingBoard({
               {minha ? (
                 <>
                   <p className="text-xs text-muted">Sua posição</p>
-                  <p className="mt-1 font-display text-3xl leading-none tabular-nums text-crimson">
+                  <p className="mt-1 font-display text-3xl leading-none tabular-nums text-accent">
                     {minha.position}º
                   </p>
                   <p className="mt-1 text-sm text-muted">

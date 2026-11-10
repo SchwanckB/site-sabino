@@ -3,6 +3,10 @@ import type { Config } from 'tailwindcss';
 /**
  * Design tokens for Sabino Academia.
  * The crimson is intentionally scarce: CTAs, active states and accents only.
+ *
+ * Crimson has two tokens because one colour cannot do both jobs on a dark
+ * ground: `crimson` is a fill (white sits on it at 6.2:1), while `crimson`
+ * as *text* on `ink` reads only 3.1:1 and fails AA. Text takes `accent`.
  */
 const config: Config = {
   content: [
@@ -19,11 +23,13 @@ const config: Config = {
         'surface-raised': '#1F1F23',
         hairline: 'rgba(255,255,255,.08)',
         foreground: '#F5F5F5',
-        muted: '#A1A1AA',
+        muted: '#B4B4BE',
         crimson: {
           DEFAULT: '#C1121F',
-          hover: '#E01E2D',
+          hover: '#D81B28',
         },
+        /** Carmesim legível como texto: 5.1:1 na superfície mais clara. */
+        accent: '#EC6269',
         belt: {
           branca: '#E8E8E8',
           azul: '#1D4ED8',
@@ -61,12 +67,31 @@ const config: Config = {
           '0%': { transform: 'scale(1)', opacity: '.6' },
           '100%': { transform: 'scale(1.9)', opacity: '0' },
         },
+        /** Varredura de luz: usada no estado de carregamento. */
+        shimmer: {
+          '100%': { transform: 'translateX(100%)' },
+        },
+        /** Respiro lento do halo do hero. */
+        breathe: {
+          '0%, 100%': { opacity: '.5', transform: 'scale(1)' },
+          '50%': { opacity: '.85', transform: 'scale(1.06)' },
+        },
       },
       animation: {
         'pulse-ring': 'pulse-ring 2.4s cubic-bezier(.22,1,.36,1) infinite',
+        shimmer: 'shimmer 1.6s cubic-bezier(.4,0,.6,1) infinite',
+        breathe: 'breathe 9s cubic-bezier(.4,0,.6,1) infinite',
       },
+      /*
+       * Curvas de movimento.
+       *
+       * `organic` é a saída desacelerada de quase tudo: entrada de seção,
+       * abertura de folha, deslocamento. `snap` é mais curta e serve ao
+       * retorno de toque, onde a demora lê como atraso.
+       */
       transitionTimingFunction: {
         organic: 'cubic-bezier(.22,1,.36,1)',
+        snap: 'cubic-bezier(.32,.72,0,1)',
       },
     },
   },

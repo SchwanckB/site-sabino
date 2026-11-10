@@ -241,7 +241,7 @@ export function PlansEditor({ plans }: { readonly plans: readonly Plan[] }) {
                 confirm={`Remover o plano ${plan.name} do site?`}
               >
                 <input type="hidden" name="id" value={plan.id} />
-                <SubmitButton className="btn-ghost text-xs text-crimson" pendingLabel="…">
+                <SubmitButton className="btn-ghost text-xs text-accent" pendingLabel="…">
                   Remover
                 </SubmitButton>
               </ActionForm>

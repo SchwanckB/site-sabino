@@ -5,6 +5,19 @@
 @layer base {
   :root {
     color-scheme: dark;
+
+    /*
+     * Durações de movimento.
+     *
+     * Cada componente escolhia a sua: 0.2s aqui, 0.34s ali, 0.7s no hero.
+     * Movimentos irmãos saíam fora de compasso sem que se soubesse dizer o
+     * porquê. Quatro degraus, e a regra é a distância: quanto mais o
+     * elemento percorre, mais tempo leva.
+     */
+    --t-instant: 120ms;
+    --t-quick: 200ms;
+    --t-base: 320ms;
+    --t-slow: 560ms;
   }
 
   * {
@@ -36,8 +49,13 @@
     text-wrap: pretty;
   }
 
+  /*
+   * O anel de foco precisa de 3:1 contra o que está em volta. Em carmesim de
+   * preenchimento ele lê 3.1:1 sobre o fundo escuro — passa raspando, e sobre
+   * uma superfície elevada cai para 2.6:1. No `accent` sobra folga.
+   */
   :focus-visible {
-    @apply outline-none ring-2 ring-crimson ring-offset-2 ring-offset-ink rounded-sm;
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-ink rounded-sm;
   }
 
   ::selection {
@@ -74,25 +92,28 @@
     @apply rounded-2xl border border-hairline bg-white/[.04] backdrop-blur-md;
   }
 
+  /* `accent`, nunca `crimson`: o carmesim de preenchimento lê 3.1:1 aqui. */
   .eyebrow {
-    @apply font-display text-xs uppercase tracking-[0.22em] text-crimson sm:text-sm;
+    @apply font-display text-xs uppercase tracking-[0.22em] text-accent sm:text-sm;
   }
 
   /* Alvo de toque minimo de 44px em todos os botoes. */
   .btn {
-    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-5 py-3
-           text-sm font-semibold transition-all duration-300 ease-organic
+    @apply inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2
+           rounded-xl px-5 py-3 text-sm font-semibold ease-organic
            disabled:cursor-not-allowed disabled:opacity-50;
+    transition-property: color, background-color, border-color, box-shadow, transform;
+    transition-duration: var(--t-quick);
   }
 
   .btn-primary {
     @apply btn bg-crimson text-foreground hover:bg-crimson-hover hover:shadow-glow
-           active:scale-[.98];
+           active:scale-[.97];
   }
 
   .btn-secondary {
     @apply btn border border-hairline bg-white/[.04] text-foreground backdrop-blur-md
-           hover:border-white/20 hover:bg-white/[.08] active:scale-[.98];
+           hover:border-white/20 hover:bg-white/[.08] active:scale-[.97];
   }
 
   .btn-ghost {
@@ -112,13 +133,49 @@
    * mais informacao por tela, lida de relance.
    */
 
-  /* Painel: borda mais firme e fundo mais calmo que o .surface-card. */
+  /*
+   * Painel: borda mais firme e fundo mais calmo que o .surface-card.
+   *
+   * O fio claro no topo (`inset 0 1px`) é o que separa um cartão *apoiado* de
+   * um cartão *pintado*. Num fundo escuro a sombra sozinha não aparece — não
+   * há o que escurecer. A luz na aresta de cima simula a quina virada para a
+   * fonte de luz, e é ela que dá relevo sem clarear a superfície inteira.
+   */
   .panel {
-    @apply rounded-xl border border-white/[.07] bg-white/[.025];
+    @apply rounded-xl border border-white/[.07] bg-surface/60;
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.045),
+      0 1px 2px 0 rgb(0 0 0 / 0.45);
   }
 
   .panel-pad {
     @apply p-4 sm:p-5;
+  }
+
+  /*
+   * Cabeçalho de cartão: título à esquerda, ações à direita.
+   *
+   * Cada bloco montava o seu com `flex items-center justify-between` solto e
+   * uma borda escolhida na hora. O mesmo par título/ação aparece em quinze
+   * telas — vale um nome.
+   */
+  .panel-header {
+    @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-2
+           border-b border-white/[.07] px-4 py-3 sm:px-5;
+  }
+
+  /*
+   * Faixa de ações de uma tela.
+   *
+   * As funções de gestão ficavam no topo e rolavam para fora: numa lista de
+   * cem alunos, "Cobrar" e "Exportar" sumiam na primeira rolagem e só voltavam
+   * com um scroll até o topo. Grudada sob o cabeçalho da casca, a ação
+   * continua ao alcance durante a tela inteira.
+   */
+  .toolbar {
+    @apply -mx-4 mb-1 flex flex-wrap items-center gap-2 border-b border-hairline
+           bg-ink/90 px-4 py-2.5 backdrop-blur-xl sm:-mx-6 sm:px-6
+           lg:sticky lg:top-16 lg:z-20;
   }
 
   /*
@@ -172,7 +229,7 @@
   }
 
   .badge-late {
-    @apply badge border-crimson/50 bg-crimson/[.08] text-crimson;
+    @apply badge border-crimson/50 bg-crimson/[.08] text-accent;
   }
 
   .badge-neutral {

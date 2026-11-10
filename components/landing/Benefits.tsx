@@ -25,7 +25,7 @@ export function Benefits() {
             >
               <span
                 aria-hidden="true"
-                className="font-display text-sm tabular-nums tracking-[0.2em] text-muted/60 transition-colors duration-500 group-hover:text-crimson"
+                className="font-display text-sm tabular-nums tracking-[0.2em] text-muted/60 transition-colors duration-500 group-hover:text-accent"
               >
                 {String(index + 1).padStart(2, '0')}
               </span>

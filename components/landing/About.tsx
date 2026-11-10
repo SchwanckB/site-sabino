@@ -22,7 +22,7 @@ export function About() {
             </div>
 
             <div className="surface-card absolute -bottom-6 -right-2 w-44 p-4 sm:-right-6 sm:w-52 sm:p-5">
-              <p className="font-display text-4xl leading-none text-crimson">4</p>
+              <p className="font-display text-3xl leading-none text-accent sm:text-4xl">4</p>
               <p className="mt-1 text-xs leading-snug text-muted sm:text-sm">
                 anos é a idade a partir da qual a criança já pode entrar no tatame
               </p>

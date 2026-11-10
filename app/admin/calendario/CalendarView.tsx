@@ -22,7 +22,7 @@ import { deleteEventAction, saveEventAction } from '../actions';
 /** Cores por tipo — a mesma leitura no ponto do celular e no rótulo do desktop. */
 const KIND_STYLE: Readonly<Record<CalendarItemKind, { dot: string; chip: string; label: string }>> = {
   aula: { dot: 'bg-sky-400', chip: 'border-sky-400/40 bg-sky-400/10 text-sky-200', label: 'Aula' },
-  graduacao: { dot: 'bg-crimson', chip: 'border-crimson/40 bg-crimson/10 text-crimson', label: 'Graduação' },
+  graduacao: { dot: 'bg-crimson', chip: 'border-crimson/40 bg-crimson/10 text-accent', label: 'Graduação' },
   evento: { dot: 'bg-emerald-400', chip: 'border-emerald-400/40 bg-emerald-400/10 text-emerald-200', label: 'Evento' },
   feriado: { dot: 'bg-amber-400', chip: 'border-amber-400/40 bg-amber-400/10 text-amber-200', label: 'Feriado' },
   aviso: { dot: 'bg-violet-400', chip: 'border-violet-400/40 bg-violet-400/10 text-violet-200', label: 'Aviso' },
@@ -384,7 +384,7 @@ export function CalendarView({
                   <span className="min-w-0 truncate text-sm text-foreground">{evento.title}</span>
                   <ActionForm action={deleteEventAction} confirm={`Remover "${evento.title}" do calendário?`}>
                     <input type="hidden" name="id" value={evento.id} />
-                    <SubmitButton className="btn-ghost text-xs text-crimson" pendingLabel="…">
+                    <SubmitButton className="btn-ghost text-xs text-accent" pendingLabel="…">
                       Remover
                     </SubmitButton>
                   </ActionForm>

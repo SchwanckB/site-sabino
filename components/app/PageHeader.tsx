@@ -27,6 +27,18 @@ export function PageHeader({
     <header
       className={cn(
         'flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-hairline pb-4',
+        /*
+          Grudado sob o cabeçalho da casca (h-16) no desktop: numa lista de
+          cem alunos as ações da tela saíam de vista na primeira rolagem e só
+          voltavam com um scroll até o topo. Só no desktop — no celular o
+          cabeçalho ainda carrega a faixa do seletor de academia abaixo dele,
+          e `top-16` grudaria o título no lugar errado.
+
+          O fundo é obrigatório: translúcido, a lista passaria por baixo do
+          título enquanto rola. As margens negativas esticam essa faixa até a
+          borda da tela, senão o conteúdo aparece pelas laterais.
+        */
+        'lg:sticky lg:top-16 lg:z-20 lg:-mx-6 lg:bg-ink/90 lg:px-6 lg:pt-4 lg:backdrop-blur-xl',
         className,
       )}
     >
@@ -57,8 +69,8 @@ export function StatStrip({ children }: { readonly children: React.ReactNode }) 
 
 const TONE_CLASS = {
   neutro: '',
-  destaque: 'text-crimson',
-  alerta: 'text-crimson',
+  destaque: 'text-accent',
+  alerta: 'text-accent',
   bom: 'text-emerald-300',
 } as const;
 

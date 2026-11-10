@@ -319,7 +319,7 @@ export function CheckinClient() {
         >
           <span
             aria-hidden="true"
-            className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-crimson/20 text-crimson"
+            className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-crimson/20 text-accent"
           >
             <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="M12 7v6M12 17h.01" />

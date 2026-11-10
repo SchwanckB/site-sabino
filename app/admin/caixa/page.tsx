@@ -313,7 +313,7 @@ export default async function CaixaPage({
                 <p
                   className={cn(
                     'mt-1.5 text-xs tabular-nums',
-                    item.projectedResultCents >= 0 ? 'text-emerald-300' : 'text-crimson',
+                    item.projectedResultCents >= 0 ? 'text-emerald-300' : 'text-accent',
                   )}
                 >
                   sobra prevista {formatCents(item.projectedResultCents)}

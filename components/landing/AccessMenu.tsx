@@ -154,7 +154,7 @@ export function AccessLinksMobile({ onNavigate }: { readonly onNavigate: () => v
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xs uppercase tracking-[0.18em] text-crimson">Aluno</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-accent">Aluno</p>
         <ul className="mt-2 space-y-1">
           {ALUNO_OPTIONS.map((option) => (
             <li key={`aluno-${option.label}`}>
@@ -172,7 +172,7 @@ export function AccessLinksMobile({ onNavigate }: { readonly onNavigate: () => v
       </div>
 
       <div>
-        <p className="text-xs uppercase tracking-[0.18em] text-crimson">Professor</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-accent">Professor</p>
         <ul className="mt-2 space-y-1">
           {PROFESSOR_OPTIONS.map((option) => (
             <li key={`professor-${option.label}`}>

@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Icon, type IconName } from '@/components/app/Icon';
 import { LogoutButton } from '@/components/app/LogoutButton';
@@ -116,9 +116,102 @@ export function AppShell({
 
   return (
     <div className="min-h-dvh bg-ink">
-      <header className="sticky top-0 z-40 border-b border-hairline bg-ink/90 backdrop-blur-xl">
+      {/*
+        Coluna lateral (desktop) -------------------------------------------
+
+        Eram quinze itens numa faixa horizontal de ~990px dentro de 1024: os
+        quatro blocos existiam nos dados, mas na faixa não cabia rótulo de
+        seção sem dobrar a altura do cabeçalho — sobrava um tracinho mudo
+        entre eles, e abaixo de ~1300px a faixa ainda rolava de lado.
+
+        Na vertical o rótulo cabe. "Dinheiro" e "Academia" viram cabeçalho de
+        verdade, os quinze itens aparecem de uma vez sem rolagem, e a varredura
+        volta a ser de quatro blocos em vez de quinze linhas.
+      */}
+      <aside className="hidden border-r border-hairline bg-surface/30 lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-64 lg:flex-col">
+        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-hairline px-5">
+          <Link
+            href="/"
+            aria-label="Sabino Academia — site"
+            className="flex min-h-[44px] shrink-0 items-center"
+          >
+            <Image src="/logo-light.png" alt="" width={1400} height={1204} className="h-9 w-auto" />
+          </Link>
+          <span className="min-w-0 truncate font-display text-sm uppercase tracking-[0.14em] text-muted">
+            {title}
+          </span>
+        </div>
+
+        {/* A lista rola sozinha se um dia passar da altura da janela. */}
+        <nav aria-label="Navegação" className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+          <div className="space-y-5">
+            {grupos.map((grupo) => (
+              <section key={grupo.label || 'geral'}>
+                {grupo.label ? (
+                  <h2 className="stat-label px-2 pb-1.5">{grupo.label}</h2>
+                ) : null}
+
+                <ul className="space-y-0.5">
+                  {grupo.items.map((item) => (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        aria-current={isActive(item.href) ? 'page' : undefined}
+                        className={cn(
+                          'group relative flex min-h-[40px] items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium transition-colors',
+                          isActive(item.href)
+                            ? 'bg-white/[.07] text-foreground'
+                            : 'text-muted hover:bg-white/[.04] hover:text-foreground',
+                        )}
+                      >
+                        {/*
+                          Marca da página atual na borda esquerda. A cor sozinha
+                          não pode carregar o estado: aqui há forma também.
+                        */}
+                        {isActive(item.href) ? (
+                          <span
+                            aria-hidden="true"
+                            className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-accent"
+                          />
+                        ) : null}
+
+                        <Icon
+                          name={item.icon}
+                          className={cn(
+                            'h-4 w-4 shrink-0',
+                            isActive(item.href) ? 'text-accent' : 'opacity-70',
+                          )}
+                        />
+                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+
+                        {item.badge && item.badge > 0 ? (
+                          <span className="shrink-0 rounded-full bg-crimson px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-foreground">
+                            {item.badge}
+                          </span>
+                        ) : null}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        </nav>
+
+        <div className="shrink-0 border-t border-hairline p-3">
+          <LogoutButton
+            label="Sair da conta"
+            className="flex min-h-[40px] w-full items-center justify-center rounded-lg border border-hairline bg-white/[.03] text-sm font-medium text-muted transition-colors hover:text-foreground"
+          />
+        </div>
+      </aside>
+
+      {/* Conteúdo, deslocado para o lado da coluna no desktop ------------- */}
+      <div className="lg:pl-64">
+      <header className="sticky top-0 z-30 border-b border-hairline bg-ink/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3">
+          {/* No desktop a identidade já está na coluna; aqui ela só repetiria. */}
+          <div className="flex min-w-0 items-center gap-3 lg:hidden">
             <Link
               href="/"
               aria-label="Sabino Academia — site"
@@ -136,6 +229,9 @@ export function AppShell({
               {title}
             </span>
           </div>
+
+          {/* Empurra os controles para a direita quando a logo sai. */}
+          <div className="hidden lg:block lg:flex-1" />
 
           <div className="flex items-center gap-2">
             {unitScope ? (
@@ -158,9 +254,8 @@ export function AppShell({
             {/*
               Sair precisa ser óbvio. Com só o avatar do Clerk, quem queria
               trocar de conta acabava reentrando na mesma sessão sem perceber.
+              No desktop o botão agora fica no pé da coluna lateral.
             */}
-            <LogoutButton className="hidden min-h-[44px] items-center rounded-xl border border-hairline bg-white/[.04] px-3 text-sm font-medium text-muted transition-colors hover:text-foreground lg:inline-flex" />
-
             <UserButton
               appearance={{
                 elements: {
@@ -174,13 +269,6 @@ export function AppShell({
         </div>
 
         {/*
-          Navegação em linha própria, não disputando espaço com logo e avatar.
-          Eram onze itens brigando por ~990px dentro de uma barra de 1024: em
-          tablet deitado a página inteira ganhava rolagem horizontal. Numa faixa
-          dedicada com `overflow-x-auto`, o excesso rola dentro da faixa e nunca
-          alarga o documento — e continua valendo quando novas páginas entrarem.
-        */}
-        {/*
           No celular o cabeçalho já está cheio com logo, título e avatar. O
           seletor ganha uma faixa própria logo abaixo — fica visível o tempo
           todo, que é o ponto: saber de qual academia são os números na tela.
@@ -190,65 +278,24 @@ export function AppShell({
             <UnitSwitcher scope={unitScope.value} action={unitScope.action} />
           </div>
         ) : null}
-
-        <nav aria-label="Navegação" className="hidden border-t border-hairline lg:block">
-          {/*
-            Sem o limite de 1152px do conteúdo: a faixa usa a tela toda, e a
-            partir de ~1300px os onze itens aparecem de uma vez. Abaixo disso
-            ela rola, e a sombra na borda direita avisa que há mais.
-          */}
-          <div className="w-full overflow-x-auto px-4 [mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <ul className="flex w-max items-center gap-0.5 py-1 pr-10">
-              {items.map((item, index) => (
-                <Fragment key={item.href}>
-                  {/*
-                    Régua entre blocos. Na faixa horizontal não cabe rótulo de
-                    seção sem dobrar a altura do cabeçalho — mas o corte
-                    sozinho já agrupa o que o olho varre.
-                  */}
-                  {index > 0 && items[index - 1]?.group !== item.group ? (
-                    <li aria-hidden className="mx-2 h-5 w-px shrink-0 bg-white/[.09]" />
-                  ) : null}
-
-                  <li>
-                    <Link
-                      href={item.href}
-                      aria-current={isActive(item.href) ? 'page' : undefined}
-                      className={cn(
-                        'inline-flex min-h-[44px] items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-sm font-medium transition-colors',
-                        isActive(item.href)
-                          ? 'bg-white/[.07] text-foreground'
-                          : 'text-muted hover:text-foreground',
-                      )}
-                    >
-                      <Icon name={item.icon} className="h-4 w-4 opacity-70" />
-                      {item.label}
-                      {item.badge && item.badge > 0 ? (
-                        <span className="rounded-full bg-crimson px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-foreground">
-                          {item.badge}
-                        </span>
-                      ) : null}
-                    </Link>
-                  </li>
-                </Fragment>
-              ))}
-            </ul>
-          </div>
-        </nav>
       </header>
 
       {/*
         O padding de baixo reserva a altura da barra fixa mais o recorte do
         iPhone. Sem isso o último cartão fica debaixo da barra e o professor
         não alcança o botão de salvar.
+
+        A medida vai na classe, não em `style`: inline ela vencia o `lg:pb-10`
+        por especificidade e o desktop — que não tem barra inferior — ficava
+        com 8rem de espaço morto no pé de toda tela.
       */}
       <main
         id="conteudo"
-        className="mx-auto w-full max-w-6xl px-4 pb-32 pt-8 sm:px-6 sm:pt-10 lg:pb-10"
-        style={{ paddingBottom: 'calc(8rem + env(safe-area-inset-bottom))' }}
+        className="mx-auto w-full max-w-6xl px-4 pb-[calc(8rem+env(safe-area-inset-bottom))] pt-8 sm:px-6 sm:pt-10 lg:pb-10"
       >
         {children}
       </main>
+      </div>
 
       {/* Barra inferior (celular e tablet em pé) ----------------------------- */}
       <nav
@@ -379,7 +426,7 @@ export function AppShell({
                                 name={item.icon}
                                 className={cn(
                                   'h-6 w-6',
-                                  isActive(item.href) ? 'text-crimson' : 'text-muted',
+                                  isActive(item.href) ? 'text-accent' : 'text-muted',
                                 )}
                               />
                               {item.badge && item.badge > 0 ? (
@@ -400,7 +447,7 @@ export function AppShell({
               <div className="px-4">
                 <LogoutButton
                   label="Sair da conta"
-                  className="flex min-h-[52px] w-full items-center justify-center rounded-2xl border border-crimson/40 bg-crimson/[.08] text-sm font-semibold text-crimson"
+                  className="flex min-h-[52px] w-full items-center justify-center rounded-2xl border border-crimson/40 bg-crimson/[.08] text-sm font-semibold text-accent"
                 />
               </div>
             </motion.div>
@@ -419,7 +466,7 @@ function BottomTab({ item, active }: { readonly item: NavItem; readonly active: 
         aria-current={active ? 'page' : undefined}
         className={cn(
           'relative flex min-h-[56px] w-full flex-col items-center justify-center gap-1 px-0.5 transition-colors',
-          active ? 'text-crimson' : 'text-muted active:text-foreground',
+          active ? 'text-accent' : 'text-muted active:text-foreground',
         )}
       >
         <Icon name={item.icon} className="h-6 w-6 shrink-0" />

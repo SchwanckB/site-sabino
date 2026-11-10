@@ -135,7 +135,7 @@ export default async function AulaPage({
           {classes.length > 0 ? (
             <p className="mt-2 text-sm text-muted">
               Vai treinar em outro horário hoje?{' '}
-              <Link href="/admin/horarios" className="text-crimson underline">
+              <Link href="/admin/horarios" className="text-accent underline">
                 Marque uma aula personalizada
               </Link>
               .

@@ -132,7 +132,7 @@ export function FinanceList({
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="panel p-4">
           <p className="text-xs text-muted">Inadimplentes</p>
-          <p className="mt-1 font-display text-3xl leading-none tabular-nums text-crimson">
+          <p className="mt-1 font-display text-3xl leading-none tabular-nums text-accent">
             {overdue.length}
           </p>
         </div>
@@ -281,7 +281,7 @@ export function FinanceList({
                       {row.graceDays > 0 ? ` (até o dia ${row.dueDay + row.graceDays})` : ''}
                     </p>
                   ) : (
-                    <p className="mt-1 text-xs text-crimson">Mensalidade não definida</p>
+                    <p className="mt-1 text-xs text-accent">Mensalidade não definida</p>
                   )}
                 </div>
 

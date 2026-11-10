@@ -1,13 +1,35 @@
 'use client';
 
-import { motion, useReducedMotion } from 'framer-motion';
+import {
+  motion,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+} from 'framer-motion';
 import Image from 'next/image';
+import { useRef } from 'react';
 
 import { stats } from '@/data/seed';
 import { siteConfig, whatsappLink, whatsappMessages } from '@/lib/site';
 
 export function Hero() {
   const reduceMotion = useReducedMotion();
+  const sectionRef = useRef<HTMLElement>(null);
+
+  /*
+   * Parallax de saída.
+   *
+   * O fundo e a logo sobem mais devagar que o texto enquanto a primeira dobra
+   * sai da tela — a profundidade vem do descompasso, não de uma animação em
+   * cima do conteúdo. Com `prefers-reduced-motion` nada se move.
+   */
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ['start start', 'end start'],
+  });
+  const haloY = useTransform(scrollYProgress, [0, 1], ['0%', '38%']);
+  const markY = useTransform(scrollYProgress, [0, 1], ['0%', '22%']);
+  const markOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0.25]);
 
   const rise = (delay: number) => ({
     initial: reduceMotion ? { opacity: 0 } : { opacity: 0, y: 28 },
@@ -20,7 +42,10 @@ export function Hero() {
   });
 
   return (
-    <section className="grain relative isolate overflow-hidden pb-20 pt-32 sm:pb-24 sm:pt-36 lg:pb-32 lg:pt-44">
+    <section
+      ref={sectionRef}
+      className="grain relative isolate overflow-hidden pb-20 pt-32 sm:pb-24 sm:pt-36 lg:pb-32 lg:pt-44"
+    >
       {/*
         Hero sem fotografia, por decisão da academia: em vez de uma imagem
         genérica, o fundo é construído com profundidade própria — granulado,
@@ -32,9 +57,10 @@ export function Hero() {
       </div>
 
       {/* Halo carmesim discreto atras do conteudo. */}
-      <div
+      <motion.div
         aria-hidden="true"
-        className="absolute -right-24 top-10 -z-10 h-[32rem] w-[32rem] rounded-full bg-crimson/10 blur-[120px]"
+        style={reduceMotion ? undefined : { y: haloY }}
+        className="absolute -right-24 top-10 -z-10 h-[32rem] w-[32rem] rounded-full bg-crimson/10 blur-[120px] motion-safe:animate-breathe"
       />
 
       <div className="container-page">
@@ -49,7 +75,7 @@ export function Hero() {
               className="mt-4 text-[2.75rem] leading-[0.95] sm:text-6xl lg:text-7xl"
             >
               Jiu-Jitsu e MMA
-              <span className="mt-1 block text-crimson">no tatame certo</span>
+              <span className="mt-1 block text-accent">no tatame certo</span>
               <span className="sr-only">
                 {' '}em {siteConfig.cities.join(' e ')}, {siteConfig.state}
               </span>
@@ -103,30 +129,40 @@ export function Hero() {
             </motion.dl>
           </div>
 
-          {/* A logo fecha a composicao do lado direito, deslocada do centro. */}
+          {/*
+            A logo fecha a composicao do lado direito, deslocada do centro.
+
+            Duas camadas de proposito: a de fora responde a rolagem, a de
+            dentro faz a entrada. No mesmo elemento, o `style` ligado a rolagem
+            venceria o `animate` e a entrada nunca apareceria.
+          */}
           <motion.div
-            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.92 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{
-              duration: reduceMotion ? 0.25 : 0.9,
-              delay: reduceMotion ? 0 : 0.25,
-              ease: [0.22, 1, 0.36, 1],
-            }}
+            style={reduceMotion ? undefined : { y: markY, opacity: markOpacity }}
             className="relative mx-auto hidden w-full max-w-md lg:block"
           >
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 -z-10 rounded-full bg-crimson/[.07] blur-3xl"
-            />
-            <Image
-              src="/logo-light.png"
-              alt={`Logo da ${siteConfig.name}`}
-              width={1400}
-              height={1204}
-              priority
-              sizes="(min-width: 1024px) 28rem, 0px"
-              className="h-auto w-full drop-shadow-2xl"
-            />
+            <motion.div
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{
+                duration: reduceMotion ? 0.25 : 0.9,
+                delay: reduceMotion ? 0 : 0.25,
+                ease: [0.22, 1, 0.36, 1],
+              }}
+            >
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 -z-10 rounded-full bg-crimson/[.07] blur-3xl"
+              />
+              <Image
+                src="/logo-light.png"
+                alt={`Logo da ${siteConfig.name}`}
+                width={1400}
+                height={1204}
+                priority
+                sizes="(min-width: 1024px) 28rem, 0px"
+                className="h-auto w-full drop-shadow-2xl"
+              />
+            </motion.div>
           </motion.div>
         </div>
       </div>

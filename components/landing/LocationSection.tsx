@@ -53,7 +53,7 @@ export function LocationSection() {
                       href={whatsappLink(whatsappMessages.trial)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex min-h-[44px] items-center text-base text-foreground underline decoration-crimson decoration-2 underline-offset-4 transition-colors hover:text-crimson"
+                      className="inline-flex min-h-[44px] items-center text-base text-foreground underline decoration-crimson decoration-2 underline-offset-4 transition-colors hover:text-accent"
                     >
                       {siteConfig.phoneDisplay}
                     </a>

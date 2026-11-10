@@ -303,7 +303,7 @@ export function BulkRaise({ rows }: { readonly rows: readonly RaiseRow[] }) {
                           <span
                             className={cn(
                               'block text-[11px] tabular-nums',
-                              delta > 0 ? 'text-emerald-300' : 'text-crimson',
+                              delta > 0 ? 'text-emerald-300' : 'text-accent',
                             )}
                           >
                             {delta > 0 ? '+' : '−'}
@@ -372,7 +372,7 @@ export function BulkRaise({ rows }: { readonly rows: readonly RaiseRow[] }) {
             <p
               className={cn(
                 'mt-1 font-display text-xl leading-none tabular-nums',
-                diferenca !== 0 ? 'text-crimson' : null,
+                diferenca !== 0 ? 'text-accent' : null,
               )}
             >
               {formatCents(depois)}

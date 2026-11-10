@@ -247,7 +247,7 @@ export function CashbookScreen({
               <span
                 className={cn(
                   'shrink-0 font-display tabular-nums',
-                  row.kind === 'despesa' ? 'text-crimson' : 'text-emerald-300',
+                  row.kind === 'despesa' ? 'text-accent' : 'text-emerald-300',
                 )}
               >
                 {row.kind === 'despesa' ? '−' : '+'}
@@ -261,7 +261,7 @@ export function CashbookScreen({
                 >
                   <input type="hidden" name="month" value={month} />
                   <input type="hidden" name="id" value={row.id} />
-                  <SubmitButton className="btn-ghost px-1 text-[11px] text-crimson" pendingLabel="…">
+                  <SubmitButton className="btn-ghost px-1 text-[11px] text-accent" pendingLabel="…">
                     remover
                   </SubmitButton>
                 </ActionForm>
@@ -408,7 +408,7 @@ export function CashbookScreen({
                   <span
                     className={cn(
                       'font-display tabular-nums',
-                      row.kind === 'despesa' ? 'text-crimson' : 'text-emerald-300',
+                      row.kind === 'despesa' ? 'text-accent' : 'text-emerald-300',
                     )}
                   >
                     {row.kind === 'despesa' ? '−' : '+'}
@@ -428,7 +428,7 @@ export function CashbookScreen({
                   confirm={`Remover a conta fixa "${row.description}"? Os lançamentos já feitos continuam.`}
                 >
                   <input type="hidden" name="id" value={row.id} />
-                  <SubmitButton className="btn-ghost text-xs text-crimson" pendingLabel="…">
+                  <SubmitButton className="btn-ghost text-xs text-accent" pendingLabel="…">
                     Remover
                   </SubmitButton>
                 </ActionForm>

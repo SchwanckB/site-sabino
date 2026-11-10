@@ -84,7 +84,7 @@ const clerkAppearance = {
     headerTitle: 'font-display uppercase tracking-tight',
     formButtonPrimary:
       'bg-crimson hover:bg-crimson-hover text-foreground normal-case font-semibold',
-    footerActionLink: 'text-crimson hover:text-crimson-hover',
+    footerActionLink: 'text-accent hover:text-accent',
   },
 } as const;
 

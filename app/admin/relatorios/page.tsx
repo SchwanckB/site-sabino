@@ -122,7 +122,7 @@ export default async function RelatoriosPage() {
                         row.trend > 0.05
                           ? 'bg-emerald-500/15 text-emerald-300'
                           : row.trend < -0.15
-                            ? 'bg-crimson/15 text-crimson'
+                            ? 'bg-crimson/15 text-accent'
                             : 'bg-white/[.07] text-muted',
                       )}
                     >

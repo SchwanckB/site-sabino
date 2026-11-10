@@ -72,7 +72,7 @@ export function Modalities() {
 
               <div className="flex flex-1 flex-col p-6 sm:p-7">
                 <h3 className="text-2xl leading-none sm:text-3xl">{modality.name}</h3>
-                <p className="mt-2 text-sm font-medium text-crimson">{modality.tagline}</p>
+                <p className="mt-2 text-sm font-medium text-accent">{modality.tagline}</p>
                 <p className="mt-4 flex-1 text-sm leading-relaxed text-muted sm:text-base">
                   {modality.description}
                 </p>

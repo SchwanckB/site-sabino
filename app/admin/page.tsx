@@ -28,6 +28,7 @@ import { listAgeTransitions, listBirthdays, type PersonLike } from '@/utils/rost
 import { buildHaystack } from '@/utils/searchText';
 
 import { PageHeader } from '@/components/app/PageHeader';
+import { QuickActions, type QuickAction } from '@/components/app/QuickActions';
 import { QuickSearch, type SearchEntry } from '@/components/app/QuickSearch';
 
 import { Alertas, type BirthdayRow } from './Alertas';
@@ -234,27 +235,102 @@ export default async function AdminPage() {
     abertas.some((slot) => checkinInClass(checkinsHoje, student.id, slot.classId) !== null),
   ).length;
 
+  /*
+   * Atalhos das funções de gestão.
+   *
+   * A ordem é a do dia: o tatame primeiro, a fila de cadastros depois, o
+   * dinheiro em seguida. Cada item só entra se o papel de quem entrou pode
+   * abrir a página — a mesma regra do menu lateral.
+   */
+  const vencidas = rows.filter((row) => row.paymentStatus === 'vencida').length;
+
+  const atalhos: QuickAction[] = [
+    ...(can(admin.role, 'aula')
+      ? ([
+          {
+            href: '/admin/aula',
+            label: 'Modo aula',
+            hint: 'Chamada da turma que está entrando',
+            icon: 'presenca' as const,
+          },
+          {
+            href: '/admin/qr',
+            label: 'QR da recepção',
+            hint: 'Cartaz para o aluno marcar sozinho',
+            icon: 'qr' as const,
+          },
+        ] satisfies QuickAction[])
+      : []),
+    ...(can(admin.role, 'matricula') && aguardando > 0
+      ? ([
+          {
+            href: '/admin/aprovacoes',
+            label: 'Aprovações',
+            hint: aguardando === 1 ? 'cadastro na fila' : 'cadastros na fila',
+            icon: 'aprovacao' as const,
+            badge: aguardando,
+            urgent: true,
+          },
+        ] satisfies QuickAction[])
+      : []),
+    ...(verDinheiro
+      ? ([
+          {
+            href: '/admin/financeiro',
+            label: vencidas > 0 ? 'Cobrar atrasos' : 'Financeiro',
+            hint:
+              vencidas > 0
+                ? vencidas === 1
+                  ? 'mensalidade vencida'
+                  : 'mensalidades vencidas'
+                : 'Mensalidades e recebimentos',
+            icon: 'dinheiro' as const,
+            ...(vencidas > 0 ? { badge: vencidas, urgent: true } : {}),
+          },
+          {
+            href: '/admin/caixa',
+            label: 'Caixa',
+            hint: 'Lançar entrada ou despesa',
+            icon: 'grafico' as const,
+          },
+        ] satisfies QuickAction[])
+      : []),
+    ...(can(admin.role, 'alunos') && grausLiberados > 0
+      ? ([
+          {
+            href: '/admin/graduacao',
+            label: 'Graduação',
+            hint: grausLiberados === 1 ? 'grau liberado' : 'graus liberados',
+            icon: 'faixa' as const,
+            badge: grausLiberados,
+            urgent: true,
+          },
+        ] satisfies QuickAction[])
+      : []),
+    ...(can(admin.role, 'alunos')
+      ? ([
+          {
+            href: '/admin/alunos',
+            label: 'Alunos',
+            hint: 'Fichas, planos e graduações',
+            icon: 'alunos' as const,
+          },
+        ] satisfies QuickAction[])
+      : []),
+  ];
+
   return (
     <div className="page-stack">
-      <PageHeader
-        title="Visão geral"
-        actions={
-          <>
-            {aguardando > 0 && can(admin.role, 'matricula') ? (
-              <Link href="/admin/aprovacoes" className="btn-primary text-sm">
-                {aguardando} {aguardando === 1 ? 'cadastro aguardando' : 'cadastros aguardando'}
-              </Link>
-            ) : null}
-            {dueIds.length > 0 ? (
-              <Link href="/admin/graduacao" className="btn-secondary text-sm">
-                {dueIds.length} {dueIds.length === 1 ? 'grau liberado' : 'graus liberados'}
-              </Link>
-            ) : null}
-          </>
-        }
-      />
+      {/*
+        Sem ações aqui: a fila de cadastros e os graus liberados viraram
+        atalhos logo abaixo, com contador e uma linha dizendo o que são.
+        Repetidos nos dois lugares, o olho conta duas vezes a mesma pendência.
+      */}
+      <PageHeader title="Visão geral" />
 
       <QuickSearch entries={buscaveis} />
+
+      <QuickActions actions={atalhos} />
 
       {/*
         A aula de agora é a única coisa desta tela com hora marcada; por isso
@@ -269,7 +345,7 @@ export default async function AdminPage() {
                 ? 'Nenhuma turma na janela de check-in.'
                 : (
                   <>
-                    <span className="font-display text-xl tabular-nums text-crimson">
+                    <span className="font-display text-xl tabular-nums text-accent">
                       {presentNow}
                     </span>
                     <span className="text-muted"> de {inClassNow.length} já marcaram presença</span>

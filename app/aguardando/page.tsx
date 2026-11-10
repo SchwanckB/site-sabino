@@ -29,7 +29,7 @@ export default async function AguardandoPage() {
           aria-hidden="true"
           className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-hairline bg-white/[.04]"
         >
-          <svg viewBox="0 0 24 24" className="h-6 w-6 text-crimson" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <svg viewBox="0 0 24 24" className="h-6 w-6 text-accent" fill="none" stroke="currentColor" strokeWidth="1.8">
             <circle cx="12" cy="12" r="9" />
             <path d="M12 7v5l3 2" strokeLinecap="round" />
           </svg>

@@ -199,7 +199,7 @@ export function Dashboards({
           ) : null}
           {emBreve.length > 0 && semPlano.length > 0 ? ' · ' : ''}
           {semPlano.length > 0 ? (
-            <Link href="/admin/financeiro" className="text-crimson hover:underline">
+            <Link href="/admin/financeiro" className="text-accent hover:underline">
               {semPlano.length} sem mensalidade definida
             </Link>
           ) : null}
@@ -236,7 +236,7 @@ export function Dashboards({
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline justify-between gap-2">
-                          <span className="min-w-0 truncate text-sm text-foreground group-hover:text-crimson">
+                          <span className="min-w-0 truncate text-sm text-foreground group-hover:text-accent">
                             {row.name}
                           </span>
                           <span className="shrink-0 text-xs tabular-nums text-muted">
@@ -273,7 +273,7 @@ export function Dashboards({
                   <div className="flex min-h-[44px] items-center justify-between gap-3 text-sm">
                     <Link
                       href={`/admin/alunos/${row.id}`}
-                      className="min-w-0 truncate text-foreground hover:text-crimson"
+                      className="min-w-0 truncate text-foreground hover:text-accent"
                     >
                       {row.name}
                     </Link>

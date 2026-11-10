@@ -144,7 +144,7 @@ export function KidsAgenda({ rows }: { readonly rows: readonly AgendaRow[] }) {
         <span
           className={cn(
             'shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold',
-            destaque ? 'bg-crimson/20 text-crimson' : 'bg-white/10 text-muted',
+            destaque ? 'bg-crimson/20 text-accent' : 'bg-white/10 text-muted',
           )}
         >
           {quando(row)}
@@ -200,7 +200,7 @@ export function KidsAgenda({ rows }: { readonly rows: readonly AgendaRow[] }) {
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="panel p-4">
           <p className="text-xs text-muted">Liberados agora</p>
-          <p className="mt-1 font-display text-3xl leading-none tabular-nums text-crimson">
+          <p className="mt-1 font-display text-3xl leading-none tabular-nums text-accent">
             {elegiveis.length}
           </p>
         </div>

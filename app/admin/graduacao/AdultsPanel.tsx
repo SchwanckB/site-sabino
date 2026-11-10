@@ -235,7 +235,7 @@ export function AdultsPanel({
                     <td className="px-4 py-3 text-right tabular-nums">
                       <span
                         className={cn(
-                          summary.checkinsLast90Days === 0 ? 'text-crimson' : 'text-foreground',
+                          summary.checkinsLast90Days === 0 ? 'text-accent' : 'text-foreground',
                         )}
                       >
                         {summary.checkinsLast90Days}
@@ -286,7 +286,7 @@ export function AdultsPanel({
                     <dd
                       className={cn(
                         'mt-0.5 tabular-nums',
-                        summary.checkinsLast90Days === 0 ? 'text-crimson' : 'text-foreground',
+                        summary.checkinsLast90Days === 0 ? 'text-accent' : 'text-foreground',
                       )}
                     >
                       {summary.checkinsLast90Days}

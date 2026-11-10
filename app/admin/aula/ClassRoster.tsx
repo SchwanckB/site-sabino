@@ -95,7 +95,7 @@ export function ClassRoster({
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p aria-live="polite" className="text-sm text-muted">
-          <span className="font-display text-2xl leading-none tabular-nums text-crimson">
+          <span className="font-display text-2xl leading-none tabular-nums text-accent">
             {presentes}
           </span>{' '}
           de {rows.length} na chamada
@@ -205,7 +205,7 @@ function RosterItem({
         <div className="min-w-0 flex-1">
           <Link
             href={`/admin/alunos/${row.id}`}
-            className="block min-w-0 truncate text-sm font-medium text-foreground hover:text-crimson"
+            className="block min-w-0 truncate text-sm font-medium text-foreground hover:text-accent"
           >
             {row.name}
           </Link>

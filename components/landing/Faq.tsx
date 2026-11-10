@@ -64,7 +64,7 @@ export function Faq() {
                         onClick={() => setOpenId(isOpen ? null : item.id)}
                         aria-expanded={isOpen}
                         aria-controls={panelId}
-                        className="flex w-full items-start gap-4 py-5 text-left transition-colors duration-300 hover:text-crimson"
+                        className="flex w-full items-start gap-4 py-5 text-left transition-colors duration-300 hover:text-accent"
                       >
                         <span className="flex-1 font-display text-lg uppercase leading-snug tracking-tight sm:text-xl">
                           {item.question}
@@ -78,7 +78,7 @@ export function Faq() {
                           }}
                           className={cn(
                             'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-lg leading-none',
-                            isOpen ? 'border-crimson text-crimson' : 'border-hairline text-muted',
+                            isOpen ? 'border-crimson text-accent' : 'border-hairline text-muted',
                           )}
                         >
                           +

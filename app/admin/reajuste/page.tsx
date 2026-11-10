@@ -115,7 +115,7 @@ export default async function ReajustePage() {
           </p>
           <p className="mt-2 max-w-prose text-sm text-muted">
             O reajuste parte do valor de cada aluno. Defina a mensalidade em{' '}
-            <Link href="/admin/financeiro" className="text-crimson hover:underline">
+            <Link href="/admin/financeiro" className="text-accent hover:underline">
               Financeiro
             </Link>{' '}
             e volte aqui.

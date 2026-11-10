@@ -34,7 +34,7 @@ const KIND_STYLE: Readonly<Record<CalendarItemKind, { dot: string; chip: string;
   aula: { dot: 'bg-sky-400', chip: 'border-sky-400/40 bg-sky-400/10 text-sky-200', label: 'Aula' },
   graduacao: {
     dot: 'bg-crimson',
-    chip: 'border-crimson/40 bg-crimson/10 text-crimson',
+    chip: 'border-crimson/40 bg-crimson/10 text-accent',
     label: 'Graduação',
   },
   evento: {
@@ -254,7 +254,7 @@ export function StudentCalendar({
                       {item.detail ? ` · ${item.detail}` : ''}
                     </p>
                     {foiCancelada ? (
-                      <p className="mt-1 text-xs text-crimson">
+                      <p className="mt-1 text-xs text-accent">
                         Esta aula foi cancelada neste dia.
                       </p>
                     ) : null}

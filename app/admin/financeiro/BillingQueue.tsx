@@ -91,7 +91,7 @@ export function BillingQueue({ targets }: { readonly targets: readonly BillingTa
               </span>
             ) : (
               <>
-                <span className="font-display text-xl tabular-nums text-crimson">
+                <span className="font-display text-xl tabular-nums text-accent">
                   {pendentes.length}
                 </span>
                 <span className="text-muted">

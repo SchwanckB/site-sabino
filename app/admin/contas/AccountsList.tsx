@@ -51,7 +51,7 @@ const STATUS_STYLE: Readonly<Record<UserStatus, string>> = {
  */
 const ROLE_STYLE: Readonly<Record<Role, string>> = {
   GESTAO: 'border-crimson/50 bg-crimson/25 text-foreground',
-  PROFESSOR: 'border-crimson/30 bg-crimson/[.12] text-crimson',
+  PROFESSOR: 'border-crimson/30 bg-crimson/[.12] text-accent',
   ALUNO: 'border-white/[.12] bg-white/[.07] text-muted',
 };
 
@@ -149,7 +149,7 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
         </div>
         <div className="panel p-4">
           <p className="text-xs text-muted">Gestão</p>
-          <p className="mt-1 font-display text-3xl leading-none tabular-nums text-crimson">
+          <p className="mt-1 font-display text-3xl leading-none tabular-nums text-accent">
             {gestores}
           </p>
         </div>
@@ -329,7 +329,7 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
                   <button
                     type="button"
                     onClick={() => setDeleting(deleting === row.id ? null : row.id)}
-                    className="btn-ghost text-xs text-crimson"
+                    className="btn-ghost text-xs text-accent"
                   >
                     {deleting === row.id ? 'Cancelar' : 'Apagar conta'}
                   </button>
@@ -346,7 +346,7 @@ export function AccountsList({ rows }: { readonly rows: readonly AccountRow[] })
                 >
                   <input type="hidden" name="userId" value={row.id} />
 
-                  <p className="text-sm font-semibold text-crimson">
+                  <p className="text-sm font-semibold text-accent">
                     Apagar a conta de {row.name}
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-muted">

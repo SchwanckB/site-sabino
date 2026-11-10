@@ -290,7 +290,7 @@ export function ScheduleEditor({
                         confirm={`Remover a turma ${slot.title} de ${weekdayLabels[weekday]}?`}
                       >
                         <input type="hidden" name="id" value={slot.id} />
-                        <SubmitButton className="btn-ghost text-xs text-crimson" pendingLabel="…">
+                        <SubmitButton className="btn-ghost text-xs text-accent" pendingLabel="…">
                           Remover
                         </SubmitButton>
                       </ActionForm>
