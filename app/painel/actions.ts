@@ -181,13 +181,6 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
     return { ok: false, message: 'Código inválido. Use o QR da academia.' };
   }
 
-  if (validation.unit !== student.unit) {
-    return {
-      ok: false,
-      message: 'Este QR é de outra unidade. Use o cartaz da academia onde você treina.',
-    };
-  }
-
   const now = new Date();
   const [schedule, doDia] = await Promise.all([
     getEffectiveScheduleFresh(now),
@@ -195,14 +188,32 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
   ]);
 
   /*
-   * Só as aulas da academia dele.
+   * Quem decide a academia é o **cartaz**, não a ficha.
    *
-   * Na grade normal a matrícula já garantia isso: ninguém tem na ficha turma
-   * de outra unidade. A turma avulsa não tem matrícula — `openToAll` casa com
-   * qualquer aluno —, e sem este recorte o aluno de Terra de Areia via o
-   * treino aberto de Três Cachoeiras na lista de check-in.
+   * A unidade da ficha diz onde o aluno treina de hábito. O QR está pregado
+   * numa parede, e ler o QR de Três Cachoeiras é prova de estar em Três
+   * Cachoeiras — é a coisa mais confiável que esta função tem em mãos.
+   *
+   * Aqui havia uma recusa: "este QR é de outra unidade". Ela era pior que
+   * inútil para o aluno que viaja entre as duas academias, porque a saída
+   * oficial era a recepção trocar a unidade da ficha dele — e depois ninguém
+   * trocava de volta.
    */
-  const daUnidade = filterByUnit(schedule.classes, student.unit);
+  const daUnidade = filterByUnit(schedule.classes, validation.unit);
+
+  /*
+   * Visitante: as turmas abertas da casa valem todas.
+   *
+   * Ele não tem nenhuma delas na ficha — a matrícula é na outra academia —,
+   * então casar por `classIds` devolveria lista vazia e a tela diria "nenhuma
+   * turma sua está acontecendo agora" para alguém parado dentro do tatame. A
+   * janela de horário continua valendo: é ela que impede marcar presença de
+   * casa, e isso não é bloqueio de unidade.
+   */
+  const visitante = validation.unit !== student.unit;
+  const elegiveis = visitante
+    ? daUnidade.map((slot) => slot.id)
+    : student.classIds;
 
   /*
    * As aulas abertas **que ele ainda não marcou**.
@@ -217,7 +228,7 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
    * registra sozinha.
    */
   const jaMarcadas = new Set((doDia.get(student.id) ?? []).map((entry) => entry.classId));
-  const abertas = findOpenClasses(daUnidade, student.classIds, now);
+  const abertas = findOpenClasses(daUnidade, elegiveis, now);
   const pendentes = abertas.filter((slot) => !jaMarcadas.has(slot.classId));
 
   return {
@@ -230,9 +241,7 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
       hint: estadoDaAula(slot),
     })),
     nextClass:
-      pendentes.length === 0
-        ? proximaAulaEmTexto(daUnidade, student.classIds, now)
-        : null,
+      pendentes.length === 0 ? proximaAulaEmTexto(daUnidade, elegiveis, now) : null,
     /*
      * Havia aula aberta, mas ele já marcou todas. É diferente de "nenhuma
      * turma sua está acontecendo agora" — ali ele erraria o horário; aqui ele
@@ -306,18 +315,14 @@ export async function checkinAction(
     };
   }
 
-  if (validation.unit !== student.unit) {
-    return {
-      ok: false,
-      reason: 'qr_invalido',
-      message: 'Este QR é de outra unidade. Use o cartaz da academia onde você treina.',
-    };
-  }
-
   const now = new Date();
   const schedule = await getEffectiveScheduleFresh(now);
-  // Mesmo recorte da listagem: a aula aberta de outra academia não é dele.
-  const daUnidade = filterByUnit(schedule.classes, student.unit);
+
+  // Mesmo recorte da listagem, pelo mesmo motivo: o cartaz diz a academia, e
+  // o visitante marca o que está aberto nela. Ver `listCheckinOptions`.
+  const daUnidade = filterByUnit(schedule.classes, validation.unit);
+  const elegiveis =
+    validation.unit !== student.unit ? daUnidade.map((slot) => slot.id) : student.classIds;
 
   /*
    * A turma escolhida é reconferida contra as que estão abertas agora.
@@ -326,7 +331,7 @@ export async function checkinAction(
    * bastaria trocar o valor no formulário para marcar presença numa aula de
    * outro dia. É aqui que a janela de horário e a matrícula são impostas.
    */
-  const abertas = findOpenClasses(daUnidade, student.classIds, now);
+  const abertas = findOpenClasses(daUnidade, elegiveis, now);
 
   // Só as abertas que ele pediu, na ordem da grade. `Set` porque o mesmo id
   // repetido no formulário não pode virar duas tentativas.
@@ -342,7 +347,7 @@ export async function checkinAction(
       };
     }
 
-    const proxima = proximaAulaEmTexto(daUnidade, student.classIds, now);
+    const proxima = proximaAulaEmTexto(daUnidade, elegiveis, now);
     return {
       ok: false,
       reason: 'sem_aula_agora',

@@ -53,6 +53,17 @@ export default async function AulaPage({
   const students = filterByUnit(todos, scope);
   const classes = filterByUnit(schedule.classes, scope);
 
+  /*
+   * Os alunos da outra academia, para a presença avulsa alcançá-los.
+   *
+   * Eles não entram na chamada — a lista da aula é dos matriculados desta
+   * unidade, e dobrá-la com gente que não vem a tornaria inútil. Entram na
+   * **busca**: quem é de Terra de Areia e apareceu aqui numa quinta precisa
+   * ser encontrado pelo nome, senão o professor não tem como lançar a
+   * presença dele e o treino não fica registrado em lugar nenhum.
+   */
+  const visitantes = todos.filter((student) => !students.includes(student));
+
   // A aula em andamento é o padrão: é o motivo de a tela existir.
   const abertas = findOpenClasses(classes, classes.map((slot) => slot.id), now);
 
@@ -164,9 +175,19 @@ export default async function AulaPage({
   const diaDaAula = escolhida.onlyOnDate ?? hoje;
   const retroativa = diaDaAula !== hoje;
 
+  /*
+   * O visitante entra na leitura de presenças, mas não nas de dinheiro.
+   *
+   * Sem ele em `checkins`, marcá-lo não mudava nada na tela: a linha
+   * continuava mostrando o botão "Marcar avulso" como se nada tivesse sido
+   * gravado. `plans` e `totais` ficam de fora de propósito — mensalidade de
+   * aluno de outra unidade não é assunto desta tela, e `totais` é uma leitura
+   * por aluno, que dobraria para servir uma busca de seis linhas.
+   */
   const ids = students.map((student) => student.id);
+  const idsComVisita = [...ids, ...visitantes.map((student) => student.id)];
   const [checkins, plans, diario] = await Promise.all([
-    getCheckinsOn(ids, diaDaAula),
+    getCheckinsOn(idsComVisita, diaDaAula),
     // A marca de "devendo" na lista da aula é dinheiro: para o professor a
     // mensalidade não é nem lida. Ver `lib/roles.ts`.
     verDinheiro ? getPaymentPlans(ids) : new Map(),
@@ -234,22 +255,41 @@ export default async function AulaPage({
       dueGraduation: podeGraduar,
       overdue: summary?.status === 'vencida',
       guest,
+      // Visita entre as duas academias: marca, não impedimento. O professor
+      // precisa saber que aquele aluno não é da turma daqui; o sistema não
+      // precisa recusar a presença por isso.
+      visitor: student.unit !== escolhida.unit,
       haystack: buildHaystack([student.name]),
     };
   };
 
   /*
-   * A chamada da turma avulsa é a academia da unidade inteira.
+   * A chamada: quem é da turma, mais quem de fato treinou nela.
    *
-   * Ela não existe na grade, então ninguém a tem na ficha: filtrar por
-   * matrícula devolveria uma lista vazia justamente na aula aberta.
+   * A primeira parte vem da matrícula. Na turma avulsa, da unidade: ela não
+   * existe na grade, então ninguém a tem na ficha e filtrar por matrícula
+   * devolveria lista vazia justamente na aula aberta.
+   *
+   * A segunda parte é nova e corrige um buraco: quem foi marcado como avulso
+   * — o aluno de outra turma, ou o visitante da outra academia — saía da
+   * lista no instante seguinte, porque não pertence à turma. O professor
+   * marcava, a linha desaparecia, e o contador "X de Y na chamada" seguia
+   * sem ele. Quem tem presença nesta aula está nesta chamada, ponto.
    */
-  const matriculados = attendeesOf(students, escolhida)
-    .map((student) => toRow(student, false))
+  const naChamada = [
+    ...attendeesOf(students, escolhida),
+    ...visitantes.filter(
+      (student) => checkinInClass(checkins, student.id, escolhida.id) !== null,
+    ),
+  ];
+  const naChamadaIds = new Set(naChamada.map((student) => student.id));
+
+  const matriculados = naChamada
+    .map((student) => toRow(student, !belongsToClass(student, escolhida)))
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
-  const convidados = students
-    .filter((student) => !belongsToClass(student, escolhida))
+  const convidados = [...students, ...visitantes]
+    .filter((student) => !naChamadaIds.has(student.id))
     .map((student) => toRow(student, true))
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 

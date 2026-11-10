@@ -559,14 +559,56 @@ describe('o aluno inativo e o QR de outra unidade', () => {
     expect(await attendance.countCheckins('user_mma')).toBe(0);
   });
 
-  it('QR da outra academia é recusado', async () => {
+  it('QR da outra academia oferece as aulas de lá, não as da ficha', async () => {
+    /*
+     * O cartaz é a prova de onde o aluno está.
+     *
+     * Ele está matriculado no MMA de Três Cachoeiras e leu o QR pregado na
+     * parede de Terra de Areia: está em Terra de Areia. Antes isto era
+     * recusado — "use o cartaz da academia onde você treina" —, e a saída
+     * oficial era a recepção trocar a unidade da ficha dele, o que ninguém
+     * desfazia depois.
+     *
+     * Visitante não tem turma na ficha de lá, então a lista vem das aulas
+     * abertas **da casa**. A janela de horário continua valendo.
+     */
     atual = await criarAluno('user_mma', 'Só MMA', ['seg-1930-mma']);
     agora(SEGUNDA, '19:40');
 
     const outro = qr.getCurrentQrToken('terra-de-areia').token;
     const opcoes = await painel.listCheckinOptions(outro);
 
-    expect(opcoes.ok).toBe(false);
-    expect(opcoes.ok === false && opcoes.message).toContain('outra unidade');
+    expect(opcoes.ok).toBe(true);
+
+    const titulos = opcoes.ok === true ? opcoes.classes.map((item) => item.classId) : [];
+    // A turma dele, de Três Cachoeiras, não está entre as oferecidas.
+    expect(titulos).not.toContain('seg-1930-mma');
+    expect(titulos.every((id) => id.startsWith('terra-de-areia'))).toBe(true);
+  });
+
+  it('o visitante registra a presença na aula da casa', async () => {
+    atual = await criarAluno('user_mma', 'Só MMA', ['seg-1930-mma']);
+    agora(SEGUNDA, '19:40');
+
+    const token = qr.getCurrentQrToken('terra-de-areia').token;
+    const opcoes = await painel.listCheckinOptions(token);
+    const primeira = opcoes.ok === true ? opcoes.classes[0] : null;
+    if (!primeira) throw new Error('nenhuma aula aberta em Terra de Areia');
+
+    const result = await painel.checkinAction(token, [primeira.classId]);
+    expect(result.ok).toBe(true);
+    expect(await attendance.countCheckins('user_mma')).toBe(1);
+  });
+
+  it('a janela continua valendo para o visitante', async () => {
+    // Três da tarde: nada aberto em nenhuma das duas academias.
+    atual = await criarAluno('user_mma', 'Só MMA', ['seg-1930-mma']);
+    agora(SEGUNDA, '15:00');
+
+    const token = qr.getCurrentQrToken('terra-de-areia').token;
+    const opcoes = await painel.listCheckinOptions(token);
+
+    expect(opcoes.ok === true && opcoes.classes).toEqual([]);
+    expect((await painel.checkinAction(token, ['terra-de-areia-1-1930-jj-fem'])).ok).toBe(false);
   });
 });

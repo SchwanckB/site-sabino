@@ -59,8 +59,16 @@ export default async function PresencaPage({
   const students = filterByUnit(todos, scope);
   const classes = filterByUnit(schedule.classes, scope);
 
+  /*
+   * As presenças de **todos**, não só as da unidade no recorte.
+   *
+   * O aluno da outra academia que veio treinar aqui tem presença numa turma
+   * desta unidade. Lendo só os ids do recorte, ele some da chamada que ele
+   * mesmo marcou — e com ele some a chance de o professor desfazer. A leitura
+   * é um `pipeline` só, então custa a mesma ida ao banco.
+   */
   const checkins = await getCheckinsOn(
-    students.map((student) => student.id),
+    todos.map((student) => student.id),
     dia,
   );
 
@@ -135,7 +143,27 @@ export default async function PresencaPage({
    * é a presença **naquela aula**. Sem turma é a visão da academia inteira, e
    * aí "presente" é qualquer presença de hoje — a pergunta ali é outra.
    */
-  const base = escolhida ? attendeesOf(students, escolhida) : students;
+  /*
+   * Quem a lista mostra.
+   *
+   * Com turma escolhida é a chamada dela — os matriculados, mais quem tem
+   * presença nela e não é da turma: o avulso de outra turma e o visitante da
+   * outra academia. Sem eles a chamada mentiria sobre quem treinou, que é a
+   * única coisa que ela existe para dizer.
+   *
+   * Sem turma é a visão da academia no recorte atual, e aí o visitante não
+   * entra: a pergunta ali é "quem da minha academia veio hoje".
+   */
+  const base = escolhida
+    ? [
+        ...attendeesOf(students, escolhida),
+        ...todos.filter(
+          (student) =>
+            !students.includes(student) &&
+            checkinInClass(checkins, student.id, escolhida.id) !== null,
+        ),
+      ]
+    : students;
 
   const rows: PresenceRow[] = base
     .map((student) => {

@@ -518,35 +518,203 @@ describe('turma inferida pela ficha do aluno', () => {
   });
 });
 
-describe('aluno de outra academia', () => {
+describe('visita à outra academia', () => {
   /*
-   * `markPresenceInClassAction` já recusava, o caminho em lote não. As duas
-   * gravam a mesma coisa, e uma trava que vale num botão e não no outro é uma
-   * trava que não existe.
+   * A unidade da ficha diz onde o aluno treina de **hábito**, não onde ele
+   * pode treinar. São duas academias da mesma escola, a meia hora uma da
+   * outra, e aluno que aparece na outra numa quinta é rotina.
+   *
+   * Havia uma recusa aqui — "troque a unidade na ficha dele antes". Ela
+   * transformava uma visita de uma noite numa alteração de cadastro que
+   * ninguém desfazia depois: o aluno passava a constar da outra academia na
+   * lista, no financeiro e no relatório. Na prática o professor desistia e a
+   * presença não era lançada em lugar nenhum.
+   *
+   * O que continua valendo é a janela de horário — essa não é trava de
+   * unidade, é o que impede marcar presença de casa.
    */
-  it('não entra na turma da outra unidade, nem em lote', async () => {
-    await matricular(['seg-1930-mma']);
-    agora(SEGUNDA, '20:00');
-
-    const form = new FormData();
-    form.append('studentIds', aluno.id);
-    form.set('classId', 'terra-de-areia-1-2030-jj');
-
-    const result = await adminActions.markPresenceBatchAction(form);
-    expect(result.ok).toBe(false);
-    expect(await attendance.countCheckins(aluno.id)).toBe(0);
-  });
-
-  it('a mensagem individual explica o que fazer', async () => {
+  it('o professor marca a visita individualmente', async () => {
     await matricular(['seg-1930-mma']);
     agora(SEGUNDA, '20:00');
 
     const form = new FormData();
     form.set('studentId', aluno.id);
-    form.set('classId', 'terra-de-areia-1-2030-jj');
+    form.set('classId', 'terra-de-areia-1-1930-jj-fem');
+
+    const result = await adminActions.markPresenceAction(form);
+    expect(result.ok).toBe(true);
+    expect(await attendance.countCheckins(aluno.id)).toBe(1);
+  });
+
+  it('a presença fica na turma da casa, não na da ficha', async () => {
+    await matricular(['seg-1930-mma']);
+    agora(SEGUNDA, '20:00');
+
+    const form = new FormData();
+    form.set('studentId', aluno.id);
+    form.set('classId', 'terra-de-areia-1-1930-jj-fem');
+    await adminActions.markPresenceAction(form);
+
+    const registros = await attendance.listCheckins(aluno.id, 10);
+    expect(registros[0]?.classId).toBe('terra-de-areia-1-1930-jj-fem');
+  });
+
+  it('o lote também marca, e as duas vias concordam', async () => {
+    await matricular(['seg-1930-mma']);
+    agora(SEGUNDA, '20:00');
+
+    const form = new FormData();
+    form.append('studentIds', aluno.id);
+    form.set('classId', 'terra-de-areia-1-1930-jj-fem');
+
+    const result = await adminActions.markPresenceBatchAction(form);
+    expect(result.ok).toBe(true);
+    expect(await attendance.countCheckins(aluno.id)).toBe(1);
+  });
+
+  it('a visita não mexe na unidade da ficha', async () => {
+    await matricular(['seg-1930-mma']);
+    agora(SEGUNDA, '20:00');
+
+    const form = new FormData();
+    form.set('studentId', aluno.id);
+    form.set('classId', 'terra-de-areia-1-1930-jj-fem');
+    await adminActions.markPresenceAction(form);
+
+    // É o ponto todo: a presença é do treino, o cadastro continua onde estava.
+    const ficha = await students.getStudent(aluno.id);
+    expect(ficha?.unit).toBe('tres-cachoeiras');
+  });
+
+  it('a visita conta no total e no ranking como qualquer treino', async () => {
+    await matricular(['seg-1930-mma']);
+    agora(SEGUNDA, '20:00');
+
+    const form = new FormData();
+    form.set('studentId', aluno.id);
+    form.set('classId', 'terra-de-areia-1-1930-jj-fem');
+    await adminActions.markPresenceAction(form);
+
+    const posicao = await attendance.getRankingPosition(aluno.id);
+    expect(posicao?.score).toBe(1);
+  });
+
+  it('a turma precisa existir, visita ou não', async () => {
+    await matricular(['seg-1930-mma']);
+    agora(SEGUNDA, '20:00');
+
+    const form = new FormData();
+    form.set('studentId', aluno.id);
+    form.set('classId', 'turma-que-nao-existe');
 
     const result = await adminActions.markPresenceAction(form);
     expect(result.ok).toBe(false);
-    expect(result.message).toContain('outra academia');
+    expect(await attendance.countCheckins(aluno.id)).toBe(0);
+  });
+});
+
+describe('a visita aparece na chamada', () => {
+  /*
+   * Marcar e sumir era o defeito gêmeo do bloqueio.
+   *
+   * A chamada do Modo aula é montada com `attendeesOf`, que casa por
+   * matrícula — então quem foi marcado como avulso saía da lista no instante
+   * seguinte, e o contador "X de Y na chamada" seguia sem ele. O professor
+   * marcava, a linha desaparecia, e não havia como desfazer nem conferir.
+   *
+   * As duas telas passaram a somar à chamada quem **tem presença naquela
+   * aula**, venha de onde vier. Estes testes travam a expressão exata que
+   * elas usam para isso.
+   */
+  const CLASSE_DA_CASA = 'terra-de-areia-1-1930-jj-fem';
+
+  async function visitaMarcada() {
+    await matricular(['seg-1930-mma']);
+    agora(SEGUNDA, '20:00');
+
+    const form = new FormData();
+    form.set('studentId', aluno.id);
+    form.set('classId', CLASSE_DA_CASA);
+    const result = await adminActions.markPresenceAction(form);
+    if (!result.ok) throw new Error(`nao marcou: ${result.message}`);
+  }
+
+  it('a leitura do dia encontra a presença do visitante na turma da casa', async () => {
+    await visitaMarcada();
+
+    // É a mesma expressão das duas telas: ler o dia de todos os ativos e
+    // perguntar pela presença naquela aula.
+    const checkins = await attendance.getCheckinsOn([aluno.id], SEGUNDA);
+    const entrada = attendance.checkinInClass(checkins, aluno.id, CLASSE_DA_CASA);
+
+    expect(entrada).not.toBeNull();
+    expect(entrada?.classId).toBe(CLASSE_DA_CASA);
+  });
+
+  it('a presença não aparece na turma da ficha dele', async () => {
+    await visitaMarcada();
+
+    // Presença é por aula realizada: o MMA de Três Cachoeiras não aconteceu
+    // para ele. A chamada de lá tem de continuar vazia.
+    const checkins = await attendance.getCheckinsOn([aluno.id], SEGUNDA);
+    expect(attendance.checkinInClass(checkins, aluno.id, 'seg-1930-mma')).toBeNull();
+  });
+
+  it('o professor desfaz a visita', async () => {
+    await visitaMarcada();
+
+    const form = new FormData();
+    form.set('studentId', aluno.id);
+    form.set('classId', CLASSE_DA_CASA);
+
+    const result = await adminActions.undoPresenceAction(form);
+    expect(result.ok).toBe(true);
+    expect(await attendance.countCheckins(aluno.id)).toBe(0);
+  });
+
+  it('desfeita, pode ser marcada de novo', async () => {
+    await visitaMarcada();
+
+    const desfazer = new FormData();
+    desfazer.set('studentId', aluno.id);
+    desfazer.set('classId', CLASSE_DA_CASA);
+    await adminActions.undoPresenceAction(desfazer);
+
+    const marcar = new FormData();
+    marcar.set('studentId', aluno.id);
+    marcar.set('classId', CLASSE_DA_CASA);
+    expect((await adminActions.markPresenceAction(marcar)).ok).toBe(true);
+  });
+
+  it('marcar duas vezes a mesma visita não duplica', async () => {
+    await visitaMarcada();
+
+    const form = new FormData();
+    form.set('studentId', aluno.id);
+    form.set('classId', CLASSE_DA_CASA);
+
+    const repetido = await adminActions.markPresenceAction(form);
+    expect(repetido.ok).toBe(false);
+    expect(await attendance.countCheckins(aluno.id)).toBe(1);
+  });
+
+  it('o aluno pode treinar nas duas academias no mesmo dia', async () => {
+    /*
+     * Acontece: treina de manhã numa e de noite na outra. São duas aulas
+     * realizadas, então são duas presenças — a trava é por aluno, dia **e
+     * turma**, e é isso que permite as duas conviverem.
+     */
+    await visitaMarcada();
+
+    const emCasa = new FormData();
+    emCasa.set('studentId', aluno.id);
+    emCasa.set('classId', 'seg-1930-mma');
+    expect((await adminActions.markPresenceAction(emCasa)).ok).toBe(true);
+
+    expect(await attendance.countCheckins(aluno.id)).toBe(2);
+
+    const checkins = await attendance.getCheckinsOn([aluno.id], SEGUNDA);
+    expect(attendance.checkinInClass(checkins, aluno.id, CLASSE_DA_CASA)).not.toBeNull();
+    expect(attendance.checkinInClass(checkins, aluno.id, 'seg-1930-mma')).not.toBeNull();
   });
 });

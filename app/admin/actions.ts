@@ -884,7 +884,6 @@ type PresenceOutcome =
   | 'inativo'
   | 'sem_banco'
   | 'turma_invalida'
-  | 'outra_unidade'
   | 'data_invalida';
 
 async function markPresent(
@@ -922,13 +921,22 @@ async function markPresent(
   if (chosenClassId && chosenClassId.length > 0 && !escolhida) return 'turma_invalida';
 
   /*
-   * Aluno de outra academia na turma desta.
+   * A unidade da ficha **não** limita onde o aluno treina.
    *
-   * `markPresenceInClassAction` já recusava; o caminho em lote não, e as duas
-   * gravam a mesma coisa. Uma trava que vale num botão e não no outro é uma
-   * trava que não existe.
+   * Ela diz onde ele treina de hábito — é o recorte das listas, da cobrança e
+   * do relatório. Onde ele treinou naquele dia é outra coisa: quem é de Terra
+   * de Areia e aparece em Três Cachoeiras numa quinta treinou em Três
+   * Cachoeiras, e a presença é desse treino.
+   *
+   * Aqui havia uma recusa — "troque a unidade na ficha dele antes". Ela
+   * transformava uma visita de uma noite numa alteração de cadastro, que
+   * depois ninguém desfazia: o aluno passava a constar da outra academia na
+   * lista, no financeiro e no relatório. O professor, com a turma esperando,
+   * ou fazia isso ou deixava a presença de fora.
+   *
+   * A visita aparece marcada na chamada (ver `visitor` em `ClassRoster`), que
+   * é o que o professor precisa saber — e não um bloqueio.
    */
-  if (escolhida && escolhida.unit !== student.unit) return 'outra_unidade';
 
   /*
    * Sem turma escolhida, a aula sai do horário — e, fora de qualquer janela,
@@ -987,11 +995,6 @@ function presenceMessage(outcome: PresenceOutcome): ActionResult {
       return { ok: false, message: 'Este aluno já tem presença nesta aula hoje.' };
     case 'turma_invalida':
       return { ok: false, message: 'Turma não encontrada na grade.' };
-    case 'outra_unidade':
-      return {
-        ok: false,
-        message: 'Este aluno é de outra academia. Troque a unidade na ficha dele antes.',
-      };
     case 'data_invalida':
       return { ok: false, message: 'Data inválida. A chamada é de hoje ou de um dia passado.' };
     case 'inativo':
@@ -1752,13 +1755,6 @@ export async function markPresenceInClassAction(form: FormData): Promise<ActionR
   const schedule = await getEffectiveSchedule(new Date());
   const slot = schedule.classes.find((item) => item.id === classId) ?? null;
   if (!slot) return { ok: false, message: 'Turma não encontrada.' };
-
-  if (slot.unit !== student.unit) {
-    return {
-      ok: false,
-      message: `${student.name} é aluno de outra academia. Troque a unidade na ficha dele antes.`,
-    };
-  }
 
   /*
    * A data sai da **aula**, não do relógio.

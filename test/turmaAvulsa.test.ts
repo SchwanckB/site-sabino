@@ -531,7 +531,16 @@ describe('chamada atrasada da avulsa', () => {
     expect((await adminActions.markPresenceInClassAction(denovo)).ok).toBe(true);
   });
 
-  it('aluno de outra academia não entra nem pela chamada manual', async () => {
+  it('o aluno da outra academia que apareceu no sábado entra pela chamada manual', async () => {
+    /*
+     * Ele não marcou sozinho: o treino aberto de Três Cachoeiras não entra na
+     * lista de check-in de quem está matriculado em Terra de Areia a não ser
+     * que ele leia o cartaz **daqui** — e no sábado ninguém pensou nisso.
+     *
+     * O professor viu o rosto, sabe que ele treinou, e lança. A unidade da
+     * ficha dele continua Terra de Areia: é lá que ele paga e é lá que ele
+     * aparece nas listas. A presença é do treino que aconteceu aqui.
+     */
     agora(SEXTA, '10:00');
     await criarSabado();
     await criarAluno('user_terra', [], 'terra-de-areia');
@@ -542,8 +551,13 @@ describe('chamada atrasada da avulsa', () => {
     form.set('classId', await avulsaId());
 
     const result = await adminActions.markPresenceInClassAction(form);
-    expect(result.ok).toBe(false);
-    expect(result.message).toContain('outra academia');
-    expect(await attendance.countCheckins('user_terra')).toBe(0);
+    expect(result.ok).toBe(true);
+
+    // E caiu no sábado, não na segunda do lançamento.
+    const noSabado = await attendance.getCheckinsOn(['user_terra'], SABADO);
+    expect(noSabado.get('user_terra')).toHaveLength(1);
+
+    const ficha = await students.getStudent('user_terra');
+    expect(ficha?.unit).toBe('terra-de-areia');
   });
 });

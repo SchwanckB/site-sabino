@@ -35,6 +35,14 @@ export interface RosterRow {
   readonly overdue: boolean;
   /** Não é da turma: entrou como avulso ou está sendo chamado para ela. */
   readonly guest: boolean;
+  /**
+   * Aluno de **outra academia** treinando aqui hoje.
+   *
+   * Não é bloqueio — é informação. A unidade da ficha diz onde ele treina de
+   * hábito; a presença é do treino que aconteceu. O professor precisa
+   * reconhecer o rosto que não é da turma dele, e isto é o que diz isso.
+   */
+  readonly visitor: boolean;
   readonly haystack: string;
 }
 
@@ -134,8 +142,9 @@ export function ClassRoster({
           <>
             <p className="text-sm text-foreground">Presença avulsa</p>
             <p className="mt-1 text-xs leading-relaxed text-muted">
-              Para o aluno que veio treinar num dia que não é o dele. Busque pelo nome acima —
-              a presença entra nesta turma sem mexer na matrícula.
+              Para o aluno que veio treinar num dia que não é o dele, ou que é da outra
+              academia. Busque pelo nome acima — a presença entra nesta turma sem mexer na
+              matrícula nem na unidade da ficha dele.
             </p>
 
             {convidados.length > 0 ? (
@@ -223,19 +232,25 @@ function RosterItem({
             <input type="hidden" name="studentId" value={row.id} />
             <input type="hidden" name="classId" value={classId} />
             <SubmitButton className="btn-primary text-xs" pendingLabel="…">
-              {row.guest ? 'Marcar avulso' : 'Presente'}
+              {row.visitor ? 'Marcar visita' : row.guest ? 'Marcar avulso' : 'Presente'}
             </SubmitButton>
           </ActionForm>
         )}
       </div>
 
       {/* Sinais ----------------------------------------------------------- */}
-      {row.note.length > 0 || row.isNew || row.dueGraduation || row.overdue || row.guest ? (
+      {row.note.length > 0 ||
+      row.isNew ||
+      row.dueGraduation ||
+      row.overdue ||
+      row.guest ||
+      row.visitor ? (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {row.visitor ? <Tag tone="info">Outra academia</Tag> : null}
           {row.isNew ? <Tag tone="info">Primeiras aulas</Tag> : null}
           {row.dueGraduation ? <Tag tone="bom">Pode graduar</Tag> : null}
           {row.overdue ? <Tag tone="alerta">Mensalidade vencida</Tag> : null}
-          {row.guest ? <Tag tone="info">Outra turma</Tag> : null}
+          {row.guest && !row.visitor ? <Tag tone="info">Outra turma</Tag> : null}
         </div>
       ) : null}
 

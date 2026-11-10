@@ -515,15 +515,65 @@ describe('presença pelas ações do admin', () => {
     expect(result.message).toContain('não está ativo');
   });
 
-  it('desfaz a presença do dia', async () => {
+  /*
+   * O relógio é pregado aqui, e não era — e isso tornava o teste instável.
+   *
+   * `markPresenceAction` não recebe turma: ela infere pela janela aberta. Com
+   * o relógio de parede, rodar a suíte às 22h (quando o Jiu das 20:30 ainda
+   * está na tolerância) gravava a presença **com** turma, e o desfazer sem
+   * `classId` ia procurar a trava `sem-turma`. O teste passava de manhã e
+   * falhava à noite, o que é a pior forma de um teste falhar.
+   *
+   * Um domingo é o único dia em que a presença fica mesmo sem turma: fora da
+   * janela, `markPresent` ainda tenta a grade do aluno naquele dia da semana,
+   * e este tem o MMA de segunda na ficha. Domingo ele não treina, e aí não há
+   * o que inferir — que é o caso que este teste existe para cobrir.
+   */
+  const DOMINGO = new Date('2026-03-01T11:00:00-03:00');
+
+  it('desfaz a presença lançada sem turma', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(DOMINGO);
+
     await alunoAprovado();
     await adminActions.markPresenceAction(formulario({ studentId: 'user_aluno' }));
 
     const result = await adminActions.undoPresenceAction(formulario({ studentId: 'user_aluno' }));
     expect(result.ok).toBe(true);
 
-    // E pode marcar de novo.
-    expect((await adminActions.markPresenceAction(formulario({ studentId: 'user_aluno' }))).ok).toBe(true);
+    // E pode marcar de novo: a trava do dia saiu junto.
+    expect(
+      (await adminActions.markPresenceAction(formulario({ studentId: 'user_aluno' }))).ok,
+    ).toBe(true);
+
+    vi.useRealTimers();
+  });
+
+  it('desfazer precisa da turma quando a presença tem turma', async () => {
+    /*
+     * O caminho que a tela usa de verdade.
+     *
+     * A linha da chamada manda o `classId` em que o professor clicou, porque
+     * desde que presença é por aula realizada o aluno pode ter duas no mesmo
+     * dia. Sem ele, o desfazer procura a presença sem turma — e não acha.
+     */
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-02T20:00:00-03:00')); // MMA das 19:30 aberto
+
+    await alunoAprovado();
+    await adminActions.markPresenceAction(formulario({ studentId: 'user_aluno' }));
+
+    const semTurma = await adminActions.undoPresenceAction(
+      formulario({ studentId: 'user_aluno' }),
+    );
+    expect(semTurma.ok).toBe(false);
+
+    const comTurma = await adminActions.undoPresenceAction(
+      formulario({ studentId: 'user_aluno', classId: 'seg-1930-mma' }),
+    );
+    expect(comTurma.ok).toBe(true);
+
+    vi.useRealTimers();
   });
 });
 
