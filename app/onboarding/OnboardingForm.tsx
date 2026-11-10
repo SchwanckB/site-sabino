@@ -175,6 +175,7 @@ export function OnboardingForm({
             placeholder="(51) 99999-9999"
             defaultValue={sent?.phone ?? defaultPhone}
             aria-invalid={Boolean(errors['phone'])}
+            aria-describedby={errors['phone'] ? 'phone-erro' : undefined}
             className={inputClass}
           />
         </Field>
@@ -188,6 +189,7 @@ export function OnboardingForm({
             placeholder="000.000.000-00"
             defaultValue={sent?.cpf ?? ''}
             aria-invalid={Boolean(errors['cpf'])}
+            aria-describedby={errors['cpf'] ? 'cpf-erro' : undefined}
             className={inputClass}
           />
         </Field>
@@ -206,6 +208,7 @@ export function OnboardingForm({
           value={birthDate}
           onChange={(event) => setBirthDate(event.target.value)}
           aria-invalid={Boolean(errors['birthDate'])}
+          aria-describedby={errors['birthDate'] ? 'birthDate-erro' : undefined}
           className={inputClass}
         />
       </Field>
@@ -287,6 +290,7 @@ export function OnboardingForm({
               type="text"
               defaultValue={sent?.guardianName ?? ''}
               aria-invalid={Boolean(errors['guardianName'])}
+              aria-describedby={errors['guardianName'] ? 'guardianName-erro' : undefined}
               className={inputClass}
             />
           </Field>
@@ -305,6 +309,7 @@ export function OnboardingForm({
                 placeholder="(51) 99999-9999"
                 defaultValue={sent?.guardianPhone ?? ''}
                 aria-invalid={Boolean(errors['guardianPhone'])}
+                aria-describedby={errors['guardianPhone'] ? 'guardianPhone-erro' : undefined}
                 className={inputClass}
               />
             </Field>
@@ -323,6 +328,7 @@ export function OnboardingForm({
                 placeholder="000.000.000-00"
                 defaultValue={sent?.guardianCpf ?? ''}
                 aria-invalid={Boolean(errors['guardianCpf'])}
+                aria-describedby={errors['guardianCpf'] ? 'guardianCpf-erro' : undefined}
                 className={inputClass}
               />
             </Field>
@@ -383,6 +389,7 @@ export function OnboardingForm({
           accept={DOCUMENT_ACCEPT_ATTR}
           onChange={onPickFile}
           aria-invalid={Boolean(errors['document'])}
+          aria-describedby={errors['document'] ? 'document-erro' : undefined}
           className={cn(
             inputClass,
             'file:mr-4 file:rounded-lg file:border-0 file:bg-crimson file:px-4 file:py-2 file:text-sm file:font-semibold file:text-foreground',
@@ -405,6 +412,7 @@ export function OnboardingForm({
             defaultChecked={sent?.consent ?? false}
             className="mt-0.5 h-5 w-5 shrink-0 rounded border-hairline bg-white/[.06] accent-crimson"
             aria-invalid={Boolean(errors['consent'])}
+            aria-describedby={errors['consent'] ? 'consent-erro' : undefined}
           />
           <span>
             Autorizo a Sabino Academia a usar meus dados e o documento enviado exclusivamente
@@ -412,8 +420,13 @@ export function OnboardingForm({
             qualquer momento.
           </span>
         </label>
+        {/*
+          O `id` casa com o `aria-describedby` da caixa. Este campo não passa
+          pelo `Field` — a etiqueta envolve a caixa — então o id é escrito à
+          mão, no mesmo padrão `<campo>-erro` que o `Field` gera.
+        */}
         {errors['consent'] ? (
-          <p role="alert" className="mt-1.5 text-xs text-accent">
+          <p id="consent-erro" role="alert" className="mt-1.5 text-xs text-accent">
             {errors['consent']}
           </p>
         ) : null}
