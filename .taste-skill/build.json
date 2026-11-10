@@ -1,0 +1,11 @@
+{
+ "page": null,
+ "url": "http://localhost:3000/",
+ "root": null,
+ "kind": null,
+ "category": null,
+ "primary": null,
+ "rounds": 3,
+ "start": "2026-11-10T01:18:39.249Z",
+ "by": "gate.mjs --start"
+}
