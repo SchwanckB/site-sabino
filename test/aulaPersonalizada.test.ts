@@ -189,6 +189,19 @@ async function cancelar(date: string) {
   return result;
 }
 
+/**
+ * As turmas **da ficha** do aluno entre as oferecidas.
+ *
+ * A matrícula deixou de barrar presença, então a lista traz tudo que a
+ * academia tem aberto. As regras deste arquivo — aula cancelada não abre,
+ * turma remarcada só abre no horário novo — são sobre a turma **dele**, e é
+ * sobre ela que as asserções falam. Comparar a lista inteira passou a medir
+ * de carona a grade da academia, que não é o assunto aqui.
+ */
+function minhas(opcoes: Awaited<ReturnType<typeof painel.listCheckinOptions>>) {
+  return opcoes.ok === true ? opcoes.classes.filter((item) => item.mine) : [];
+}
+
 describe('o professor cancela a aula do dia', () => {
   it('não precisa digitar horário: vem da grade', async () => {
     agora(SEGUNDA, '10:00');
@@ -232,11 +245,17 @@ describe('o professor cancela a aula do dia', () => {
     // Nem cedo, nem na hora da aula.
     agora(SEGUNDA, '18:45');
     const cedo = await painel.listCheckinOptions(token);
-    expect(cedo.ok === true && cedo.classes).toEqual([]);
+    expect(minhas(cedo)).toEqual([]);
 
     agora(SEGUNDA, '19:45');
     const naHora = await painel.listCheckinOptions(token);
-    expect(naHora.ok === true && naHora.classes).toEqual([]);
+    expect(minhas(naHora)).toEqual([]);
+
+    // E a turma cancelada não aparece nem como aula de fora da ficha: ela
+    // não aconteceu para ninguém.
+    expect(
+      naHora.ok === true && naHora.classes.map((item) => item.classId),
+    ).not.toContain('seg-1930-mma');
 
     const result = await painel.checkinAction(token, ['seg-1930-mma']);
     expect(result.ok).toBe(false);
@@ -253,7 +272,7 @@ describe('o professor cancela a aula do dia', () => {
     const token = qr.getCurrentQrToken('tres-cachoeiras').token;
     const opcoes = await painel.listCheckinOptions(token);
 
-    expect(opcoes.ok === true && opcoes.classes.map((item) => item.time)).toEqual(['19:30']);
+    expect(minhas(opcoes).map((item) => item.time)).toEqual(['19:30']);
   });
 
   it('cancelar substitui um horário remarcado do mesmo dia', async () => {
@@ -283,7 +302,7 @@ describe('o professor cancela a aula do dia', () => {
     const token = qr.getCurrentQrToken('tres-cachoeiras').token;
     const opcoes = await painel.listCheckinOptions(token);
 
-    expect(opcoes.ok === true && opcoes.classes.map((item) => item.time)).toEqual(['19:30']);
+    expect(minhas(opcoes).map((item) => item.time)).toEqual(['19:30']);
   });
 });
 
@@ -373,7 +392,7 @@ describe('o aluno bate presença no horário personalizado', () => {
 
     const opcoes = await painel.listCheckinOptions(token);
     expect(opcoes.ok).toBe(true);
-    expect(opcoes.ok === true && opcoes.classes.map((item) => item.time)).toEqual(['18:30']);
+    expect(minhas(opcoes).map((item) => item.time)).toEqual(['18:30']);
 
     const result = await painel.checkinAction(token, ['seg-1930-mma']);
     expect(result.ok).toBe(true);
@@ -407,7 +426,7 @@ describe('o aluno bate presença no horário personalizado', () => {
     const token = qr.getCurrentQrToken('tres-cachoeiras').token;
 
     const opcoes = await painel.listCheckinOptions(token);
-    expect(opcoes.ok === true && opcoes.classes.map((item) => item.time)).toEqual(['18:30']);
+    expect(minhas(opcoes).map((item) => item.time)).toEqual(['18:30']);
 
     /*
      * 21:00 é a prova de que o horário normal foi mesmo furado: a janela da
@@ -415,7 +434,7 @@ describe('o aluno bate presença no horário personalizado', () => {
      */
     agora(SEGUNDA, '21:00');
     const tarde = await painel.listCheckinOptions(token);
-    expect(tarde.ok === true && tarde.classes).toEqual([]);
+    expect(minhas(tarde)).toEqual([]);
 
     const result = await painel.checkinAction(token, ['seg-1930-mma']);
     expect(result.ok).toBe(false);
@@ -433,12 +452,12 @@ describe('o aluno bate presença no horário personalizado', () => {
     const token = qr.getCurrentQrToken('tres-cachoeiras').token;
     expect((await painel.listCheckinOptions(token)).ok === true).toBe(true);
     const cedo = await painel.listCheckinOptions(token);
-    expect(cedo.ok === true && cedo.classes).toEqual([]);
+    expect(minhas(cedo)).toEqual([]);
 
     // …e 19:40 abre, no horário da grade.
     agora(OUTRA_SEGUNDA, '19:40');
     const normal = await painel.listCheckinOptions(token);
-    expect(normal.ok === true && normal.classes.map((item) => item.time)).toEqual(['19:30']);
+    expect(minhas(normal).map((item) => item.time)).toEqual(['19:30']);
   });
 
   it('remover a exceção devolve o horário normal no mesmo dia', async () => {
@@ -458,6 +477,6 @@ describe('o aluno bate presença no horário personalizado', () => {
     const token = qr.getCurrentQrToken('tres-cachoeiras').token;
     const opcoes = await painel.listCheckinOptions(token);
 
-    expect(opcoes.ok === true && opcoes.classes.map((item) => item.time)).toEqual(['19:30']);
+    expect(minhas(opcoes).map((item) => item.time)).toEqual(['19:30']);
   });
 });

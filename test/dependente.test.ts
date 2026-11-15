@@ -20,11 +20,17 @@ import { UpstashMock } from './upstashMock';
 
 const mock = new UpstashMock();
 
-const pai = {
+const pai: {
+  id: string;
+  email: string;
+  name: string;
+  role: 'ALUNO' | 'PROFESSOR' | 'GESTAO';
+  imageUrl: null;
+} = {
   id: 'user_eloy',
   email: 'eloy@teste.com',
   name: 'Eloy Pai',
-  role: 'ALUNO' as const,
+  role: 'ALUNO',
   imageUrl: null,
 };
 const estranho = { ...pai, id: 'user_outro', email: 'outro@teste.com', name: 'Outro Aluno' };
@@ -66,6 +72,7 @@ let adminActions: typeof import('@/app/admin/actions');
 let students: typeof import('@/lib/repositories/students');
 let attendance: typeof import('@/lib/repositories/attendance');
 let activeProfile: typeof import('@/lib/activeProfile');
+let qr: typeof import('@/lib/repositories/qr');
 
 beforeAll(async () => {
   const { url, token } = await mock.start();
@@ -78,6 +85,7 @@ beforeAll(async () => {
   students = await import('@/lib/repositories/students');
   attendance = await import('@/lib/repositories/attendance');
   activeProfile = await import('@/lib/activeProfile');
+  qr = await import('@/lib/repositories/qr');
 });
 
 afterAll(async () => {
@@ -554,5 +562,144 @@ describe('vincular quem já treina', () => {
     expect(ids).not.toContain('user_pedro'); // a própria ficha
     expect(ids).not.toContain('user_longe'); // outra academia
     expect(ids.some((id) => id.startsWith('dep_'))).toBe(false);
+  });
+});
+
+describe('o pai que também dá aula', () => {
+  /*
+   * As duas trocas convivem.
+   *
+   * Há professores que são pais de aluno. A troca de perfil (minha ficha ↔ a
+   * do filho) e a troca de painel (aluno ↔ professor) são coisas diferentes,
+   * e nenhuma pode apagar a outra: ele precisa chegar ao painel da criança
+   * **e** continuar tendo o caminho para o /admin.
+   *
+   * O painel é escolhido pela URL — /painel ou /admin —, e o perfil por um
+   * cookie que atravessa as duas áreas. O que este arquivo trava é que o
+   * cookie não é afetado pelo papel: trocar para o filho e voltar ao /admin
+   * não perde a escolha, e ser professor não impede assumir a ficha do filho.
+   */
+
+  const paiProfessor = { ...pai, role: 'PROFESSOR' as const };
+
+  async function professorComFilho() {
+    atual = paiProfessor;
+    const fichaPai = await matricularTitular(paiProfessor, ['seg-2030-jj']);
+    await painel.registerDependentAction(formularioDoFilho());
+
+    const pendente = (await students.listDependents(paiProfessor.id))[0];
+    if (!pendente) throw new Error('filho nao criado');
+
+    // Aprovado, senão o painel dele é a sala de espera e não a ficha.
+    const filho = await students.approveStudent(
+      pendente,
+      { classIds: ['seg-1830-kids'], belt: 'branca', degree: 0, notes: '' },
+      em('2026-02-02', '12:00'),
+    );
+
+    return { fichaPai, filho };
+  }
+
+  it('o professor assume a ficha do filho', async () => {
+    agora(SEGUNDA, '10:00');
+    const { fichaPai, filho } = await professorComFilho();
+
+    const form = new FormData();
+    form.set('studentId', filho.id);
+    await painel.switchProfileAction(form);
+
+    const perfil = await activeProfile.resolveActiveProfile(paiProfessor.id, fichaPai);
+    expect(perfil?.student.id).toBe(filho.id);
+    expect(perfil?.isDependent).toBe(true);
+
+    // E as duas fichas continuam à mão no seletor.
+    expect(perfil?.profiles.map((item) => item.id)).toEqual([paiProfessor.id, filho.id]);
+  });
+
+  it('o perfil escolhido sobrevive à ida ao painel do professor', async () => {
+    /*
+     * O cookie é da conta, não da área: é o que permite escolher o filho no
+     * cabeçalho do /admin e cair no painel dele já pronto.
+     */
+    agora(SEGUNDA, '10:00');
+    const { fichaPai, filho } = await professorComFilho();
+
+    const form = new FormData();
+    form.set('studentId', filho.id);
+    form.set('goTo', '/painel');
+    await painel.switchProfileAction(form).catch(() => undefined);
+
+    const perfil = await activeProfile.resolveActiveProfile(paiProfessor.id, fichaPai);
+    expect(perfil?.student.id).toBe(filho.id);
+  });
+
+  it('voltar ao próprio perfil é uma troca como qualquer outra', async () => {
+    agora(SEGUNDA, '10:00');
+    const { fichaPai, filho } = await professorComFilho();
+
+    const paraFilho = new FormData();
+    paraFilho.set('studentId', filho.id);
+    await painel.switchProfileAction(paraFilho);
+
+    const devolta = new FormData();
+    devolta.set('studentId', paiProfessor.id);
+    await painel.switchProfileAction(devolta);
+
+    const perfil = await activeProfile.resolveActiveProfile(paiProfessor.id, fichaPai);
+    expect(perfil?.student.id).toBe(paiProfessor.id);
+    expect(perfil?.isDependent).toBe(false);
+  });
+
+  it('com o perfil do filho, a presença é do filho', async () => {
+    /*
+     * O que torna a troca real. Antes de existir perfil ativo, o check-in era
+     * sempre de quem logou — o pai batia presença por ele mesmo ao tentar
+     * marcar a do filho, e a frequência da criança ficava vazia.
+     */
+    agora(SEGUNDA, '10:00');
+    const { filho } = await professorComFilho();
+
+    const form = new FormData();
+    form.set('studentId', filho.id);
+    await painel.switchProfileAction(form);
+
+    agora(SEGUNDA, '18:40'); // Kids das 18:30
+    atual = paiProfessor;
+
+    const result = await painel.checkinAction(
+      qr.getCurrentQrToken('tres-cachoeiras').token,
+      ['seg-1830-kids'],
+    );
+
+    expect(result.ok).toBe(true);
+    expect(await attendance.countCheckins(filho.id)).toBe(1);
+    expect(await attendance.countCheckins(paiProfessor.id)).toBe(0);
+  });
+
+  it('o dependente pendente é assumido, para o pai ver a fila dele', async () => {
+    /*
+     * Ele clicou no nome do filho: a resposta tem de ser sobre o filho.
+     *
+     * Já houve o contrário — a resolução devolvia a ficha própria quando a
+     * escolhida não estava ativa — e aí o clique não fazia nada visível. E
+     * antes disso o layout redirecionava para /painel de dentro do /painel,
+     * que é um laço. O layout agora mostra a sala de espera daquela criança.
+     */
+    agora(SEGUNDA, '10:00');
+    atual = pai;
+    const fichaPai = await matricularTitular(pai, ['seg-2030-jj']);
+    await painel.registerDependentAction(formularioDoFilho());
+
+    const filho = (await students.listDependents(pai.id))[0];
+    if (!filho) throw new Error('filho nao criado');
+    expect(filho.status).not.toBe('ativo');
+
+    const form = new FormData();
+    form.set('studentId', filho.id);
+    await painel.switchProfileAction(form);
+
+    const perfil = await activeProfile.resolveActiveProfile(pai.id, fichaPai);
+    expect(perfil?.student.id).toBe(filho.id);
+    expect(perfil?.student.status).not.toBe('ativo');
   });
 });

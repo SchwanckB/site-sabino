@@ -7,6 +7,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import {
+  ContextSwitcher,
+  type PanelChoice,
+  type ProfileChoice,
+} from '@/components/app/ContextSwitcher';
 import { Icon, type IconName } from '@/components/app/Icon';
 import { LogoutButton } from '@/components/app/LogoutButton';
 import { UnitSwitcher } from '@/components/app/UnitSwitcher';
@@ -57,6 +62,7 @@ export function AppShell({
   title,
   primaryAction,
   unitScope,
+  context,
   children,
 }: {
   readonly items: readonly NavItem[];
@@ -66,6 +72,20 @@ export function AppShell({
   readonly unitScope?: {
     readonly value: UnitScope;
     readonly action: (form: FormData) => void | Promise<void>;
+  };
+  /**
+   * De quem é esta tela, e para onde dá para ir.
+   *
+   * Fica no cabeçalho das duas áreas, e não num item de menu de uma delas: a
+   * mesma conta pode ser aluno, responsável pela ficha do filho e professor,
+   * e as três trocas precisam estar no mesmo lugar em qualquer tela. Ausente
+   * quando não há nada a trocar — aluno sozinho que não dá aula.
+   */
+  readonly context?: {
+    readonly profiles: readonly ProfileChoice[];
+    readonly panels: readonly PanelChoice[];
+    readonly switchAction: (form: FormData) => void | Promise<void>;
+    readonly goTo?: '/painel';
   };
   readonly children: React.ReactNode;
 }) {
@@ -234,6 +254,15 @@ export function AppShell({
           <div className="hidden lg:block lg:flex-1" />
 
           <div className="flex items-center gap-2">
+            {context ? (
+              <ContextSwitcher
+                profiles={context.profiles}
+                panels={context.panels}
+                switchAction={context.switchAction}
+                {...(context.goTo ? { goTo: context.goTo } : {})}
+              />
+            ) : null}
+
             {unitScope ? (
               <div className="hidden lg:block">
                 <UnitSwitcher scope={unitScope.value} action={unitScope.action} />

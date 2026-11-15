@@ -159,6 +159,24 @@ async function escanear() {
   return painel.listCheckinOptions(token());
 }
 
+/**
+ * As turmas **da ficha** do aluno entre as oferecidas.
+ *
+ * A matrícula deixou de barrar presença: a lista traz tudo que está aberto na
+ * academia, porque quem trocou de turno, ficou para a aula seguinte ou foi
+ * visitar a outra unidade também treinou. O que a ficha faz agora é dizer
+ * qual é a turma de sempre daquele aluno — e é sobre ela que estes testes
+ * falam, porque é ela que decide o automático e a ordem da tela.
+ */
+function minhas(opcoes: Awaited<ReturnType<typeof painel.listCheckinOptions>>) {
+  return opcoes.ok === true ? opcoes.classes.filter((item) => item.mine) : [];
+}
+
+/** Os ids de tudo que a tela ofereceu, da ficha ou não. */
+function oferecidas(opcoes: Awaited<ReturnType<typeof painel.listCheckinOptions>>) {
+  return opcoes.ok === true ? opcoes.classes.map((item) => item.classId) : [];
+}
+
 /* -------------------------------------------------------------------------- */
 
 describe('o aluno que faz SÓ MMA (19:30)', () => {
@@ -168,9 +186,14 @@ describe('o aluno que faz SÓ MMA (19:30)', () => {
 
     const opcoes = await escanear();
     expect(opcoes.ok).toBe(true);
-    expect(opcoes.ok === true && opcoes.classes).toHaveLength(1);
-    expect(opcoes.ok === true && opcoes.classes[0]?.classId).toBe('seg-1930-mma');
-    expect(opcoes.ok === true && opcoes.classes[0]?.hint).toBe('acontecendo agora');
+
+    // Uma turma dele: a tela registra sozinha, sem perguntar.
+    expect(minhas(opcoes)).toHaveLength(1);
+    expect(minhas(opcoes)[0]?.classId).toBe('seg-1930-mma');
+    expect(minhas(opcoes)[0]?.hint).toBe('acontecendo agora');
+
+    // E ela vem primeiro, antes das outras aulas abertas da academia.
+    expect(oferecidas(opcoes)[0]).toBe('seg-1930-mma');
 
     const result = await painel.checkinAction(token(), ['seg-1930-mma']);
     expect(result.ok).toBe(true);
@@ -183,14 +206,44 @@ describe('o aluno que faz SÓ MMA (19:30)', () => {
     await painel.checkinAction(token(), ['seg-1930-mma']);
 
     const opcoes = await escanear();
-    expect(opcoes.ok === true && opcoes.classes).toEqual([]);
+
+    // Nada dele sobrou para marcar, e `alreadyDone` é que diz por quê. Ele é
+    // contado sobre as turmas da ficha: a academia quase sempre tem alguma
+    // aula aberta, então contá-lo sobre a lista inteira nunca dispararia.
+    expect(minhas(opcoes)).toEqual([]);
     expect(opcoes.ok === true && opcoes.alreadyDone).toContain('MMA');
     expect(await attendance.countCheckins('user_mma')).toBe(1);
   });
 
-  it('não consegue marcar a turma de Jiu, em que não está matriculado', async () => {
+  it('consegue marcar o Jiu, em que não está matriculado', async () => {
+    /*
+     * Era recusado, e a recusa estava errada: ele ficou para a aula seguinte
+     * e treinou. A matrícula serve para dizer qual é a turma de sempre dele —
+     * não para decidir o que aconteceu no tatame.
+     *
+     * A aula vem marcada `mine: false`, que é o que mantém a tela prática: a
+     * turma de sempre resolve sozinha, e esta fica a um toque.
+     */
     atual = await criarAluno('user_mma', 'Aluno do MMA', ['seg-1930-mma']);
     agora(SEGUNDA, '20:40');
+
+    const opcoes = await escanear();
+    const jiu = opcoes.ok === true ? opcoes.classes.find((i) => i.classId === 'seg-2030-jj') : null;
+    expect(jiu).toBeDefined();
+    expect(jiu?.mine).toBe(false);
+
+    const result = await painel.checkinAction(token(), ['seg-2030-jj']);
+    expect(result.ok).toBe(true);
+    expect(await attendance.countCheckins('user_mma')).toBe(1);
+
+    const historico = await attendance.listCheckins('user_mma', 5);
+    expect(historico[0]?.classId).toBe('seg-2030-jj');
+  });
+
+  it('a janela continua valendo para a turma de fora', async () => {
+    // Liberdade de turma não é liberdade de horário: às 15h nada está aberto.
+    atual = await criarAluno('user_mma', 'Aluno do MMA', ['seg-1930-mma']);
+    agora(SEGUNDA, '15:00');
 
     const result = await painel.checkinAction(token(), ['seg-2030-jj']);
     expect(result.ok).toBe(false);
@@ -204,9 +257,9 @@ describe('o aluno que faz SÓ Jiu-Jitsu (20:30)', () => {
     agora(SEGUNDA, '19:40');
 
     const opcoes = await escanear();
-    expect(opcoes.ok === true && opcoes.classes).toHaveLength(1);
-    expect(opcoes.ok === true && opcoes.classes[0]?.classId).toBe('seg-2030-jj');
-    expect(opcoes.ok === true && opcoes.classes[0]?.hint).toContain('começa em');
+    expect(minhas(opcoes)).toHaveLength(1);
+    expect(minhas(opcoes)[0]?.classId).toBe('seg-2030-jj');
+    expect(minhas(opcoes)[0]?.hint).toContain('começa em');
   });
 
   it('às 18:00 ainda não abriu, e a tela diz quando é a próxima', async () => {
@@ -214,7 +267,10 @@ describe('o aluno que faz SÓ Jiu-Jitsu (20:30)', () => {
     agora(SEGUNDA, '18:00');
 
     const opcoes = await escanear();
-    expect(opcoes.ok === true && opcoes.classes).toEqual([]);
+
+    // Nenhuma turma dele agora — e é `nextClass` que a tela mostra, em vez de
+    // jogá-lo numa lista com a turma infantil que por acaso está aberta.
+    expect(minhas(opcoes)).toEqual([]);
     expect(opcoes.ok === true && opcoes.nextClass).toBe('hoje às 20:30');
     expect(opcoes.ok === true && opcoes.alreadyDone).toBeNull();
   });
@@ -229,10 +285,12 @@ describe('o aluno que faz OS DOIS, seguidos', () => {
     agora(SEGUNDA, '19:40');
 
     const opcoes = await escanear();
-    expect(opcoes.ok === true && opcoes.classes).toHaveLength(2);
-    expect(opcoes.ok === true && opcoes.classes[0]?.classId).toBe('seg-1930-mma');
-    expect(opcoes.ok === true && opcoes.classes[0]?.hint).toBe('acontecendo agora');
-    expect(opcoes.ok === true && opcoes.classes[1]?.classId).toBe('seg-2030-jj');
+    // As duas turmas dele, o MMA (acontecendo) primeiro. É esta lista que
+    // vira a pergunta "vai treinar as duas?".
+    expect(minhas(opcoes)).toHaveLength(2);
+    expect(minhas(opcoes)[0]?.classId).toBe('seg-1930-mma');
+    expect(minhas(opcoes)[0]?.hint).toBe('acontecendo agora');
+    expect(minhas(opcoes)[1]?.classId).toBe('seg-2030-jj');
   });
 
   /*
@@ -252,8 +310,8 @@ describe('o aluno que faz OS DOIS, seguidos', () => {
     agora(SEGUNDA, '20:45');
     const opcoes = await escanear();
 
-    expect(opcoes.ok === true && opcoes.classes).toHaveLength(1);
-    expect(opcoes.ok === true && opcoes.classes[0]?.classId).toBe('seg-2030-jj');
+    expect(minhas(opcoes)).toHaveLength(1);
+    expect(minhas(opcoes)[0]?.classId).toBe('seg-2030-jj');
 
     expect((await painel.checkinAction(token(), ['seg-2030-jj'])).ok).toBe(true);
     expect(await attendance.countCheckins('user_ambos')).toBe(2);
@@ -296,26 +354,35 @@ describe('o aluno que faz OS DOIS, seguidos', () => {
     // Mudou de ideia e ficou: às 20:45 o Jiu ainda está lá para marcar.
     agora(SEGUNDA, '20:45');
     const opcoes = await escanear();
-    expect(opcoes.ok === true && opcoes.classes.map((c) => c.classId)).toEqual(['seg-2030-jj']);
+    expect(minhas(opcoes).map((c) => c.classId)).toEqual(['seg-2030-jj']);
   });
 
   /*
-   * O cliente manda a lista, e cliente não é fonte de verdade: ids de turma
-   * em que ele não está matriculado têm de cair fora, não derrubar o resto.
+   * O cliente manda a lista, e cliente não é fonte de verdade.
+   *
+   * O que cai fora mudou: matrícula não filtra mais nada — o aluno pode ter
+   * ficado para a aula seguinte, e isso é presença legítima. O que continua
+   * caindo fora é a aula que **não está aberta agora**: a de outro dia da
+   * semana, a cancelada, a de outra academia. Essa é a trava que sobrou, e
+   * ela é de horário, não de turma.
    */
-  it('turma fora da ficha é ignorada, e a válida entra', async () => {
+  it('turma que não está aberta agora cai fora, e as abertas entram', async () => {
     atual = await criarAluno('user_mma', 'Só MMA', ['seg-1930-mma']);
     agora(SEGUNDA, '19:40');
 
     const result = await painel.checkinAction(token(), [
       'seg-1930-mma',
-      'seg-2030-jj', // não é dele
-      'qui-0600-jj', // nem é de hoje
+      'seg-2030-jj', // não é da ficha dele, mas está aberta: entra
+      'qui-0600-jj', // outro dia da semana: cai fora
+      'turma-inventada', // não existe: cai fora
     ]);
 
     expect(result.ok).toBe(true);
-    expect(result.ok === true && result.classes).toHaveLength(1);
-    expect(await attendance.countCheckins('user_mma')).toBe(1);
+    expect(result.ok === true && result.classes).toHaveLength(2);
+    expect(await attendance.countCheckins('user_mma')).toBe(2);
+
+    const historico = await attendance.listCheckins('user_mma', 5);
+    expect(historico.map((e) => e.classId).sort()).toEqual(['seg-1930-mma', 'seg-2030-jj']);
   });
 
   it('o mesmo id repetido na lista não duplica', async () => {
@@ -367,7 +434,7 @@ describe('o aluno que faz OS DOIS, seguidos', () => {
     await painel.checkinAction(token(), ['seg-2030-jj']);
 
     const opcoes = await escanear();
-    expect(opcoes.ok === true && opcoes.classes).toEqual([]);
+    expect(minhas(opcoes)).toEqual([]);
     expect(opcoes.ok === true && opcoes.alreadyDone).toContain('MMA');
     expect(opcoes.ok === true && opcoes.alreadyDone).toContain('Jiu-Jitsu');
   });

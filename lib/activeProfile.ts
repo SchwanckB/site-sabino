@@ -57,6 +57,16 @@ export async function resolveActiveProfile(
   // Id que não está na lista desta conta é descartado sem alarde: cookie
   // velho de um dependente apagado é o caso comum, e não vale uma tela de
   // erro. O primeiro perfil é sempre o próprio, quando existe.
+  /*
+   * A escolha é honrada mesmo que a ficha esteja pendente.
+   *
+   * O pai acabou de cadastrar o filho e clica nele: tem de ver algo **sobre o
+   * filho**, e não a própria ficha de volta sem explicação. Quem trata esse
+   * caso é o layout do painel, que mostra a sala de espera daquela criança.
+   *
+   * Já houve o contrário aqui, e era pior: o layout barrava ficha não-ativa
+   * redirecionando para `/painel` — de dentro do `/painel`, um laço.
+   */
   const student = profiles.find((item) => item.id === escolhido) ?? profiles[0];
   if (!student) return null;
 

@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 import type { ActionResult } from '@/components/app/ActionForm';
 import { weekdayLabels, type Weekday } from '@/data/seed';
@@ -65,6 +66,15 @@ export interface OpenClassOption {
    * joga a presença na turma errada.
    */
   readonly hint: string;
+  /**
+   * É uma das turmas da ficha dele.
+   *
+   * A ficha **identifica**, não restringe: qualquer aula aberta da academia
+   * pode ser marcada. O que esta marca faz é manter o check-in prático — a
+   * turma de sempre vem primeiro e, quando é a única aberta dele, a tela
+   * registra sozinha sem perguntar nada.
+   */
+  readonly mine: boolean;
 }
 
 export type CheckinOptions =
@@ -202,18 +212,23 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
   const daUnidade = filterByUnit(schedule.classes, validation.unit);
 
   /*
-   * Visitante: as turmas abertas da casa valem todas.
+   * Toda aula aberta da casa vale, esteja ou não na ficha dele.
    *
-   * Ele não tem nenhuma delas na ficha — a matrícula é na outra academia —,
-   * então casar por `classIds` devolveria lista vazia e a tela diria "nenhuma
-   * turma sua está acontecendo agora" para alguém parado dentro do tatame. A
-   * janela de horário continua valendo: é ela que impede marcar presença de
-   * casa, e isso não é bloqueio de unidade.
+   * A matrícula servia de trava: só marcava presença em turma da própria
+   * ficha. Na prática isso recusava o treino que de fato aconteceu — quem faz
+   * jiu e resolveu ficar para o MMA, quem veio na turma de outro horário
+   * porque trocou o turno no trabalho, quem está visitando a outra academia.
+   * Todos tinham treinado, e nenhum conseguia registrar.
+   *
+   * A ficha continua tendo duas funções, e elas são as que importam: dizer
+   * qual é a turma de sempre daquele aluno — para a chamada, o relatório e o
+   * calendário dele — e ser a base da pergunta "vai ficar para a seguinte?"
+   * de quem encadeia MMA e jiu na mesma noite.
+   *
+   * O que continua travando é a janela de horário, e ela não é matrícula: é o
+   * que impede marcar presença de casa.
    */
-  const visitante = validation.unit !== student.unit;
-  const elegiveis = visitante
-    ? daUnidade.map((slot) => slot.id)
-    : student.classIds;
+  const elegiveis = daUnidade.map((slot) => slot.id);
 
   /*
    * As aulas abertas **que ele ainda não marcou**.
@@ -231,25 +246,63 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
   const abertas = findOpenClasses(daUnidade, elegiveis, now);
   const pendentes = abertas.filter((slot) => !jaMarcadas.has(slot.classId));
 
+  /*
+   * As turmas dele primeiro.
+   *
+   * Sem esta ordem, abrir o check-in às 19h40 de uma segunda devolve três
+   * aulas — o kids que acabou, o MMA rolando e o jiu que já abriu a janela —
+   * e o aluno de uma turma só passa a ter de escolher onde antes não
+   * escolhia nada. A ordem, com a marca `mine`, devolve o caso comum ao
+   * automático e deixa o resto a um toque.
+   */
+  const daFicha = new Set(student.classIds);
+  const ordenadas = [
+    ...pendentes.filter((slot) => daFicha.has(slot.classId)),
+    ...pendentes.filter((slot) => !daFicha.has(slot.classId)),
+  ];
+
+  /*
+   * As turmas **dele**, abertas e pendentes.
+   *
+   * `alreadyDone` e `nextClass` saem daqui, e não da lista inteira. Os dois
+   * respondem perguntas sobre a agenda daquele aluno — "já marquei?" e "quando
+   * é a minha próxima?" — e, contados sobre tudo que a academia abre, parariam
+   * de funcionar no instante em que a matrícula deixou de filtrar a lista: há
+   * quase sempre alguma aula aberta na academia, então nenhuma das duas
+   * mensagens apareceria mais.
+   */
+  const minhasAbertas = abertas.filter((slot) => daFicha.has(slot.classId));
+  const minhasPendentes = minhasAbertas.filter((slot) => !jaMarcadas.has(slot.classId));
+
   return {
     ok: true,
-    classes: pendentes.map((slot) => ({
+    classes: ordenadas.map((slot) => ({
       classId: slot.classId,
       title: slot.title,
       level: slot.level ?? '',
       time: slot.startTime,
       hint: estadoDaAula(slot),
+      mine: daFicha.has(slot.classId),
     })),
+    /*
+     * "Sua próxima aula" sai da ficha, e não de tudo que a academia abre.
+     *
+     * Aqui a matrícula volta a ser exatamente o que ela é: a agenda daquele
+     * aluno. Listar a próxima aula da academia inteira responderia a uma
+     * pergunta que ele não fez.
+     */
     nextClass:
-      pendentes.length === 0 ? proximaAulaEmTexto(daUnidade, elegiveis, now) : null,
+      minhasPendentes.length === 0
+        ? proximaAulaEmTexto(daUnidade, student.classIds, now)
+        : null,
     /*
      * Havia aula aberta, mas ele já marcou todas. É diferente de "nenhuma
      * turma sua está acontecendo agora" — ali ele erraria o horário; aqui ele
      * fez tudo certo e só escaneou duas vezes.
      */
     alreadyDone:
-      abertas.length > 0 && pendentes.length === 0
-        ? abertas.map((slot) => `${slot.title} · ${slot.startTime}`).join(' e ')
+      minhasAbertas.length > 0 && minhasPendentes.length === 0
+        ? minhasAbertas.map((slot) => `${slot.title} · ${slot.startTime}`).join(' e ')
         : null,
   };
 }
@@ -318,18 +371,18 @@ export async function checkinAction(
   const now = new Date();
   const schedule = await getEffectiveScheduleFresh(now);
 
-  // Mesmo recorte da listagem, pelo mesmo motivo: o cartaz diz a academia, e
-  // o visitante marca o que está aberto nela. Ver `listCheckinOptions`.
+  // Mesmo recorte da listagem, pelos mesmos motivos: o cartaz diz a academia,
+  // e toda aula aberta nela pode ser marcada. Ver `listCheckinOptions`.
   const daUnidade = filterByUnit(schedule.classes, validation.unit);
-  const elegiveis =
-    validation.unit !== student.unit ? daUnidade.map((slot) => slot.id) : student.classIds;
+  const elegiveis = daUnidade.map((slot) => slot.id);
 
   /*
    * A turma escolhida é reconferida contra as que estão abertas agora.
    *
    * O cliente manda o id, e cliente não é fonte de verdade: sem esta linha,
    * bastaria trocar o valor no formulário para marcar presença numa aula de
-   * outro dia. É aqui que a janela de horário e a matrícula são impostas.
+   * outro dia, ou da outra academia. É aqui que a janela de horário é imposta
+   * — e ela é a única trava que sobrou neste caminho.
    */
   const abertas = findOpenClasses(daUnidade, elegiveis, now);
 
@@ -347,7 +400,7 @@ export async function checkinAction(
       };
     }
 
-    const proxima = proximaAulaEmTexto(daUnidade, elegiveis, now);
+    const proxima = proximaAulaEmTexto(daUnidade, student.classIds, now);
     return {
       ok: false,
       reason: 'sem_aula_agora',
@@ -556,4 +609,18 @@ export async function switchProfileAction(form: FormData): Promise<void> {
   await requireUser();
   await setActiveProfile(text(form, 'studentId'));
   revalidatePath('/painel', 'layout');
+
+  /*
+   * Trocar de perfil estando no painel do professor tem de levar ao painel.
+   *
+   * É o caso do pai que também dá aula: ele está em /admin, escolhe o filho
+   * no seletor, e sem isto ficaria exatamente onde estava — a troca aconteceu
+   * no cookie e nada na tela mudou, o que se lê como botão quebrado.
+   *
+   * O destino é de dentro do app, e conferido: `goTo` vem de um formulário, e
+   * redirecionar para onde o formulário pedir é um portal aberto para
+   * qualquer domínio.
+   */
+  const goTo = text(form, 'goTo');
+  if (goTo === '/painel') redirect('/painel');
 }

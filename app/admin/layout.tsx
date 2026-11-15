@@ -1,11 +1,14 @@
 import type { Metadata } from 'next';
 
 import { AppShell, type NavItem, type PrimaryAction } from '@/components/app/AppShell';
+import type { PanelChoice, ProfileChoice } from '@/components/app/ContextSwitcher';
+import { switchProfileAction } from '@/app/painel/actions';
+import { resolveActiveProfile } from '@/lib/activeProfile';
 import { requireStaff } from '@/lib/auth';
 import { can, type Permission } from '@/lib/roles';
 import { getStudent, listStudentsByStatus } from '@/lib/repositories/students';
 import { getUnitScope } from '@/lib/unitScope';
-import { filterByUnit } from '@/types/domain';
+import { STATUS_LABELS, filterByUnit } from '@/types/domain';
 
 import { setUnitScopeAction } from './actions';
 
@@ -86,6 +89,51 @@ export default async function AdminLayout({
     });
   }
 
+  /*
+   * O seletor do cabeçalho, igual ao do painel do aluno.
+   *
+   * Há professores que são pais de aluno — é o caso que motivou tudo isto. De
+   * dentro do /admin ele escolhe o filho e cai no painel da criança, sem
+   * passar por "meu painel de aluno" e trocar de perfil lá dentro.
+   *
+   * O item de menu "Meu painel de aluno" continua existindo: o seletor é um
+   * caminho novo, não a substituição de um que as pessoas já conhecem.
+   */
+  // Devolve `null` para o professor que não treina e não tem dependente —
+  // e aí o seletor só oferece os painéis.
+  const perfil = await resolveActiveProfile(admin.id, ficha);
+
+  const profiles: ProfileChoice[] = (perfil?.profiles ?? []).map((item) => ({
+    id: item.id,
+    name: item.name,
+    detail:
+      item.id === admin.id
+        ? 'Você'
+        : item.status === 'ativo'
+          ? item.category === 'kids'
+            ? 'Infantil'
+            : 'Adulto'
+          : STATUS_LABELS[item.status],
+    // Nenhuma ficha está "ativa" aqui: a tela atual é o painel da academia,
+    // não o painel de um aluno. Marcar uma delas diria que a pessoa está
+    // vendo a ficha daquele aluno, e ela não está.
+    active: false,
+    ready: item.status === 'ativo',
+  }));
+
+  const panels: PanelChoice[] = [
+    {
+      href: '/admin',
+      label: admin.role === 'GESTAO' ? 'Painel da gestão' : 'Painel do professor',
+      icon: 'grafico',
+      active: true,
+    },
+  ];
+
+  if (ficha?.status === 'ativo') {
+    panels.push({ href: '/painel', label: 'Área do aluno', icon: 'conta', active: false });
+  }
+
   // A ação do dia a dia do professor: abrir a aula que está começando.
   const primaryAction: PrimaryAction = {
     href: '/admin/aula',
@@ -105,6 +153,14 @@ export default async function AdminLayout({
       title={titulo}
       primaryAction={primaryAction}
       unitScope={{ value: scope, action: setUnitScopeAction }}
+      context={{
+        profiles,
+        panels,
+        switchAction: switchProfileAction,
+        // Trocar de ficha aqui tem de levar ao painel do aluno: a troca é no
+        // cookie, e sem o destino a tela do /admin não mudaria em nada.
+        goTo: '/painel',
+      }}
     >
       {children}
     </AppShell>
