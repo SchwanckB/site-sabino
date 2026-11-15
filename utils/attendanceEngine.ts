@@ -173,6 +173,74 @@ function assigned(
 }
 
 /**
+ * Folga máxima entre duas aulas para elas contarem como seguidas.
+ *
+ * Na grade da academia as turmas se encostam — 18:30, 19:30, 20:30 —, então na
+ * prática a folga é zero. Quinze minutos cobrem a grade que um dia ganhe um
+ * intervalo para trocar o tatame, sem deixar "a próxima aula" virar o treino
+ * de três horas depois, que é outro dia de trabalho e não a mesma ida à
+ * academia.
+ */
+export const CHAIN_GAP_MINUTES = 15;
+
+/**
+ * A aula seguinte do aluno, encostada numa que já está aberta.
+ *
+ * Existe por um caso concreto: quem faz MMA às 19:30 e fica para o jiu das
+ * 20:30 chega por volta das 19:20. Aí a janela do MMA está aberta (ela abriu
+ * às 18:30) e a do jiu **não** — faltam setenta minutos para as 20:30, e a
+ * janela só abre com sessenta. Pela janela sozinha, a tela registrava o MMA
+ * sem nunca perguntar sobre o jiu, e a segunda presença da noite ficava para
+ * um segundo escaneamento que ninguém faz.
+ *
+ * Então a aula seguinte entra por este caminho, e não alargando a janela: dar
+ * mais folga a todo mundo enfraqueceria a trava que segura o check-in de
+ * casa. Aqui o alcance é estreito e condicionado — tem de ser turma da ficha
+ * dele, no mesmo dia, encostada numa aula que já está aberta para ele.
+ *
+ * A contrapartida é a de sempre e já era aceita: a presença da segunda aula é
+ * gravada antes de ela acontecer. Quem disser que fica e for embora tem
+ * presença a mais, e o professor desfaz na chamada.
+ */
+export function findChainedClasses(
+  classes: readonly ScheduledClass[],
+  assignedIds: readonly string[],
+  open: readonly OpenClass[],
+  now: Date,
+): OpenClass[] {
+  if (open.length === 0) return [];
+
+  const { weekday } = saoPauloParts(now);
+  const today = saoPauloDateString(now);
+  const nowMinutes = saoPauloMinutesOfDay(now);
+
+  const jaAbertas = new Set(open.map((item) => item.classId));
+  const fins = open.map((item) => timeToMinutes(item.endTime));
+
+  return assigned(classes, assignedIds)
+    .filter((item) => !jaAbertas.has(item.id) && occursOn(item, today, weekday))
+    .map((item) => ({ item, start: timeToMinutes(item.startTime) }))
+    // Encostada no fim de alguma das abertas, e ainda por começar.
+    .filter(
+      ({ start }) =>
+        start >= nowMinutes &&
+        fins.some((fim) => start >= fim && start - fim <= CHAIN_GAP_MINUTES),
+    )
+    .map(({ item, start }) => ({
+      classId: item.id,
+      title: item.title,
+      level: item.level,
+      startTime: item.startTime,
+      endTime: item.endTime,
+      minutesUntilStart: start - nowMinutes,
+      // Nunca em andamento: o filtro acima só deixa passar o que ainda vai
+      // começar. Se estivesse rolando, `findOpenClasses` já a teria devolvido.
+      inProgress: false,
+    }))
+    .sort((a, b) => a.minutesUntilStart - b.minutesUntilStart);
+}
+
+/**
  * Aulas em que o aluno pode bater presença agora.
  *
  * A janela vai de {@link CHECKIN_EARLY_MINUTES} antes do início até

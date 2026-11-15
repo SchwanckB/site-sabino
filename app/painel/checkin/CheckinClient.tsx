@@ -162,24 +162,18 @@ export function CheckinClient() {
       }
 
       /*
-       * 4. Nenhuma aula dele agora, mas a academia tem outras abertas.
+       * 4. Duas turmas dele encadeadas — ou nenhuma, e aí a lista é a da casa.
        *
-       * É o aluno do jiu das 20:30 abrindo o app às 18h. Jogá-lo numa lista
-       * com a turma infantil seria responder o que ele não perguntou — ele
-       * chegou cedo e quer saber do treino dele. A próxima aula vem primeiro,
-       * e marcar em outra turma fica no atalho.
+       * Com duas, a pergunta é "vai ficar para a seguinte?": quem chega às
+       * 19h20 para o MMA e fica para o jiu das 20:30 resolve as duas num
+       * toque, na chegada.
+       *
+       * Com nenhuma, a lista é de tudo que está ou vai acontecer, e ele
+       * escolhe. Esta tela já teve um aviso no lugar — "a sua próxima é hoje
+       * às 20:30" — com a lista atrás de um toque. Era o bloqueio de volta
+       * disfarçado de mensagem: quem está parado no tatame fora do horário da
+       * própria turma treinou ali, e a resposta útil é a lista, não o aviso.
        */
-      if (minhas.length === 0 && options.nextClass) {
-        setResult({
-          ok: false,
-          reason: 'sem_aula_agora',
-          message: `Nenhuma das suas turmas está acontecendo agora. A próxima é ${options.nextClass}.`,
-        });
-        setPhase('erro');
-        return;
-      }
-
-      // 5. Duas turmas dele encadeadas, ou nenhuma turma na ficha: perguntar.
       setPhase('escolhendo');
     },
     [registrar],
@@ -355,11 +349,18 @@ export function CheckinClient() {
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">
             {minhasOpcoes.length === 0
-              ? 'Nenhuma das suas turmas está neste horário. Escolha a aula em que você treinou.'
+              ? 'Nenhuma das suas turmas está neste horário. Estas estão acontecendo ou vão começar — escolha a que você treinou.'
               : `Você tem ${minhasOpcoes.length} turmas neste horário. Marque de uma vez ou escolha só a que vai fazer.`}
           </p>
 
-          <ul className="mt-4 space-y-1.5">
+          {/*
+            Resumo das turmas dele, acima dos botões.
+
+            Só aparece quando há turma da ficha no horário: é o apoio da
+            pergunta "vai treinar as duas?". Sem turma dele, repetir a lista
+            da academia duas vezes na mesma tela não ajudaria ninguém.
+          */}
+          <ul className={cn('mt-4 space-y-1.5', minhasOpcoes.length === 0 && 'hidden')}>
             {minhasOpcoes.map((option) => (
               <li
                 key={option.classId}
@@ -420,13 +421,31 @@ export function CheckinClient() {
           {/*
             As aulas que não são da ficha dele.
 
-            A matrícula deixou de ser trava e passou a ser identificação: quem
+            Dobradas quando ele tem turma no horário: ali são a exceção — quem
             trocou de turno no trabalho, quem ficou para a aula seguinte, quem
-            está visitando a outra academia — todos treinaram e precisam
-            registrar. Ficam embaixo e dobradas porque são a exceção, não o
-            caso de todo dia.
+            está visitando a outra academia.
+
+            Abertas quando ele não tem nenhuma. Nesse caso elas são a resposta,
+            e não um extra: o aluno está parado no tatame fora do horário da
+            própria turma, e o que ele precisa é a lista do que está rolando.
+            Esconder atrás de um toque seria o bloqueio de volta.
           */}
-          {outrasOpcoes.length > 0 ? (
+          {outrasOpcoes.length > 0 && minhasOpcoes.length === 0 ? (
+            <ul className="mt-4 space-y-2">
+              {outrasOpcoes.map((option) => (
+                <li key={option.classId}>
+                  <BotaoDeTurma
+                    option={option}
+                    prefixo=""
+                    disabled={phase !== 'escolhendo'}
+                    onPick={() => void registrar(token, [option.classId])}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {outrasOpcoes.length > 0 && minhasOpcoes.length > 0 ? (
             <details className="mt-5 border-t border-hairline pt-4">
               <summary className="min-h-[44px] cursor-pointer list-none text-sm text-muted hover:text-foreground [&::-webkit-details-marker]:hidden">
                 Treinei em outra turma ({outrasOpcoes.length})

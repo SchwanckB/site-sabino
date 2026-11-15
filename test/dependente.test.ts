@@ -703,3 +703,162 @@ describe('o pai que também dá aula', () => {
     expect(perfil?.student.status).not.toBe('ativo');
   });
 });
+
+describe('mais de um filho na mesma conta', () => {
+  /*
+   * Família com dois ou três filhos no tatame é comum, e a conta tem de
+   * aguentar. O teto é alto de propósito (seis), e quem precisa de mais fala
+   * com a recepção, que não tem teto — ela vincula pela ficha do aluno.
+   *
+   * O que este bloco trava é que nada no caminho assume "um dependente": nem
+   * a criação, nem o seletor, nem a troca de perfil, nem a presença.
+   */
+
+  function filho(name: string, birthDate: string) {
+    const form = new FormData();
+    form.set('name', name);
+    form.set('birthDate', birthDate);
+    form.set('gender', 'masculino');
+    form.set('unit', 'tres-cachoeiras');
+    return form;
+  }
+
+  it('o pai cadastra três filhos, e os três ficam na conta', async () => {
+    agora(SEGUNDA, '10:00');
+    await matricularTitular(pai, ['seg-2030-jj']);
+
+    expect((await painel.registerDependentAction(filho('Pedro Filho', '2017-04-10'))).ok).toBe(true);
+    expect((await painel.registerDependentAction(filho('Ana Filha', '2019-08-02'))).ok).toBe(true);
+    expect((await painel.registerDependentAction(filho('Luca Filho', '2021-01-20'))).ok).toBe(true);
+
+    const dependentes = await students.listDependents(pai.id);
+    expect(dependentes).toHaveLength(3);
+    // Em ordem de nome: é a ordem do seletor, e ela tem de ser estável.
+    expect(dependentes.map((item) => item.name)).toEqual([
+      'Ana Filha',
+      'Luca Filho',
+      'Pedro Filho',
+    ]);
+  });
+
+  it('o seletor mostra as quatro fichas: a dele e as três', async () => {
+    agora(SEGUNDA, '10:00');
+    const fichaPai = await matricularTitular(pai, ['seg-2030-jj']);
+
+    await painel.registerDependentAction(filho('Pedro Filho', '2017-04-10'));
+    await painel.registerDependentAction(filho('Ana Filha', '2019-08-02'));
+    await painel.registerDependentAction(filho('Luca Filho', '2021-01-20'));
+
+    const perfil = await activeProfile.resolveActiveProfile(pai.id, fichaPai);
+
+    expect(perfil?.profiles).toHaveLength(4);
+    // A ficha própria vem primeiro, sempre: é o perfil padrão da conta.
+    expect(perfil?.profiles[0]?.id).toBe(pai.id);
+  });
+
+  it('a troca vai de um filho para o outro, não só para o primeiro', async () => {
+    agora(SEGUNDA, '10:00');
+    const fichaPai = await matricularTitular(pai, ['seg-2030-jj']);
+    await painel.registerDependentAction(filho('Pedro Filho', '2017-04-10'));
+    await painel.registerDependentAction(filho('Ana Filha', '2019-08-02'));
+
+    const [ana, pedro] = await students.listDependents(pai.id);
+    if (!ana || !pedro) throw new Error('faltou filho');
+
+    const paraPedro = new FormData();
+    paraPedro.set('studentId', pedro.id);
+    await painel.switchProfileAction(paraPedro);
+    expect((await activeProfile.resolveActiveProfile(pai.id, fichaPai))?.student.id).toBe(pedro.id);
+
+    const paraAna = new FormData();
+    paraAna.set('studentId', ana.id);
+    await painel.switchProfileAction(paraAna);
+    expect((await activeProfile.resolveActiveProfile(pai.id, fichaPai))?.student.id).toBe(ana.id);
+  });
+
+  it('a presença de cada filho é do filho certo', async () => {
+    /*
+     * É o que dá sentido a tudo: dois irmãos na mesma turma infantil, o pai
+     * escaneia uma vez por cada perfil. Se a presença caísse no perfil ativo
+     * errado — ou no do pai — a frequência das crianças ficaria embaralhada e
+     * a graduação sairia errada.
+     */
+    agora(SEGUNDA, '10:00');
+    await matricularTitular(pai, ['seg-2030-jj']);
+    await painel.registerDependentAction(filho('Pedro Filho', '2017-04-10'));
+    await painel.registerDependentAction(filho('Ana Filha', '2019-08-02'));
+
+    const pendentes = await students.listDependents(pai.id);
+    const aprovados = [];
+    for (const ficha of pendentes) {
+      aprovados.push(
+        await students.approveStudent(
+          ficha,
+          { classIds: ['seg-1830-kids'], belt: 'branca', degree: 0, notes: '' },
+          em('2026-02-02', '12:00'),
+        ),
+      );
+    }
+
+    const [ana, pedro] = aprovados;
+    if (!ana || !pedro) throw new Error('faltou filho');
+
+    agora(SEGUNDA, '18:40');
+    const token = qr.getCurrentQrToken('tres-cachoeiras').token;
+
+    const paraPedro = new FormData();
+    paraPedro.set('studentId', pedro.id);
+    await painel.switchProfileAction(paraPedro);
+    expect((await painel.checkinAction(token, ['seg-1830-kids'])).ok).toBe(true);
+
+    const paraAna = new FormData();
+    paraAna.set('studentId', ana.id);
+    await painel.switchProfileAction(paraAna);
+    expect((await painel.checkinAction(token, ['seg-1830-kids'])).ok).toBe(true);
+
+    expect(await attendance.countCheckins(pedro.id)).toBe(1);
+    expect(await attendance.countCheckins(ana.id)).toBe(1);
+    expect(await attendance.countCheckins(pai.id)).toBe(0);
+  });
+
+  it('dois irmãos de nomes iguais e nascimentos diferentes passam', async () => {
+    // A trava de duplicata é nome **e** nascimento: ela existe para o dedo
+    // duplo no botão, não para julgar que nomes uma família pode repetir.
+    agora(SEGUNDA, '10:00');
+    await matricularTitular(pai, ['seg-2030-jj']);
+
+    expect((await painel.registerDependentAction(filho('João Silva', '2016-03-01'))).ok).toBe(true);
+    expect((await painel.registerDependentAction(filho('João Silva', '2019-07-15'))).ok).toBe(true);
+
+    expect(await students.listDependents(pai.id)).toHaveLength(2);
+  });
+
+  it('o mesmo cadastro repetido é barrado', async () => {
+    agora(SEGUNDA, '10:00');
+    await matricularTitular(pai, ['seg-2030-jj']);
+
+    await painel.registerDependentAction(filho('Pedro Filho', '2017-04-10'));
+    const repetido = await painel.registerDependentAction(filho('Pedro Filho', '2017-04-10'));
+
+    expect(repetido.ok).toBe(false);
+    expect(repetido.message).toContain('já está cadastrado');
+    expect(await students.listDependents(pai.id)).toHaveLength(1);
+  });
+
+  it('acima de seis, a recepção resolve — e a mensagem diz isso', async () => {
+    agora(SEGUNDA, '10:00');
+    await matricularTitular(pai, ['seg-2030-jj']);
+
+    for (let i = 0; i < 6; i += 1) {
+      const result = await painel.registerDependentAction(
+        filho(`Filho ${i}`, `201${i}-05-10`),
+      );
+      expect(result.ok).toBe(true);
+    }
+
+    const setimo = await painel.registerDependentAction(filho('Filho 7', '2022-05-10'));
+    expect(setimo.ok).toBe(false);
+    expect(setimo.message).toContain('recepção');
+    expect(await students.listDependents(pai.id)).toHaveLength(6);
+  });
+});

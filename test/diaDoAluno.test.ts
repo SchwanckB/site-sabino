@@ -679,3 +679,117 @@ describe('o aluno inativo e o QR de outra unidade', () => {
     expect((await painel.checkinAction(token, ['terra-de-areia-1-1930-jj-fem'])).ok).toBe(false);
   });
 });
+
+describe('chegar antes da janela da segunda aula', () => {
+  /*
+   * O caso que a academia descreveu: "chegar às 19:20".
+   *
+   * Quem faz MMA às 19:30 e fica para o jiu das 20:30 chega por volta das
+   * 19h20. Nessa hora a janela do MMA está aberta — ela abriu às 18:30 — e a
+   * do jiu **não**: faltam setenta minutos, e a janela abre com sessenta.
+   *
+   * Pela janela sozinha, a tela registrava o MMA sozinha e nunca perguntava
+   * sobre o jiu. A segunda presença da noite ficava dependendo de um segundo
+   * escaneamento às 20:45 que ninguém faz — era o buraco que a pergunta "vai
+   * ficar para a seguinte?" existe para tapar, e ela não aparecia justamente
+   * no horário em que as pessoas chegam.
+   *
+   * A saída não foi alargar a janela: ela é uma das travas que seguram o
+   * check-in de casa. A aula seguinte entra por um caminho estreito — turma
+   * da ficha dele, mesmo dia, encostada numa aula que já abriu.
+   */
+
+  it('às 19:20 as duas turmas dele aparecem, e a pergunta é feita', async () => {
+    atual = await criarAluno('user_ambos', 'Aluno dos dois', [
+      'seg-1930-mma',
+      'seg-2030-jj',
+    ]);
+    agora(SEGUNDA, '19:20');
+
+    const opcoes = await escanear();
+
+    expect(minhas(opcoes).map((item) => item.classId)).toEqual([
+      'seg-1930-mma',
+      'seg-2030-jj',
+    ]);
+
+    // O jiu ainda não começou nem entrou na janela: o texto diz isso.
+    expect(minhas(opcoes)[1]?.hint).toContain('começa em');
+  });
+
+  it('e as duas presenças entram numa leitura só', async () => {
+    atual = await criarAluno('user_ambos', 'Aluno dos dois', [
+      'seg-1930-mma',
+      'seg-2030-jj',
+    ]);
+    agora(SEGUNDA, '19:20');
+
+    const result = await painel.checkinAction(token(), ['seg-1930-mma', 'seg-2030-jj']);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok === true && result.classes.map((c) => c.time)).toEqual(['19:30', '20:30']);
+    expect(await attendance.countCheckins('user_ambos')).toBe(2);
+  });
+
+  it('respondendo só o MMA, o jiu fica para depois', async () => {
+    atual = await criarAluno('user_ambos', 'Aluno dos dois', [
+      'seg-1930-mma',
+      'seg-2030-jj',
+    ]);
+    agora(SEGUNDA, '19:20');
+
+    expect((await painel.checkinAction(token(), ['seg-1930-mma'])).ok).toBe(true);
+    expect(await attendance.countCheckins('user_ambos')).toBe(1);
+
+    // Às 20:45 o jiu ainda está lá, e agora pela janela normal.
+    agora(SEGUNDA, '20:45');
+    const opcoes = await escanear();
+    expect(minhas(opcoes).map((item) => item.classId)).toEqual(['seg-2030-jj']);
+  });
+
+  it('o aluno de uma turma só não ganha a seguinte', async () => {
+    /*
+     * A sequência é da ficha dele. Oferecer o jiu a quem só faz MMA seria
+     * inventar uma pergunta que ninguém fez — e às 19:20 o jiu nem está na
+     * janela, então ele não aparece de forma nenhuma. Às 19:30 em diante ele
+     * aparece como aula de fora da ficha, que é outro caminho.
+     */
+    atual = await criarAluno('user_mma', 'Só MMA', ['seg-1930-mma']);
+    agora(SEGUNDA, '19:20');
+
+    const opcoes = await escanear();
+
+    expect(minhas(opcoes).map((item) => item.classId)).toEqual(['seg-1930-mma']);
+    expect(oferecidas(opcoes)).not.toContain('seg-2030-jj');
+  });
+
+  it('a aula distante não conta como seguinte', async () => {
+    /*
+     * O jiu da manhã de terça às 06:00 e o da noite às 20:30 são duas idas à
+     * academia, não um treino seguido. Sem a folga máxima, "a próxima aula"
+     * viraria qualquer aula do dia e a tela pediria presença antecipada num
+     * treino a catorze horas de distância.
+     */
+    atual = await criarAluno('user_manha', 'Jiu de manhã', [
+      'ter-0600-jj',
+      'ter-2030-jj',
+    ]);
+    agora(TERCA, '06:30');
+
+    const opcoes = await escanear();
+    expect(minhas(opcoes).map((item) => item.classId)).toEqual(['ter-0600-jj']);
+  });
+
+  it('a sequência só existe se alguma aula dele já abriu', async () => {
+    // Às 15h nada está aberto: sem âncora, não há "seguinte" a oferecer.
+    atual = await criarAluno('user_ambos', 'Aluno dos dois', [
+      'seg-1930-mma',
+      'seg-2030-jj',
+    ]);
+    agora(SEGUNDA, '15:00');
+
+    const opcoes = await escanear();
+    expect(minhas(opcoes)).toEqual([]);
+    expect((await painel.checkinAction(token(), ['seg-2030-jj'])).ok).toBe(false);
+  });
+});

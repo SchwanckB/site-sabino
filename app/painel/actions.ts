@@ -15,9 +15,11 @@ import { createDependent, getStudent, listDependents } from '@/lib/repositories/
 import { getEffectiveScheduleFresh } from '@/lib/schedule';
 import { CONSENT_VERSION, filterByUnit, type CheckinResult } from '@/types/domain';
 import {
+  findChainedClasses,
   findNextClass,
   findOpenClasses,
   formatMinutes,
+  type OpenClass,
   type ScheduledClass,
 } from '@/utils/attendanceEngine';
 import { validateDependent } from '@/utils/dependentValidation';
@@ -128,6 +130,43 @@ function proximaAulaEmTexto(
   return `${dia} às ${proxima.startTime}`;
 }
 
+/**
+ * O que este aluno pode marcar agora, nesta academia.
+ *
+ * Uma função, usada pela listagem **e** pelo registro. As duas já tiveram a
+ * conta escrita à mão, e divergir aqui é o pior tipo de defeito desta tela: a
+ * aula aparece na lista, o aluno toca, e o servidor responde que ela não está
+ * aberta.
+ *
+ * Duas partes. A janela — tudo que a academia tem acontecendo ou por começar,
+ * da ficha dele ou não, porque a matrícula identifica a turma de sempre e não
+ * decide o que aconteceu no tatame. E a sequência — a aula dele encostada numa
+ * que já abriu, que é como quem chega às 19h20 para o MMA consegue dizer que
+ * fica para o jiu das 20:30 sem voltar ao celular uma hora depois.
+ */
+function aulasMarcaveis(
+  classes: readonly ScheduledClass[],
+  student: { readonly classIds: readonly string[] },
+  now: Date,
+): { readonly abertas: OpenClass[]; readonly minhas: OpenClass[] } {
+  const todas = classes.map((slot) => slot.id);
+  const naJanela = findOpenClasses(classes, todas, now);
+
+  // A sequência é só da ficha dele: "vai ficar para a seguinte?" pressupõe
+  // que a seguinte é turma dele. Oferecer a aula de outra turma que por acaso
+  // vem depois seria inventar uma pergunta que ninguém fez.
+  const daFicha = new Set(student.classIds);
+  const minhasNaJanela = naJanela.filter((slot) => daFicha.has(slot.classId));
+  const emSequencia = findChainedClasses(classes, student.classIds, minhasNaJanela, now);
+
+  const abertas = [...naJanela, ...emSequencia];
+
+  return {
+    abertas,
+    minhas: abertas.filter((slot) => daFicha.has(slot.classId)),
+  };
+}
+
 /** Texto curto do estado da aula, para a tela de escolha. */
 function estadoDaAula(slot: {
   readonly inProgress: boolean;
@@ -211,24 +250,7 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
    */
   const daUnidade = filterByUnit(schedule.classes, validation.unit);
 
-  /*
-   * Toda aula aberta da casa vale, esteja ou não na ficha dele.
-   *
-   * A matrícula servia de trava: só marcava presença em turma da própria
-   * ficha. Na prática isso recusava o treino que de fato aconteceu — quem faz
-   * jiu e resolveu ficar para o MMA, quem veio na turma de outro horário
-   * porque trocou o turno no trabalho, quem está visitando a outra academia.
-   * Todos tinham treinado, e nenhum conseguia registrar.
-   *
-   * A ficha continua tendo duas funções, e elas são as que importam: dizer
-   * qual é a turma de sempre daquele aluno — para a chamada, o relatório e o
-   * calendário dele — e ser a base da pergunta "vai ficar para a seguinte?"
-   * de quem encadeia MMA e jiu na mesma noite.
-   *
-   * O que continua travando é a janela de horário, e ela não é matrícula: é o
-   * que impede marcar presença de casa.
-   */
-  const elegiveis = daUnidade.map((slot) => slot.id);
+  const { abertas, minhas: minhasAbertas } = aulasMarcaveis(daUnidade, student, now);
 
   /*
    * As aulas abertas **que ele ainda não marcou**.
@@ -243,7 +265,6 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
    * registra sozinha.
    */
   const jaMarcadas = new Set((doDia.get(student.id) ?? []).map((entry) => entry.classId));
-  const abertas = findOpenClasses(daUnidade, elegiveis, now);
   const pendentes = abertas.filter((slot) => !jaMarcadas.has(slot.classId));
 
   /*
@@ -262,16 +283,14 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
   ];
 
   /*
-   * As turmas **dele**, abertas e pendentes.
+   * `alreadyDone` e `nextClass` saem das turmas **dele**, não da lista inteira.
    *
-   * `alreadyDone` e `nextClass` saem daqui, e não da lista inteira. Os dois
-   * respondem perguntas sobre a agenda daquele aluno — "já marquei?" e "quando
-   * é a minha próxima?" — e, contados sobre tudo que a academia abre, parariam
-   * de funcionar no instante em que a matrícula deixou de filtrar a lista: há
-   * quase sempre alguma aula aberta na academia, então nenhuma das duas
-   * mensagens apareceria mais.
+   * Os dois respondem perguntas sobre a agenda daquele aluno — "já marquei?" e
+   * "quando é a minha próxima?" — e, contados sobre tudo que a academia abre,
+   * parariam de funcionar no instante em que a matrícula deixou de filtrar a
+   * lista: há quase sempre alguma aula aberta na academia, então nenhuma das
+   * duas mensagens apareceria mais.
    */
-  const minhasAbertas = abertas.filter((slot) => daFicha.has(slot.classId));
   const minhasPendentes = minhasAbertas.filter((slot) => !jaMarcadas.has(slot.classId));
 
   return {
@@ -374,7 +393,6 @@ export async function checkinAction(
   // Mesmo recorte da listagem, pelos mesmos motivos: o cartaz diz a academia,
   // e toda aula aberta nela pode ser marcada. Ver `listCheckinOptions`.
   const daUnidade = filterByUnit(schedule.classes, validation.unit);
-  const elegiveis = daUnidade.map((slot) => slot.id);
 
   /*
    * A turma escolhida é reconferida contra as que estão abertas agora.
@@ -384,7 +402,9 @@ export async function checkinAction(
    * outro dia, ou da outra academia. É aqui que a janela de horário é imposta
    * — e ela é a única trava que sobrou neste caminho.
    */
-  const abertas = findOpenClasses(daUnidade, elegiveis, now);
+  // A **mesma** função da listagem, de propósito: a lista mostrou e o
+  // registro aceita exatamente o mesmo conjunto.
+  const { abertas } = aulasMarcaveis(daUnidade, student, now);
 
   // Só as abertas que ele pediu, na ordem da grade. `Set` porque o mesmo id
   // repetido no formulário não pode virar duas tentativas.
@@ -504,13 +524,17 @@ export async function registerDependentAction(form: FormData): Promise<ActionRes
   const user = await requireUser();
 
   /*
-   * Teto de cadastros.
+   * Teto de chamadas, acima do teto de fichas — e é essa ordem que importa.
    *
-   * Cada chamada grava uma ficha e um índice. Cinco em dez minutos cobre a
-   * família grande que entra toda de uma vez e ainda assim fecha a porta para
-   * um laço contra a action.
+   * Cada chamada grava uma ficha e um índice, então a porta tem de fechar
+   * para um laço contra a action. Mas eram cinco em dez minutos contra um
+   * limite de seis dependentes: a família de seis filhos cadastrava cinco e
+   * batia em "muitas tentativas" no sexto, que é a mensagem errada — a conta
+   * ainda cabia, e ela não dizia isso. Duas de folga garantem que quem chega
+   * ao fim leia o motivo de verdade, que vem de `MAX_DEPENDENTES` e manda
+   * falar com a recepção.
    */
-  const quota = await consumeRateLimit('dependente', user.id, 5, 600);
+  const quota = await consumeRateLimit('dependente', user.id, MAX_DEPENDENTES + 2, 600);
   if (!quota.allowed) {
     return { ok: false, message: rateLimitMessage(quota.retryAfter) };
   }
