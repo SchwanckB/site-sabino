@@ -22,16 +22,17 @@ const inputClass =
   'w-full min-h-[44px] rounded-xl border border-hairline bg-white/[.04] px-3 py-2 text-sm text-foreground focus:border-crimson focus:outline-none';
 
 /**
- * Troca de perfil dentro da mesma conta.
+ * A família na academia, e o cadastro de quem falta.
  *
- * O pai treina nos adultos e o filho de seis anos treina no infantil. Criar um
- * login para a criança é pedir ao pai que invente uma caixa de entrada e
- * depois lembre de duas senhas — então a ficha dela pendura na conta dele, e
- * aqui ele escolhe de quem é a tela. É o mesmo gesto que já existe entre
- * "meu painel de aluno" e "painel do professor".
+ * A **troca** de perfil mudou de lugar: ela vive no seletor do cabeçalho, ao
+ * lado da troca de painel, e está em todas as telas. Aqui ficou o que o
+ * cabeçalho não faz — cadastrar alguém da família, e mostrar a situação de
+ * cada ficha com espaço para a frase inteira ("Aguardando aprovação" não cabe
+ * numa gaveta).
  *
- * Com um perfil só, o seletor não aparece: fica apenas o convite para
- * cadastrar alguém da família, e discreto.
+ * Os cartões continuam clicáveis de propósito. Quem está olhando a lista da
+ * família espera poder tocar num nome, e é a mesma action do cabeçalho — não
+ * é um segundo caminho, é o mesmo caminho onde a mão já está.
  */
 export function ProfileSwitcher({
   profiles,
@@ -53,9 +54,7 @@ export function ProfileSwitcher({
   return (
     <section className="panel panel-pad">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
-        <h2 className="panel-title">
-          {profiles.length > 1 ? 'Quem está treinando' : 'Minha família na academia'}
-        </h2>
+<h2 className="panel-title">Minha família na academia</h2>
 
         {canAdd ? (
           <button
