@@ -17,6 +17,11 @@ import { siteUrl } from '@/lib/site';
  * já com ele**, para a câmera nativa do celular resolver tudo. Sem app, sem
  * leitor dedicado, e a mãe que leva o filho registra a presença do próprio
  * aparelho.
+ *
+ * A mesma URL volta em texto na resposta, e é ela que se grava numa etiqueta
+ * NFC. O código do cartaz é fixo, então a etiqueta tem exatamente o mesmo
+ * alcance do papel na parede: aproximar o celular abre esta URL, e o resto do
+ * caminho é o do QR.
  */
 
 export const dynamic = 'force-dynamic';
@@ -39,6 +44,17 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   const checkinUrl = `${siteUrl()}/painel/checkin?t=${encodeURIComponent(current.token)}`;
 
+  /*
+   * A URL da plaquinha NFC é outra, e mais curta.
+   *
+   * `/presenca/<codigo>` grava a presença na própria abertura da URL: o aluno
+   * encosta o celular e lê a confirmação, sem abrir app nem tocar em botão. A
+   * do QR não serve para isso — ela abre a tela de check-in, que é o certo
+   * para a câmera (ali o aluno já está com o telefone na mão e olhando) e um
+   * passo a mais para quem só encostou o aparelho na parede.
+   */
+  const nfcUrl = `${siteUrl()}/presenca/${encodeURIComponent(current.token)}`;
+
   const dataUrl = await QRCode.toDataURL(checkinUrl, {
     // Correção alta: o cartaz vai para a parede da academia e vai apanhar.
     errorCorrectionLevel: 'H',
@@ -48,7 +64,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   });
 
   return NextResponse.json(
-    { dataUrl, unit: current.unit },
+    { dataUrl, unit: current.unit, checkinUrl, nfcUrl },
     { headers: { 'Cache-Control': 'no-store' } },
   );
 }

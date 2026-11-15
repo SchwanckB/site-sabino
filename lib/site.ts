@@ -116,6 +116,23 @@ export function siteUrl(): string {
   return 'http://localhost:3000';
 }
 
+/**
+ * `true` quando o endereço do site é estável entre deploys.
+ *
+ * Sem `NEXT_PUBLIC_SITE_URL`, `siteUrl()` cai no `VERCEL_URL`, que é o
+ * endereço **daquele deploy** — algo como `site-sabino-k3f9x.vercel.app`. Isso
+ * é inofensivo em quase todo lugar: a URL é gerada na hora e usada na hora.
+ *
+ * Deixa de ser inofensivo quando a URL vai para um objeto físico. Uma etiqueta
+ * NFC gravada com o endereço de um deploy para de funcionar no deploy
+ * seguinte, e ninguém liga uma coisa à outra — a plaquinha simplesmente
+ * "parou", semanas depois, sem nada ter mudado na parede.
+ */
+export function isSiteUrlStable(): boolean {
+  const value = process.env.NEXT_PUBLIC_SITE_URL;
+  return typeof value === 'string' && value.length > 0;
+}
+
 export const navLinks = [
   { href: '#modalidades', label: 'Modalidades' },
   { href: '#planos', label: 'Planos' },

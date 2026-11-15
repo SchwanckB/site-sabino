@@ -16,20 +16,28 @@ import { UNITS, isUnitId, type UnitId } from '@/types/domain';
  * Três Cachoeiras serviria em Terra de Areia.
  *
  * **O código não é segredo.** Ele fica colado na parede; qualquer aluno pode
- * fotografá-lo. Quem impede o check-in de casa são outras três travas:
+ * fotografá-lo, e a plaquinha NFC do balcão carrega o mesmo valor. Quem impede
+ * o check-in de casa são outras duas travas:
  *
  *   1. **janela de horário** — vale de uma hora antes do início até uma hora
  *      depois do fim, e no dia da aula personalizada é o horário
  *      personalizado que manda;
- *   2. **matrícula na turma** — o aluno só marca presença em turma dele;
- *   3. **uma presença por dia**, garantida por `SET NX` atômico.
+ *   2. **uma presença por aluno, dia e turma**, garantida por `SET NX`
+ *      atômico.
  *
- * Mesmo assim o segredo importa, e a queda para um valor fixo tem um custo que
- * antes ficava invisível: a constante está no repositório, então qualquer
- * pessoa com acesso ao código calcula o token de qualquer unidade sem nunca
- * pisar na academia. Somado às três travas acima, sobra uma brecha real — o
- * aluno matriculado que marca presença de casa, no horário da própria aula. E
- * presença alimenta graduação.
+ * Eram três. A matrícula na turma saía daqui — "o aluno só marca presença em
+ * turma dele" — e deixou de valer de propósito: ela recusava o treino que de
+ * fato aconteceu, de quem ficou para a aula seguinte, trocou o turno no
+ * trabalho ou visitou a outra academia. O que ela protegia era pouco (o aluno
+ * de casa marcaria a própria turma de todo jeito) e o que ela custava era
+ * presença real não registrada.
+ *
+ * Com uma trava a menos, o segredo importa mais. A queda para um valor fixo
+ * tem um custo que antes ficava invisível: a constante está no repositório,
+ * então qualquer pessoa com acesso ao código calcula o token de qualquer
+ * unidade sem nunca pisar na academia. Somado ao acima, sobra uma brecha real
+ * — o aluno que marca presença de casa, no horário da aula. E presença
+ * alimenta graduação.
  *
  * Por isso a queda agora vale **só fora de produção**, onde serve para o `dev`
  * rodar sem configurar nada. Em produção a ausência do segredo é registrada em

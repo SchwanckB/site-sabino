@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { PageHeader } from '@/components/app/PageHeader';
 import { requirePermission } from '@/lib/auth';
 import { isQrSecretConfigured } from '@/lib/repositories/qr';
+import { isSiteUrlStable } from '@/lib/site';
 import { getSchedule } from '@/lib/schedule';
 import { getUnitScope } from '@/lib/unitScope';
 import { UNITS, UNIT_LABELS, filterByUnit, type UnitId } from '@/types/domain';
@@ -34,7 +35,7 @@ export default async function QrPage() {
     <div className="page-stack">
       <PageHeader
         title="QR Code de presença"
-        meta="Um cartaz por academia, para imprimir e colar na parede."
+        meta="Um cartaz por academia para a parede, e o endereço da plaquinha NFC do balcão."
       />
 
       {/*
@@ -73,7 +74,7 @@ export default async function QrPage() {
         </p>
       ) : null}
 
-      <QrScreen unidades={unidades} />
+      <QrScreen unidades={unidades} siteUrlEstavel={isSiteUrlStable()} />
     </div>
   );
 }

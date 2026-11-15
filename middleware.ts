@@ -19,6 +19,20 @@ const isProtectedRoute = createRouteMatcher([
   '/admin(.*)',
   '/onboarding(.*)',
   '/aguardando(.*)',
+  /*
+   * A plaquinha NFC da recepção.
+   *
+   * Precisa estar aqui, e não só confiar no `requireUser()` de dentro: aquele
+   * redireciona para `/entrar` **sem** guardar o destino, e o aluno que
+   * encostasse o celular sem sessão perderia a plaquinha — logaria, cairia no
+   * painel, e teria de voltar à parede para encostar de novo.
+   *
+   * Por aqui o middleware guarda a URL inteira em `redirect_url`, então o
+   * login devolve o aluno exatamente na rota da plaquinha e a presença entra
+   * sozinha. É uma vez por navegador: feito o login, o cookie fica e os
+   * toques seguintes não pedem nada.
+   */
+  '/presenca(.*)',
 ]);
 
 /**

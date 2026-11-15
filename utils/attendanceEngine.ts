@@ -28,11 +28,12 @@ import {
  * quem chegava antes lia "nenhuma das suas turmas está acontecendo agora" e
  * desistia de marcar.
  *
- * O preço é conhecido: a janela de horário é uma das três travas que seguram
- * o check-in de casa (ver `lib/repositories/qr.ts`), e ela fica mais larga —
+ * O preço é conhecido: a janela de horário é uma das travas que seguram o
+ * check-in de casa (ver `lib/repositories/qr.ts`), e ela fica mais larga —
  * dos dois lados, desde que {@link CHECKIN_LATE_MINUTES} também subiu para uma
- * hora. Continuam de pé a matrícula na turma e a presença única por dia, que
- * são as travas que de fato sustentam o número.
+ * hora. Desde que a matrícula deixou de restringir a turma, esta janela e a
+ * presença única por aluno, dia e turma são as **duas** travas que sobraram —
+ * o que torna a largura daqui uma decisão mais pesada do que era.
  */
 export const CHECKIN_EARLY_MINUTES = 60;
 
