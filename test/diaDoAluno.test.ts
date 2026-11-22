@@ -850,16 +850,24 @@ describe('o pai não entra na turma do filho', () => {
     expect(await attendance.countCheckins('user_arthur')).toBe(1);
   });
 
-  it('a criança não entra na turma dos adultos', async () => {
-    // O outro lado da mesma fronteira.
+  it('a criança PODE treinar com os adultos', async () => {
+    /*
+     * A fronteira é de mão única, e de propósito.
+     *
+     * Criança no treino dos adultos acontece: a adolescente que já puxa a
+     * aula da noite, o irmão mais novo que fica para a seguinte. Barrar isso
+     * seria perder presença real — e o que ela ganha em troca está no teste
+     * seguinte: o ponto vai para o ranking dela, não para o dos adultos.
+     */
     atual = await criarAluno('user_arthur', 'Arthur Filho', [KIDS], '2018-04-10');
     agora(SEGUNDA, '20:40');
 
     const opcoes = await escanear();
-    expect(oferecidas(opcoes)).not.toContain('seg-2030-jj');
+    expect(oferecidas(opcoes)).toContain('seg-2030-jj');
 
     const result = await painel.checkinAction(token(), ['seg-2030-jj']);
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
+    expect(await attendance.countCheckins('user_arthur')).toBe(1);
   });
 
   it('o professor ainda lança a presença na mão, sem trava', async () => {

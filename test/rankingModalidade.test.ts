@@ -116,6 +116,9 @@ async function criarAluno(
   id: string,
   classIds: readonly string[],
   unit: 'tres-cachoeiras' | 'terra-de-areia' = TC,
+  // A data de nascimento decide a categoria, e a categoria decide em que
+  // lista de ranking a presença conta. Ver `listaDeRanking`.
+  birthDate = '2000-05-10',
 ) {
   const quando = em('2026-02-01', '12:00');
   const pendente = await students.createPendingStudent(
@@ -125,7 +128,7 @@ async function criarAluno(
       email: `${id}@teste.com`,
       phone: '51999990000',
       cpf: '52998224725',
-      birthDate: '2000-05-10',
+      birthDate,
       belt: 'branca',
       gender: 'masculino' as const,
       unit,
@@ -173,7 +176,7 @@ describe('a presença entra no ranking da modalidade dela', () => {
   });
 
   it('o treino infantil pontua no infantil', async () => {
-    await criarAluno('user_kid', [KIDS]);
+    await criarAluno('user_kid', [KIDS], TC, '2018-04-10');
     agora(SEGUNDA, '19:00');
 
     await marcar('user_kid', KIDS);
@@ -326,7 +329,7 @@ describe('reconstruir o histórico', () => {
 
     expect(await pontos('mma', 'user_a')).toBe(0);
 
-    const resultado = await attendance.rebuildModalityRankings([{ id: 'user_a', unit: TC, gender: 'masculino' }], (classId) =>
+    const resultado = await attendance.rebuildModalityRankings([{ id: 'user_a', unit: TC, gender: 'masculino', category: 'adulto' }], (classId) =>
       classId === MMA ? 'mma' : classId === JIU ? 'jiu-jitsu' : null,
     );
 
@@ -352,7 +355,7 @@ describe('reconstruir o histórico', () => {
     );
 
     const resultado = await attendance.rebuildModalityRankings(
-      [{ id: 'user_a', unit: TC, gender: 'masculino' }],
+      [{ id: 'user_a', unit: TC, gender: 'masculino', category: 'adulto' }],
       () => 'jiu-jitsu',
     );
 
@@ -370,7 +373,7 @@ describe('reconstruir o histórico', () => {
     await marcar('user_a', MMA);
 
     const reconstruir = () =>
-      attendance.rebuildModalityRankings([{ id: 'user_a', unit: TC, gender: 'masculino' }], () => 'mma');
+      attendance.rebuildModalityRankings([{ id: 'user_a', unit: TC, gender: 'masculino', category: 'adulto' }], () => 'mma');
 
     await reconstruir();
     await reconstruir();
@@ -704,5 +707,118 @@ describe('o ranking feminino', () => {
     // E o de jiu tem os dois.
     const jiu = await attendance.getRanking({ unit: TC, modality: 'jiu-jitsu', limit: 10 });
     expect(jiu).toHaveLength(2);
+  });
+});
+
+describe('a criança que treina com os adultos', () => {
+  /*
+   * Acontece, e é bom que aconteça: a adolescente que já puxa o treino da
+   * noite, o irmão mais novo que fica para a aula seguinte. O que não pode é
+   * ela disputar pódio com gente de trinta anos.
+   *
+   * Então a **lista do ranking sai da categoria do aluno**, não da aula. O
+   * treino foi de jiu-jitsu e o registro diz isso — o relatório de frequência
+   * da turma dos adultos a mostra lá, que é a verdade do tatame. A disputa é
+   * outra conversa, e nela ela está com as outras crianças.
+   *
+   * O avesso vale igual: o adulto que um professor lança na turma infantil
+   * não entra em lista de modalidade nenhuma. Foi o defeito que a academia
+   * relatou — um pai em primeiro lugar no ranking Kids.
+   */
+
+  const ADULTO = 'seg-2030-jj';
+  const KIDS_TURMA = 'seg-1830-kids';
+  const NASCIMENTO_CRIANCA = '2018-04-10';
+
+  it('o treino dela no adulto conta no ranking infantil', async () => {
+    await criarAluno('user_arthur', [KIDS_TURMA], TC, NASCIMENTO_CRIANCA);
+    agora(SEGUNDA, '21:00');
+
+    await marcar('user_arthur', ADULTO);
+
+    expect(await pontos('kids', 'user_arthur')).toBe(1);
+    // E não no dos adultos, que é o ponto.
+    expect(await pontos('jiu-jitsu', 'user_arthur')).toBe(0);
+  });
+
+  it('ela não aparece no pódio dos adultos', async () => {
+    await criarAluno('user_arthur', [KIDS_TURMA], TC, NASCIMENTO_CRIANCA);
+    await criarAluno('user_grande', [ADULTO]);
+    agora(SEGUNDA, '21:00');
+
+    await marcar('user_arthur', ADULTO);
+    await marcar('user_grande', ADULTO);
+
+    const adultos = await attendance.getRanking({
+      unit: TC,
+      modality: 'jiu-jitsu',
+      limit: 10,
+    });
+    expect(adultos.map((row) => row.userId)).toEqual(['user_grande']);
+
+    const infantil = await attendance.getRanking({ unit: TC, modality: 'kids', limit: 10 });
+    expect(infantil.map((row) => row.userId)).toEqual(['user_arthur']);
+  });
+
+  it('a presença guarda a modalidade da aula, e não a da lista', async () => {
+    /*
+     * A distinção que torna isto honesto: o registro diz jiu-jitsu, porque
+     * foi jiu-jitsu que ela treinou. Só a disputa é que a põe entre as
+     * crianças — e o relatório de frequência daquela turma continua achando
+     * a presença dela.
+     */
+    await criarAluno('user_arthur', [KIDS_TURMA], TC, NASCIMENTO_CRIANCA);
+    agora(SEGUNDA, '21:00');
+
+    await marcar('user_arthur', ADULTO);
+
+    const registros = await attendance.listCheckins('user_arthur', 5);
+    expect(registros[0]?.classId).toBe(ADULTO);
+    expect(registros[0]?.modality).toBe('jiu-jitsu');
+  });
+
+  it('desfazer tira o ponto do infantil, que é onde ele entrou', async () => {
+    await criarAluno('user_arthur', [KIDS_TURMA], TC, NASCIMENTO_CRIANCA);
+    agora(SEGUNDA, '21:00');
+    await marcar('user_arthur', ADULTO);
+
+    const form = new FormData();
+    form.set('studentId', 'user_arthur');
+    form.set('classId', ADULTO);
+    expect((await adminActions.undoPresenceAction(form)).ok).toBe(true);
+
+    expect(await pontos('kids', 'user_arthur')).toBe(0);
+    expect(await pontos('jiu-jitsu', 'user_arthur')).toBe(0);
+    expect(await attendance.countCheckins('user_arthur')).toBe(0);
+  });
+
+  it('o adulto na turma infantil não entra em modalidade nenhuma', async () => {
+    /*
+     * O defeito relatado, pelo outro lado. O professor pode lançar — há
+     * motivos legítimos, o auxiliar que entrou no treino das crianças —, mas
+     * isso não o põe no pódio delas.
+     */
+    await criarAluno('user_pai', [ADULTO]);
+    agora(SEGUNDA, '19:00');
+
+    await marcar('user_pai', KIDS_TURMA);
+
+    expect(await pontos('kids', 'user_pai')).toBe(0);
+    expect(await pontos('jiu-jitsu', 'user_pai')).toBe(0);
+
+    // Mas o treino aconteceu: conta no ranking da academia.
+    expect((await attendance.getRankingPosition('user_pai', { unit: TC }))?.score).toBe(1);
+  });
+
+  it('o recálculo aplica a mesma regra ao histórico', async () => {
+    await criarAluno('user_arthur', [KIDS_TURMA], TC, NASCIMENTO_CRIANCA);
+    agora(SEGUNDA, '21:00');
+    await marcar('user_arthur', ADULTO);
+
+    const result = await adminActions.rebuildModalityRankingsAction();
+    expect(result.ok).toBe(true);
+
+    expect(await pontos('kids', 'user_arthur')).toBe(1);
+    expect(await pontos('jiu-jitsu', 'user_arthur')).toBe(0);
   });
 });

@@ -163,25 +163,27 @@ function aulasMarcaveis(
   now: Date,
 ): { readonly abertas: OpenClass[]; readonly minhas: OpenClass[] } {
   /*
-   * Adulto não entra na turma infantil, e criança não entra na dos adultos.
+   * A fronteira é de mão única: adulto não entra na turma infantil.
    *
-   * A matrícula deixou de restringir a turma de propósito — quem ficou para a
-   * aula seguinte ou trocou o turno no trabalho treinou, e precisa registrar.
-   * Mas "qualquer aula aberta" passou a incluir o Kids das 18:30, e isso
-   * produziu um defeito concreto: o pai que chega com o filho, com o próprio
-   * perfil aberto, marcava a si mesmo na turma infantil. O resultado foi um
-   * homem adulto em primeiro lugar no ranking Kids.
+   * A criança, sim, treina com os adultos — acontece, e é bom que aconteça. É
+   * a adolescente que já puxa o treino da noite, o irmão mais novo que fica
+   * para a aula seguinte. A presença dela conta no ranking **infantil**, e
+   * não no dos adultos: ela treinou de verdade, mas não disputa pódio com
+   * gente de trinta anos. Ver `listaDeRanking`.
    *
-   * Esta é a única fronteira que a liberdade de turma não deve atravessar, e
-   * ela não é arbitrária: é a mesma divisão que o sistema já usa para a
-   * trilha de graduação. Dentro de cada lado, continua valendo tudo.
+   * O outro lado continua fechado, e por um defeito concreto: o pai que
+   * chega às 18h30 com o filho, com o próprio perfil aberto, marcava a si
+   * mesmo na turma infantil — e um homem adulto liderava o ranking Kids. Um
+   * adulto tocando sozinho na turma das crianças é quase sempre esse engano.
    *
    * Vale só para o check-in do próprio aluno. A presença manual do professor
-   * segue sem trava — se uma criança treinou com os adultos num dia, quem
-   * estava no tatame resolve.
+   * segue sem trava nenhuma: quem estava no tatame é que sabe o que
+   * aconteceu, inclusive o auxiliar que entrou na turma infantil.
    */
-  const infantil = student.category === 'kids';
-  const doMeuLado = classes.filter((slot) => (slot.modality === 'kids') === infantil);
+  const doMeuLado =
+    student.category === 'kids'
+      ? classes
+      : classes.filter((slot) => slot.modality !== 'kids');
 
   const todas = doMeuLado.map((slot) => slot.id);
   const naJanela = findOpenClasses(doMeuLado, todas, now);

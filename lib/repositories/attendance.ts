@@ -36,6 +36,32 @@ function isModality(value: unknown): value is ModalityId {
   return typeof value === 'string' && (MODALITY_IDS as readonly string[]).includes(value);
 }
 
+/**
+ * Em que lista de ranking esta presença conta.
+ *
+ * **Não é a modalidade da aula**, e a diferença é o ponto desta função.
+ *
+ * A criança às vezes treina com os adultos — acontece, e é bom que aconteça.
+ * Mas ela não disputa pódio com adulto: a presença dela conta no ranking
+ * infantil, que é onde ela compete com quem está no mesmo lugar da vida. O
+ * treino foi de jiu-jitsu e o registro diz isso; a disputa é outra conversa.
+ *
+ * Do outro lado, o adulto que um professor lança na turma infantil — o
+ * auxiliar, o pai que entrou para ajudar — não entra em lista de modalidade
+ * nenhuma. Ele conta no ranking da academia, como todo treino, e fica fora do
+ * pódio das crianças. Foi exatamente esse o defeito que a academia relatou.
+ *
+ * A modalidade da aula continua gravada na presença, intacta: ela é o que
+ * aconteceu no tatame, e o relatório de frequência lê de lá.
+ */
+function listaDeRanking(
+  category: string,
+  classModality: ModalityId | null,
+): ModalityId | null {
+  if (category === 'kids') return 'kids';
+  return classModality === 'kids' ? null : classModality;
+}
+
 export interface RecordCheckinInput {
   readonly student: StudentRecord;
   readonly classId: string | null;
@@ -162,12 +188,21 @@ export async function recordCheckin(
     tx.expire(redisKeys.rankUnitFemininoMonth(student.unit, month), monthlyTtl);
   }
 
-  // Presença sem turma resolvida não tem modalidade: conta nas duas listas
-  // acima e em nenhuma por modalidade.
-  if (modality) {
-    tx.zincrby(redisKeys.rankUnitModality(student.unit, modality), 1, student.id);
-    tx.zincrby(redisKeys.rankUnitModalityMonth(student.unit, modality, month), 1, student.id);
-    tx.expire(redisKeys.rankUnitModalityMonth(student.unit, modality, month), monthlyTtl);
+  /*
+   * A lista do ranking sai da **categoria do aluno**, não da aula.
+   *
+   * A criança que treinou com os adultos pontua no infantil; o adulto lançado
+   * na turma infantil não pontua em modalidade nenhuma. Ver `listaDeRanking`.
+   *
+   * Presença sem turma resolvida também não tem lista: conta nas duas acima e
+   * em nenhuma por modalidade.
+   */
+  const lista = listaDeRanking(student.category, modality);
+
+  if (lista) {
+    tx.zincrby(redisKeys.rankUnitModality(student.unit, lista), 1, student.id);
+    tx.zincrby(redisKeys.rankUnitModalityMonth(student.unit, lista, month), 1, student.id);
+    tx.expire(redisKeys.rankUnitModalityMonth(student.unit, lista, month), monthlyTtl);
   }
 
   await tx.exec();
@@ -241,13 +276,14 @@ export async function undoCheckin(
 
   const modalidade =
     target?.modality ?? (isModality(fallbackModality) ? fallbackModality : null);
-  if (modalidade) {
-    tx.zincrby(redisKeys.rankUnitModality(student.unit, modalidade), -1, student.id);
-    tx.zincrby(
-      redisKeys.rankUnitModalityMonth(student.unit, modalidade, month),
-      -1,
-      student.id,
-    );
+
+  // A mesma conta do registro, pelo mesmo caminho: o ponto tem de sair da
+  // lista em que entrou, e ela não é necessariamente a da aula.
+  const lista = listaDeRanking(student.category, modalidade);
+
+  if (lista) {
+    tx.zincrby(redisKeys.rankUnitModality(student.unit, lista), -1, student.id);
+    tx.zincrby(redisKeys.rankUnitModalityMonth(student.unit, lista, month), -1, student.id);
   }
 
   await tx.exec();
@@ -520,6 +556,7 @@ export async function rebuildModalityRankings(
     readonly id: string;
     readonly unit: string;
     readonly gender: string;
+    readonly category: string;
   }[],
   modalityOf: (classId: string) => ModalityId | null,
 ): Promise<{ readonly presencas: number; readonly semModalidade: number }> {
@@ -589,7 +626,10 @@ export async function rebuildModalityRankings(
         aLimpar.add(mesFeminino);
       }
 
-      const modality = entry.modality ?? (entry.classId ? modalityOf(entry.classId) : null);
+      const daAula = entry.modality ?? (entry.classId ? modalityOf(entry.classId) : null);
+
+      // A mesma regra do registro: a lista é da categoria do aluno.
+      const modality = listaDeRanking(student.category, daAula);
 
       if (!modality) {
         semModalidade += 1;

@@ -2093,6 +2093,7 @@ export async function rebuildModalityRankingsAction(): Promise<ActionResult> {
       id: student.id,
       unit: student.unit,
       gender: student.gender,
+      category: student.category,
     })),
     (classId) => toModality(porTurma.get(classId)),
   );
