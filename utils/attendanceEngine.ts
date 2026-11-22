@@ -73,6 +73,14 @@ export interface ScheduledClass {
   readonly title: string;
   readonly level: string;
   /**
+   * Jiu-jitsu, MMA ou kids. Opcional só para não quebrar os testes que montam
+   * uma grade mínima à mão; a grade de verdade sempre tem.
+   *
+   * Vem até aqui porque é no check-in que ela é gravada na presença, e é dela
+   * que sai o ranking por modalidade.
+   */
+  readonly modality?: string;
+  /**
    * Data civil única em que esta aula acontece (`YYYY-MM-DD`) — aula
    * personalizada. Ausente na turma recorrente da grade.
    *
@@ -131,6 +139,8 @@ export interface OpenClass {
   readonly classId: string;
   readonly title: string;
   readonly level: string;
+  /** Modalidade da aula, para a presença saber em que ranking entra. */
+  readonly modality?: string;
   readonly startTime: string;
   readonly endTime: string;
   /** Minutos até o início; negativo quando a aula já começou. */
@@ -231,6 +241,7 @@ export function findChainedClasses(
       classId: item.id,
       title: item.title,
       level: item.level,
+      ...(item.modality === undefined ? {} : { modality: item.modality }),
       startTime: item.startTime,
       endTime: item.endTime,
       minutesUntilStart: start - nowMinutes,
@@ -273,6 +284,7 @@ export function findOpenClasses(
       classId: item.id,
       title: item.title,
       level: item.level,
+      ...(item.modality === undefined ? {} : { modality: item.modality }),
       startTime: item.startTime,
       endTime: item.endTime,
       minutesUntilStart: start - nowMinutes,

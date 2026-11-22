@@ -216,6 +216,27 @@ export interface ClassSlot {
 /** Ids de modalidade, para validar entrada vinda de formulário. */
 export const MODALITY_IDS: readonly ModalityId[] = ['jiu-jitsu', 'mma', 'kids'];
 
+/** Nome curto de cada modalidade, para abas e rótulos. */
+export const MODALITY_LABELS: Readonly<Record<ModalityId, string>> = {
+  'jiu-jitsu': 'Jiu-Jitsu',
+  mma: 'MMA',
+  kids: 'Infantil',
+};
+
+/**
+ * Converte um valor solto em `ModalityId`, ou `null`.
+ *
+ * A grade carrega a modalidade como texto em vários pontos do caminho — o
+ * motor de presença a recebe estruturalmente, o banco a devolve como
+ * `unknown` —, e cada ponto fazendo a própria checagem é como uma modalidade
+ * escrita errado entraria num ranking que não existe.
+ */
+export function toModality(value: unknown): ModalityId | null {
+  return typeof value === 'string' && (MODALITY_IDS as readonly string[]).includes(value)
+    ? (value as ModalityId)
+    : null;
+}
+
 export interface Schedule {
   readonly classes: readonly ClassSlot[];
   /** `true` quando a grade veio do seed e não do Redis. */

@@ -64,6 +64,22 @@ export const redisKeys = {
   rankAll: () => 'rank:all',
   rankMonth: (yearMonth: string) => `rank:month:${yearMonth}`,
   rankBelt: (belt: string) => `rank:belt:${belt}`,
+  /**
+   * Ranking por modalidade — o recorte que torna a disputa justa.
+   *
+   * No ranking geral, quem treina jiu **e** MMA soma duas presenças por noite
+   * contra uma de quem faz só jiu. O primeiro lugar passava a medir quantas
+   * modalidades a pessoa faz, não com que constância ela aparece; para quem
+   * treina uma só, o pódio ficava fora de alcance por aritmética, e um ranking
+   * que ninguém pode ganhar deixa de ser ranking.
+   *
+   * Aqui cada presença conta uma vez, na modalidade da aula em que aconteceu.
+   * Quem faz as duas aparece nas duas listas — e em cada uma compete de igual
+   * para igual.
+   */
+  rankModality: (modality: string) => `rank:mod:${modality}`,
+  rankModalityMonth: (modality: string, yearMonth: string) =>
+    `rank:mod:${modality}:month:${yearMonth}`,
   rankBeltMonth: (belt: string, yearMonth: string) => `rank:belt:${belt}:month:${yearMonth}`,
   graduationHistory: (userId: string) => `graduation:history:${userId}`,
   graduationDue: () => 'graduation:due',

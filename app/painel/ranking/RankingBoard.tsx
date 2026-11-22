@@ -14,6 +14,19 @@ export interface RankingEntry {
 
 type Recorte = 'mes' | 'geral';
 
+/** Uma lista completa: o mês, o acumulado, e a posição do aluno em cada um. */
+export interface RankingSlice {
+  readonly month: readonly RankingEntry[];
+  readonly overall: readonly RankingEntry[];
+  readonly myMonth: { position: number; score: number } | null;
+  readonly myOverall: { position: number; score: number } | null;
+}
+
+export interface RankingTab {
+  readonly id: string;
+  readonly label: string;
+}
+
 /** Altura relativa de cada degrau. O 1º no meio, como num pódio de verdade. */
 const PODIO: readonly { posicao: number; altura: string; medalha: string }[] = [
   { posicao: 2, altura: 'h-16', medalha: '🥈' },
@@ -21,21 +34,35 @@ const PODIO: readonly { posicao: number; altura: string; medalha: string }[] = [
   { posicao: 3, altura: 'h-12', medalha: '🥉' },
 ];
 
+/**
+ * O pódio, com duas dimensões de recorte.
+ *
+ * A modalidade escolhe **com quem** o aluno compete, e o período escolhe
+ * **desde quando**. As duas vêm prontas do servidor, inteiras: trocar de aba
+ * não vai ao banco, o que importa numa tela que a pessoa abre no celular para
+ * conferir a própria posição e sai.
+ */
 export function RankingBoard({
-  month,
-  overall,
-  myMonth,
-  myOverall,
+  slices,
+  tabs,
+  defaultTab,
 }: {
-  readonly month: readonly RankingEntry[];
-  readonly overall: readonly RankingEntry[];
-  readonly myMonth: { position: number; score: number } | null;
-  readonly myOverall: { position: number; score: number } | null;
+  readonly slices: Readonly<Record<string, RankingSlice>>;
+  readonly tabs: readonly RankingTab[];
+  /** A modalidade do próprio aluno — ver a escolha em `page.tsx`. */
+  readonly defaultTab: string;
 }) {
   const [recorte, setRecorte] = useState<Recorte>('mes');
+  const [aba, setAba] = useState<string>(defaultTab);
+
+  const slice = slices[aba] ?? slices['geral'];
+  const month = slice?.month ?? [];
+  const overall = slice?.overall ?? [];
 
   const lista = recorte === 'mes' ? month : overall;
-  const minha = recorte === 'mes' ? myMonth : myOverall;
+  const minha = (recorte === 'mes' ? slice?.myMonth : slice?.myOverall) ?? null;
+
+  const abaAtual = tabs.find((item) => item.id === aba) ?? null;
 
   const podio = PODIO.map((degrau) => ({
     ...degrau,
@@ -47,7 +74,39 @@ export function RankingBoard({
 
   return (
     <div className="mt-8">
-      <div role="group" aria-label="Recorte do ranking" className="flex gap-2">
+      {/*
+        As modalidades.
+
+        Rolam de lado no celular em vez de quebrarem em duas linhas: são quatro
+        abas curtas, e uma segunda linha empurraria o pódio para baixo da
+        dobra justamente na tela em que a pessoa quer ver o pódio.
+      */}
+      {tabs.length > 1 ? (
+        <div
+          role="group"
+          aria-label="Modalidade do ranking"
+          className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0"
+        >
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setAba(item.id)}
+              aria-pressed={aba === item.id}
+              className={cn(
+                'inline-flex min-h-[40px] shrink-0 items-center justify-center rounded-full border px-4 text-sm font-medium transition-colors',
+                aba === item.id
+                  ? 'border-accent/60 bg-accent/15 text-foreground'
+                  : 'border-hairline bg-white/[.04] text-muted hover:text-foreground',
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div role="group" aria-label="Período do ranking" className="flex gap-2">
         {([
           { id: 'mes', label: 'Este mês' },
           { id: 'geral', label: 'Desde sempre' },
@@ -73,7 +132,9 @@ export function RankingBoard({
         <div className="panel mt-6 px-6 py-14 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Ranking ainda vazio</p>
           <p className="mt-2 text-sm text-muted">
-            Assim que as presenças começarem a entrar, o pódio aparece aqui.
+            {abaAtual && aba !== 'geral'
+              ? `Ninguém pontuou em ${abaAtual.label} ${recorte === 'mes' ? 'neste mês' : 'ainda'}.`
+              : 'Assim que as presenças começarem a entrar, o pódio aparece aqui.'}
           </p>
         </div>
       ) : (

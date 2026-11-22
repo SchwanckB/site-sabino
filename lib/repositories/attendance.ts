@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { MODALITY_IDS, type ModalityId } from '@/data/seed';
 import { getRedis, redisKeys } from '@/lib/redis';
 import { asInteger, asString } from '@/lib/repositories/parse';
 import type { CheckinEntry, CheckinSource, StudentRecord } from '@/types/domain';
@@ -30,10 +31,24 @@ import {
  * rankings vêm depois, em transação.
  */
 
+/** Narrowing do valor lido do banco ou recebido do chamador. */
+function isModality(value: unknown): value is ModalityId {
+  return typeof value === 'string' && (MODALITY_IDS as readonly string[]).includes(value);
+}
+
 export interface RecordCheckinInput {
   readonly student: StudentRecord;
   readonly classId: string | null;
   readonly classTitle: string | null;
+  /**
+   * Modalidade da aula, para o ranking por modalidade.
+   *
+   * Ausente quando a presença entrou sem turma resolvida. Aí ela conta no
+   * ranking geral e em nenhum dos por modalidade — contá-la num deles
+   * exigiria adivinhar em qual, e um ponto no ranking errado é pior que um
+   * ponto a menos.
+   */
+  readonly modality?: ModalityId | null;
   readonly source: CheckinSource;
   readonly registeredBy: string;
   /**
@@ -80,11 +95,14 @@ export async function recordCheckin(
   const month = date.slice(0, 7);
   const timestamp = quando.toISOString();
 
+  const modality = isModality(input.modality) ? input.modality : null;
+
   const entry: CheckinEntry = {
     at: timestamp,
     date,
     classId: input.classId,
     classTitle: input.classTitle,
+    modality,
     source: input.source,
     registeredBy: input.registeredBy,
   };
@@ -124,6 +142,14 @@ export async function recordCheckin(
   tx.zincrby(redisKeys.rankBeltMonth(student.belt, month), 1, student.id);
   tx.expire(redisKeys.rankMonth(month), monthlyTtl);
   tx.expire(redisKeys.rankBeltMonth(student.belt, month), monthlyTtl);
+
+  // O ranking da modalidade. Presença sem turma resolvida fica de fora.
+  if (modality) {
+    tx.zincrby(redisKeys.rankModality(modality), 1, student.id);
+    tx.zincrby(redisKeys.rankModalityMonth(modality, month), 1, student.id);
+    tx.expire(redisKeys.rankModalityMonth(modality, month), monthlyTtl);
+  }
+
   await tx.exec();
 
   return { ok: true, entry };
@@ -141,6 +167,16 @@ export async function undoCheckin(
   date: string,
   classId: string | null,
   now: Date,
+  /**
+   * Modalidade da turma, quando a presença gravada não a tem.
+   *
+   * As presenças anteriores ao campo entram nos rankings por modalidade pela
+   * reconstrução, que as classifica pelo `classId`. Sem este parâmetro,
+   * desfazer uma delas tiraria o ponto do ranking geral e deixaria o da
+   * modalidade intacto — a conta ficaria errada para sempre, e justamente nos
+   * registros mais antigos, que são os que mais pesam no acumulado.
+   */
+  fallbackModality?: ModalityId | null,
 ): Promise<boolean> {
   const redis = getRedis();
   if (!redis) return false;
@@ -162,6 +198,26 @@ export async function undoCheckin(
   tx.zincrby(redisKeys.rankMonth(month), -1, student.id);
   tx.zincrby(redisKeys.rankBelt(student.belt), -1, student.id);
   tx.zincrby(redisKeys.rankBeltMonth(student.belt, month), -1, student.id);
+
+  /*
+   * De qual ranking de modalidade sai o ponto.
+   *
+   * Sai da **presença gravada**, e não da grade atual: a turma pode ter
+   * mudado de modalidade, ou nem existir mais — a avulsa de sábado é apagada
+   * depois do treino. Ler a grade aqui faria o ponto ser descontado do
+   * ranking errado, e aí a conta nunca mais fecharia.
+   *
+   * Presença antiga, gravada antes do campo existir, não tem modalidade: ela
+   * também não somou em ranking nenhum, então não há o que descontar. É o
+   * mesmo motivo pelo qual a reconstrução existe.
+   */
+  const modalidade =
+    target?.modality ?? (isModality(fallbackModality) ? fallbackModality : null);
+  if (modalidade) {
+    tx.zincrby(redisKeys.rankModality(modalidade), -1, student.id);
+    tx.zincrby(redisKeys.rankModalityMonth(modalidade, month), -1, student.id);
+  }
+
   await tx.exec();
 
   void now;
@@ -297,21 +353,47 @@ export interface RankingRow {
   readonly position: number;
 }
 
-/** Ranking geral ou mensal. `belt` restringe o recorte por faixa. */
+/**
+ * A chave do recorte pedido.
+ *
+ * Uma função só, usada pela lista e pela posição do aluno: elas já tiveram a
+ * escolha de chave escrita duas vezes, e divergir aqui significaria o aluno
+ * ler "7º lugar" acima de uma lista em que ele não está.
+ *
+ * `modality` e `belt` não se combinam — não há chave para "faixa azul no
+ * MMA", e inventá-la multiplicaria os zsets por nada. A modalidade ganha,
+ * porque é o recorte que a tela do aluno usa.
+ */
+function rankingKey(options: {
+  readonly month?: string;
+  readonly belt?: string;
+  readonly modality?: string;
+}): string {
+  const { month, belt, modality } = options;
+
+  if (modality) {
+    return month ? redisKeys.rankModalityMonth(modality, month) : redisKeys.rankModality(modality);
+  }
+  if (belt) {
+    return month ? redisKeys.rankBeltMonth(belt, month) : redisKeys.rankBelt(belt);
+  }
+  return month ? redisKeys.rankMonth(month) : redisKeys.rankAll();
+}
+
+/** Ranking geral ou mensal, com recorte opcional por modalidade ou faixa. */
 export async function getRanking(
-  options: { readonly month?: string; readonly belt?: string; readonly limit?: number },
+  options: {
+    readonly month?: string;
+    readonly belt?: string;
+    readonly modality?: string;
+    readonly limit?: number;
+  },
 ): Promise<RankingRow[]> {
   const redis = getRedis();
   if (!redis) return [];
 
-  const { month, belt, limit = 20 } = options;
-  const key = belt
-    ? month
-      ? redisKeys.rankBeltMonth(belt, month)
-      : redisKeys.rankBelt(belt)
-    : month
-      ? redisKeys.rankMonth(month)
-      : redisKeys.rankAll();
+  const { limit = 20 } = options;
+  const key = rankingKey(options);
 
   const raw = await redis.zrange<(string | number)[]>(key, 0, limit - 1, {
     rev: true,
@@ -330,22 +412,117 @@ export async function getRanking(
   return rows;
 }
 
+/**
+ * Recalcula os rankings por modalidade a partir do histórico.
+ *
+ * Existe porque a modalidade passou a ser gravada na presença só agora: tudo
+ * o que foi marcado antes disso não somou em ranking de modalidade nenhum, e
+ * sem esta varredura as listas novas nasceriam vazias — o que o aluno leria
+ * como "o ranking zerou", não como "o recorte é novo".
+ *
+ * A classificação vem de duas fontes, nesta ordem: a modalidade gravada na
+ * presença, quando existe, e o `classId` casado contra a grade atual. A
+ * segunda é aproximação — uma turma que mudou de modalidade reclassifica o
+ * passado inteiro —, mas é a única informação que sobrou, e o acumulado
+ * aproximado vale mais que o zerado.
+ *
+ * Presenças sem turma resolvida ficam de fora, e é o certo: elas contam no
+ * ranking geral e não há como saber de qual modalidade são.
+ *
+ * **Reescreve as chaves do zero.** Rodando durante um check-in, aquele ponto
+ * pode se perder — a varredura leu o histórico antes de ele entrar. É uma
+ * operação de manutenção, feita uma vez e fora do horário de aula; rodar de
+ * novo conserta.
+ */
+export async function rebuildModalityRankings(
+  students: readonly { readonly id: string }[],
+  modalityOf: (classId: string) => ModalityId | null,
+): Promise<{ readonly presencas: number; readonly semModalidade: number }> {
+  const redis = getRedis();
+  if (!redis) return { presencas: 0, semModalidade: 0 };
+
+  /** `modalidade` → `mês ou 'geral'` → aluno → pontos. */
+  const totais = new Map<ModalityId, Map<string, Map<string, number>>>();
+
+  let presencas = 0;
+  let semModalidade = 0;
+
+  const somar = (modality: ModalityId, bucket: string, userId: string): void => {
+    const porBucket = totais.get(modality) ?? new Map<string, Map<string, number>>();
+    const porAluno = porBucket.get(bucket) ?? new Map<string, number>();
+    porAluno.set(userId, (porAluno.get(userId) ?? 0) + 1);
+    porBucket.set(bucket, porAluno);
+    totais.set(modality, porBucket);
+  };
+
+  for (const student of students) {
+    // Teto alto: é a vida inteira do aluno na academia, e esta rotina roda
+    // uma vez.
+    const entries = await listCheckins(student.id, 2000);
+
+    for (const entry of entries) {
+      presencas += 1;
+
+      const modality =
+        entry.modality ?? (entry.classId ? modalityOf(entry.classId) : null);
+
+      if (!modality) {
+        semModalidade += 1;
+        continue;
+      }
+
+      somar(modality, 'geral', student.id);
+      somar(modality, entry.date.slice(0, 7), student.id);
+    }
+  }
+
+  const monthlyTtl = 60 * 60 * 24 * 400;
+
+  for (const modality of MODALITY_IDS) {
+    const porBucket = totais.get(modality) ?? new Map<string, Map<string, number>>();
+
+    // Os meses que existiam e sumiram da conta também precisam ser zerados;
+    // como não dá para enumerá-los, a varredura apaga o que vai reescrever e
+    // deixa os demais expirarem pelo TTL.
+    const geral = porBucket.get('geral') ?? new Map<string, number>();
+
+    const tx = redis.multi();
+    tx.del(redisKeys.rankModality(modality));
+
+    for (const [userId, score] of geral) {
+      tx.zadd(redisKeys.rankModality(modality), { score, member: userId });
+    }
+
+    for (const [bucket, porAluno] of porBucket) {
+      if (bucket === 'geral') continue;
+
+      const key = redisKeys.rankModalityMonth(modality, bucket);
+      tx.del(key);
+      for (const [userId, score] of porAluno) {
+        tx.zadd(key, { score, member: userId });
+      }
+      tx.expire(key, monthlyTtl);
+    }
+
+    await tx.exec();
+  }
+
+  return { presencas, semModalidade };
+}
+
 /** Posição do aluno no recorte, ou `null` se ele ainda não pontuou. */
 export async function getRankingPosition(
   userId: string,
-  options: { readonly month?: string; readonly belt?: string } = {},
+  options: {
+    readonly month?: string;
+    readonly belt?: string;
+    readonly modality?: string;
+  } = {},
 ): Promise<{ position: number; score: number } | null> {
   const redis = getRedis();
   if (!redis) return null;
 
-  const { month, belt } = options;
-  const key = belt
-    ? month
-      ? redisKeys.rankBeltMonth(belt, month)
-      : redisKeys.rankBelt(belt)
-    : month
-      ? redisKeys.rankMonth(month)
-      : redisKeys.rankAll();
+  const key = rankingKey(options);
 
   const [rank, score] = await Promise.all([
     redis.zrevrank(key, userId),
@@ -369,6 +546,9 @@ function toEntry(row: Record<string, unknown>): CheckinEntry {
     date: asString(row['date']),
     classId: asString(row['classId']) || null,
     classTitle: asString(row['classTitle']) || null,
+    // Presença gravada antes do campo existir volta sem modalidade, que é o
+    // que a reconstrução conserta.
+    modality: isModality(row['modality']) ? row['modality'] : null,
     source: (['qr', 'manual', 'lote'] as const).includes(source as CheckinSource)
       ? (source as CheckinSource)
       : 'manual',

@@ -2,12 +2,17 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache';
 
+import { toModality } from '@/data/seed';
 import { authorize, isGestaoEmail, requireStaff } from '@/lib/auth';
 import { ROLE_LABELS, isRole } from '@/lib/roles';
 import { CACHE_TAGS } from '@/lib/cacheTags';
 import { checkbox, intInRange, text, textList } from '@/lib/formData';
 import { deleteAccount, getAccountSummary, setAccountRole } from '@/lib/repositories/accounts';
-import { recordCheckin, undoCheckin } from '@/lib/repositories/attendance';
+import {
+  rebuildModalityRankings,
+  recordCheckin,
+  undoCheckin,
+} from '@/lib/repositories/attendance';
 import { recordAudit, type AuditAction } from '@/lib/repositories/audit';
 import { deleteDocument } from '@/lib/repositories/documents';
 import { removeEvent, upsertEvent } from '@/lib/repositories/calendar';
@@ -948,21 +953,40 @@ async function markPresent(
    * aluno tem **uma** turma naquele dia, não há o que adivinhar. Tendo duas,
    * continua nulo: chutar entre elas seria pior que deixar em branco.
    */
-  let inferida: { readonly id: string; readonly title: string; readonly startTime: string } | null =
-    null;
+  let inferida:
+    | {
+        readonly id: string;
+        readonly title: string;
+        readonly startTime: string;
+        readonly modality?: string;
+      }
+    | null = null;
 
   if (!escolhida) {
     const aberta = dia === hoje ? findOpenClasses(schedule.classes, student.classIds, now)[0] : null;
 
     if (aberta) {
-      inferida = { id: aberta.classId, title: aberta.title, startTime: aberta.startTime };
+      // A modalidade vem da grade: `OpenClass` já a carrega, e é ela que diz
+      // em que ranking esta presença entra.
+      const naGrade = schedule.classes.find((slot) => slot.id === aberta.classId) ?? null;
+      inferida = {
+        id: aberta.classId,
+        title: aberta.title,
+        startTime: aberta.startTime,
+        ...(naGrade ? { modality: naGrade.modality } : {}),
+      };
     } else {
       const doDia = schedule.classes.filter(
         (slot) => student.classIds.includes(slot.id) && occursOnDate(slot, dia),
       );
       const unica = doDia.length === 1 ? doDia[0] : null;
       if (unica) {
-        inferida = { id: unica.id, title: unica.title, startTime: unica.startTime };
+        inferida = {
+          id: unica.id,
+          title: unica.title,
+          startTime: unica.startTime,
+          modality: unica.modality,
+        };
       }
     }
   }
@@ -974,6 +998,7 @@ async function markPresent(
       student,
       classId: turma?.id ?? null,
       classTitle: turma?.title ?? null,
+      modality: toModality(turma?.modality),
       source,
       registeredBy: adminId,
       ...(dia !== hoje
@@ -1127,7 +1152,25 @@ export async function undoPresenceAction(form: FormData): Promise<ActionResult> 
    * que ficou sem turma resolvida.
    */
   const classId = text(form, 'classId') || null;
-  const removed = await undoCheckin(student, date, classId, now);
+
+  /*
+   * A modalidade da turma, para o ranking dela perder o ponto junto.
+   *
+   * Só é usada quando a presença gravada não traz a própria — o caso das
+   * marcadas antes de o campo existir, que entraram nos rankings por
+   * modalidade pela reconstrução. Sem isto o ponto sairia do ranking geral e
+   * ficaria no da modalidade, e a conta não fecharia mais.
+   */
+  const grade = classId ? await getEffectiveSchedule(now) : null;
+  const slotDesfeita = grade?.classes.find((item) => item.id === classId) ?? null;
+
+  const removed = await undoCheckin(
+    student,
+    date,
+    classId,
+    now,
+    toModality(slotDesfeita?.modality),
+  );
 
   if (removed) {
     await audit(
@@ -1773,6 +1816,7 @@ export async function markPresenceInClassAction(form: FormData): Promise<ActionR
       student,
       classId: slot.id,
       classTitle: slot.title,
+      modality: toModality(slot.modality),
       source: 'manual',
       registeredBy: admin.id,
       ...(diaDaAula !== saoPauloDateString(now)
@@ -2002,5 +2046,64 @@ export async function unlinkGuardianAction(form: FormData): Promise<ActionResult
     message: isDependentId(student.id)
       ? `Vínculo desfeito. ${student.name.split(' ')[0]} não tem login próprio, então nenhuma conta enxerga esta ficha agora.`
       : 'Vínculo desfeito. O aluno continua acessando pela conta dele.',
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Rankings por modalidade: recálculo a partir do histórico                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Recalcula os rankings de Jiu-Jitsu, MMA e Infantil.
+ *
+ * Os rankings por modalidade passaram a existir agora, e a modalidade só é
+ * gravada na presença a partir daqui. Tudo o que foi marcado antes não somou
+ * em nenhum deles — sem este recálculo as listas nasceriam vazias, e o aluno
+ * leria isso como "o ranking zerou".
+ *
+ * Roda uma vez. Vale rodar de novo depois de mexer na modalidade de alguma
+ * turma na grade, porque a classificação do passado sai do `classId` casado
+ * contra a grade de agora.
+ *
+ * Gestão, e não professor: é uma varredura do histórico inteiro e reescreve
+ * as chaves de ranking do zero.
+ */
+export async function rebuildModalityRankingsAction(): Promise<ActionResult> {
+  const auth = await authorize('relatorios');
+  if (!auth.ok) return auth;
+
+  const [schedule, ativos, inativos] = await Promise.all([
+    getEffectiveSchedule(new Date()),
+    listStudentsByStatus('ativo'),
+    listStudentsByStatus('inativo'),
+  ]);
+
+  /*
+   * Os inativos entram.
+   *
+   * Quem saiu da academia não aparece nas listas — a tela filtra por situação
+   * —, mas as presenças dele existiram. Deixá-las de fora faria o total
+   * recalculado divergir do histórico sem ninguém entender por quê, e um
+   * aluno que volta encontraria o próprio acumulado pela metade.
+   */
+  const porTurma = new Map(schedule.classes.map((slot) => [slot.id, slot.modality]));
+
+  const resultado = await rebuildModalityRankings(
+    [...ativos, ...inativos],
+    (classId) => toModality(porTurma.get(classId)),
+  );
+
+  refreshAdmin();
+  revalidatePath('/painel/ranking');
+
+  const { presencas, semModalidade } = resultado;
+  const classificadas = presencas - semModalidade;
+
+  return {
+    ok: true,
+    message:
+      semModalidade > 0
+        ? `${classificadas} de ${presencas} presenças entraram nos rankings por modalidade. As outras ${semModalidade} ficaram de fora por não terem turma registrada — elas continuam valendo no ranking geral.`
+        : `${presencas} presenças recalculadas nos rankings por modalidade.`,
   };
 }

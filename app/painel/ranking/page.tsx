@@ -1,34 +1,25 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
+import { MODALITY_IDS, MODALITY_LABELS, toModality, type ModalityId } from '@/data/seed';
 import { resolveActiveProfile } from '@/lib/activeProfile';
 import { getSessionUser } from '@/lib/auth';
 import { getRanking, getRankingPosition } from '@/lib/repositories/attendance';
 import { getStudent, getStudents } from '@/lib/repositories/students';
+import { getSchedule } from '@/lib/schedule';
 import { saoPauloMonthString } from '@/utils/datetime';
-import { rankByScoreThenSeniority } from '@/utils/ranking';
 import { shortName } from '@/utils/roster';
 
-import { RankingBoard, type RankingEntry } from './RankingBoard';
+import { RankingBoard, type RankingEntry, type RankingSlice } from './RankingBoard';
 
 export const metadata: Metadata = { title: 'Ranking' };
 export const dynamic = 'force-dynamic';
 
 const TOP = 10;
 
-/*
- * Quantos a página lê do Redis antes de desempatar.
- *
- * O desempate por ordem de cadastro não pode ser feito só sobre os dez
- * primeiros: se o décimo e o décimo-primeiro empatam em pontos, quem entra no
- * pódio é decidido **antes** de a regra rodar, e aí ela não serve para nada.
- * Lendo uma janela larga, ordenando e só então cortando, o corte acontece
- * depois da regra.
- *
- * Quinhentos cobre com folga uma academia de duas unidades — e quem está além
- * disso não disputa as dez primeiras posições de jeito nenhum.
- */
-const JANELA = 500;
+/** Os recortes da tela: o geral e um por modalidade. */
+type Recorte = 'geral' | ModalityId;
+const RECORTES: readonly Recorte[] = ['geral', ...MODALITY_IDS];
 
 export default async function RankingPage() {
   const user = await getSessionUser();
@@ -46,70 +37,102 @@ export default async function RankingPage() {
    * criança.
    */
   const perfil = await resolveActiveProfile(user.id, await getStudent(user.id));
-  const euId = perfil?.student.id ?? user.id;
+  const eu = perfil?.student ?? null;
+  const euId = eu?.id ?? user.id;
 
-  const [doMes, geral, posicaoMesRedis, posicaoGeralRedis] = await Promise.all([
-    getRanking({ month, limit: JANELA }),
-    getRanking({ limit: JANELA }),
-    getRankingPosition(euId, { month }),
-    getRankingPosition(euId),
-  ]);
+  /*
+   * Um ranking por modalidade, e não um só.
+   *
+   * No geral, quem treina jiu **e** MMA soma duas presenças por noite contra
+   * uma de quem faz só jiu: o pódio passava a medir quantas modalidades a
+   * pessoa faz, não com que constância ela aparece. Para o aluno de uma
+   * modalidade só, o primeiro lugar ficava fora de alcance por aritmética — e
+   * ranking que não dá para ganhar não é ranking.
+   *
+   * Aqui cada presença conta uma vez, na modalidade da aula em que ela
+   * aconteceu. Quem faz as duas aparece nas duas listas, e em cada uma
+   * compete de igual para igual.
+   *
+   * São oito leituras — quatro recortes vezes mês e geral —, todas em sorted
+   * set, mais uma busca de fichas para os nomes. O custo é o de montar a tela
+   * inteira de uma vez, em troca de a troca de aba não ir ao servidor.
+   */
+  const carregados = await Promise.all(
+    RECORTES.map(async (recorte) => {
+      const modality = recorte === 'geral' ? undefined : recorte;
 
-  // Uma leitura só para os dois recortes.
-  const ids = [...new Set([...doMes, ...geral].map((row) => row.userId))];
+      const [doMes, geral, posicaoMes, posicaoGeral] = await Promise.all([
+        getRanking({ month, limit: TOP, ...(modality ? { modality } : {}) }),
+        getRanking({ limit: TOP, ...(modality ? { modality } : {}) }),
+        getRankingPosition(euId, { month, ...(modality ? { modality } : {}) }),
+        getRankingPosition(euId, modality ? { modality } : {}),
+      ]);
+
+      return { recorte, doMes, geral, posicaoMes, posicaoGeral };
+    }),
+  );
+
+  // Uma leitura de fichas para todas as listas.
+  const ids = [
+    ...new Set(
+      carregados.flatMap((item) =>
+        [...item.doMes, ...item.geral].map((row) => row.userId),
+      ),
+    ),
+  ];
   const students = await getStudents(ids);
   const byId = new Map(students.map((student) => [student.id, student]));
 
-  const cadastradoEm = (userId: string): string | null =>
-    byId.get(userId)?.createdAt ?? null;
-
-  /**
-   * Da leitura crua do Redis para as linhas da tela.
-   *
-   * A ordem do Redis é descartada: com pontuação empatada ele entrega pelo id
-   * do membro, e a regra da academia é a ordem de cadastro. Quem saiu some
-   * antes da numeração, para não deixar buraco na contagem.
-   */
-  const ordenar = (rows: readonly { userId: string; score: number }[]) =>
-    rankByScoreThenSeniority(
-      rows.filter((row) => byId.get(row.userId)?.status === 'ativo'),
-      cadastradoEm,
-    );
-
-  const toEntries = (rows: readonly { userId: string; score: number }[]): RankingEntry[] =>
-    ordenar(rows)
-      .slice(0, TOP)
-      .map(({ entry, position }): RankingEntry => {
-        const student = byId.get(entry.userId);
+  const toEntries = (rows: readonly { userId: string; score: number; position: number }[]) =>
+    rows
+      .map((row): RankingEntry | null => {
+        const student = byId.get(row.userId);
+        if (!student || student.status !== 'ativo') return null;
 
         return {
-          position,
+          position: row.position,
           // Nome curto: a tela é visível para os colegas.
-          name: shortName(student?.name ?? ''),
-          belt: student?.belt ?? '',
-          score: entry.score,
-          isMe: entry.userId === euId,
+          name: shortName(student.name),
+          belt: student.belt,
+          score: row.score,
+          isMe: row.userId === euId,
         };
-      });
+      })
+      .filter((entry): entry is RankingEntry => entry !== null)
+      // Quem saiu da academia não deve deixar buraco na numeração.
+      .map((entry, index) => ({ ...entry, position: index + 1 }));
+
+  // `Object.fromEntries` devolve um índice aberto, e a asserção para
+  // `Record<Recorte, …>` mentiria sobre as chaves existirem. Montar na mão é
+  // mais longo e não mente.
+  const slices: Record<string, RankingSlice> = {};
+  for (const item of carregados) {
+    slices[item.recorte] = {
+      month: toEntries(item.doMes),
+      overall: toEntries(item.geral),
+      myMonth: item.posicaoMes,
+      myOverall: item.posicaoGeral,
+    };
+  }
 
   /*
-   * "Minha posição" tem de sair da mesma ordenação do quadro.
+   * A aba que abre: a modalidade do próprio aluno.
    *
-   * Vinha do `zrevrank` do Redis, que não conhece a regra de desempate: um
-   * aluno empatado podia ler "você está em 4º" embaixo de um quadro que o
-   * mostrava em 3º. Dentro da janela, a posição é a da lista ordenada; fora
-   * dela, o número do Redis serve — lá o empate não decide pódio.
+   * Abrir no geral mandaria justamente a pessoa que o recorte veio proteger —
+   * a de uma modalidade só — para a lista em que ela não compete de igual
+   * para igual. A escolha vem das turmas da ficha dele; havendo empate, a
+   * primeira da ordem das modalidades resolve.
    */
-  const minhaPosicao = (
-    rows: readonly { userId: string; score: number }[],
-    doRedis: { position: number; score: number } | null,
-  ): { position: number; score: number } | null => {
-    const encontrado = ordenar(rows).find(({ entry }) => entry.userId === euId);
-    if (encontrado) {
-      return { position: encontrado.position, score: encontrado.entry.score };
-    }
-    return doRedis;
-  };
+  const grade = await getSchedule();
+  const minhasModalidades = new Map<ModalityId, number>();
+
+  for (const classId of eu?.classIds ?? []) {
+    const modality = toModality(grade.classes.find((slot) => slot.id === classId)?.modality);
+    if (modality) minhasModalidades.set(modality, (minhasModalidades.get(modality) ?? 0) + 1);
+  }
+
+  const principal =
+    [...minhasModalidades.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
   return (
     <div>
@@ -117,16 +140,19 @@ export default async function RankingPage() {
         <p className="eyebrow">Frequência</p>
         <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Ranking</h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-          Quem mais apareceu no tatame. Cada check-in vale um ponto — o mês zera no dia 1º e o
-          geral soma desde sempre.
+          Quem mais apareceu no tatame. Cada treino vale um ponto, e cada modalidade tem a sua
+          lista — quem faz Jiu-Jitsu e MMA aparece nas duas, sem levar vantagem em nenhuma. O mês
+          zera no dia 1º e o geral soma desde sempre.
         </p>
       </header>
 
       <RankingBoard
-        month={toEntries(doMes)}
-        overall={toEntries(geral)}
-        myMonth={minhaPosicao(doMes, posicaoMesRedis)}
-        myOverall={minhaPosicao(geral, posicaoGeralRedis)}
+        slices={slices}
+        tabs={RECORTES.map((recorte) => ({
+          id: recorte,
+          label: recorte === 'geral' ? 'Todas' : MODALITY_LABELS[recorte],
+        }))}
+        defaultTab={principal ?? 'geral'}
       />
     </div>
   );

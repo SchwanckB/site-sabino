@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import type { ActionResult } from '@/components/app/ActionForm';
-import { weekdayLabels, type Weekday } from '@/data/seed';
+import { toModality, weekdayLabels, type Weekday } from '@/data/seed';
 import { resolveActiveProfile, setActiveProfile } from '@/lib/activeProfile';
 import { requireUser } from '@/lib/auth';
 import { text } from '@/lib/formData';
@@ -445,6 +445,9 @@ export async function checkinAction(
         student,
         classId: slot.classId,
         classTitle: slot.title,
+        // A modalidade vem da aula aberta, e é dela que sai o ranking por
+        // modalidade — ver `lib/redis.ts`.
+        modality: toModality(slot.modality),
         source: 'qr',
         registeredBy: student.id,
       },

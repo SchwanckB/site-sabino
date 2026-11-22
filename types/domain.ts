@@ -1,3 +1,4 @@
+import type { ModalityId } from '@/data/seed';
 import type { DocumentKind } from '@/lib/documentRules';
 import type { AdultBelt } from '@/utils/graduationEngine';
 import type { PlanId } from '@/utils/paymentEngine';
@@ -351,6 +352,21 @@ export interface CheckinEntry {
   readonly date: string;
   readonly classId: string | null;
   readonly classTitle: string | null;
+  /**
+   * Modalidade da aula: jiu-jitsu, mma ou kids.
+   *
+   * Gravada na presença, e não deduzida depois a partir de `classId`. São
+   * duas razões. A turma pode sair da grade — a avulsa de sábado é apagada
+   * depois do treino, e a presença nela continua existindo; sem este campo
+   * ela viraria uma presença sem modalidade para sempre. E desfazer uma
+   * presença precisa saber de qual ranking tirar um ponto, o que obrigaria a
+   * ler a grade dentro do repositório de frequência.
+   *
+   * `null` nas presenças gravadas antes do campo existir, e naquelas sem
+   * turma resolvida. Elas contam no ranking geral e ficam de fora dos
+   * rankings por modalidade — ver `rebuildModalityRankings`.
+   */
+  readonly modality: ModalityId | null;
   readonly source: CheckinSource;
   /** Quem registrou: o próprio aluno (QR) ou o admin. */
   readonly registeredBy: string;

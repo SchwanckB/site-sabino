@@ -17,6 +17,8 @@ import {
 } from '@/utils/classReport';
 import { cn } from '@/lib/utils';
 
+import { RebuildRankings } from './RebuildRankings';
+
 export const metadata: Metadata = { title: 'Relatórios' };
 export const dynamic = 'force-dynamic';
 
@@ -176,6 +178,8 @@ export default async function RelatoriosPage() {
           </ul>
         )}
       </section>
+
+      <RebuildRankings />
     </div>
   );
 }
