@@ -128,11 +128,20 @@ export function CheckinClient() {
           reason: options.alreadyDone ? 'ja_registrado' : 'sem_aula_agora',
           // A mesma frase do servidor: o aluno não deve ler uma coisa quando a
           // tela recusa e outra quando o registro recusa.
+          /*
+           * O aviso da família vem antes da própria próxima aula.
+           *
+           * É o pai às 18h30 com o filho: a aula aberta é a infantil, que não
+           * é dele, e a próxima **dele** é às 20:30 — não resolve nada agora.
+           * A informação útil é que o treino do filho está começando.
+           */
           message: options.alreadyDone
             ? `Você já marcou presença em ${options.alreadyDone}. Bom treino!`
-            : options.nextClass
-              ? `Nenhuma aula está acontecendo agora. A sua próxima é ${options.nextClass}.`
-              : 'Nenhuma aula está acontecendo agora nesta academia.',
+            : options.familyHint
+              ? options.familyHint
+              : options.nextClass
+                ? `Nenhuma aula está acontecendo agora. A sua próxima é ${options.nextClass}.`
+                : 'Nenhuma aula está acontecendo agora nesta academia.',
         });
         setPhase('erro');
         return;

@@ -101,6 +101,19 @@ export type CheckinOptions =
        * chegam na tela como lista vazia, e a mensagem precisa ser outra.
        */
       readonly alreadyDone: string | null;
+      /**
+       * Quem **mais** da conta tem aula agora, em nome próprio.
+       *
+       * O pai chega às 18h30 com o filho. A aula aberta é a infantil, que não
+       * é dele — e, desde que adulto não entra em turma de criança, a tela
+       * dizia "nenhuma aula acontecendo agora" e acabava ali. Ele ficava no
+       * tatame com a presença do filho por marcar.
+       *
+       * Com isto a tela aponta o caminho: "o Arthur tem aula agora, troque
+       * para o perfil dele". É um empurrão, não um atalho — a presença
+       * continua sendo registrada no perfil certo, e não no de quem escaneou.
+       */
+      readonly familyHint: string | null;
     };
 
 /**
@@ -146,18 +159,39 @@ function proximaAulaEmTexto(
  */
 function aulasMarcaveis(
   classes: readonly ScheduledClass[],
-  student: { readonly classIds: readonly string[] },
+  student: { readonly classIds: readonly string[]; readonly category: string },
   now: Date,
 ): { readonly abertas: OpenClass[]; readonly minhas: OpenClass[] } {
-  const todas = classes.map((slot) => slot.id);
-  const naJanela = findOpenClasses(classes, todas, now);
+  /*
+   * Adulto não entra na turma infantil, e criança não entra na dos adultos.
+   *
+   * A matrícula deixou de restringir a turma de propósito — quem ficou para a
+   * aula seguinte ou trocou o turno no trabalho treinou, e precisa registrar.
+   * Mas "qualquer aula aberta" passou a incluir o Kids das 18:30, e isso
+   * produziu um defeito concreto: o pai que chega com o filho, com o próprio
+   * perfil aberto, marcava a si mesmo na turma infantil. O resultado foi um
+   * homem adulto em primeiro lugar no ranking Kids.
+   *
+   * Esta é a única fronteira que a liberdade de turma não deve atravessar, e
+   * ela não é arbitrária: é a mesma divisão que o sistema já usa para a
+   * trilha de graduação. Dentro de cada lado, continua valendo tudo.
+   *
+   * Vale só para o check-in do próprio aluno. A presença manual do professor
+   * segue sem trava — se uma criança treinou com os adultos num dia, quem
+   * estava no tatame resolve.
+   */
+  const infantil = student.category === 'kids';
+  const doMeuLado = classes.filter((slot) => (slot.modality === 'kids') === infantil);
+
+  const todas = doMeuLado.map((slot) => slot.id);
+  const naJanela = findOpenClasses(doMeuLado, todas, now);
 
   // A sequência é só da ficha dele: "vai ficar para a seguinte?" pressupõe
   // que a seguinte é turma dele. Oferecer a aula de outra turma que por acaso
   // vem depois seria inventar uma pergunta que ninguém fez.
   const daFicha = new Set(student.classIds);
   const minhasNaJanela = naJanela.filter((slot) => daFicha.has(slot.classId));
-  const emSequencia = findChainedClasses(classes, student.classIds, minhasNaJanela, now);
+  const emSequencia = findChainedClasses(doMeuLado, student.classIds, minhasNaJanela, now);
 
   const abertas = [...naJanela, ...emSequencia];
 
@@ -165,6 +199,42 @@ function aulasMarcaveis(
     abertas,
     minhas: abertas.filter((slot) => daFicha.has(slot.classId)),
   };
+}
+
+/**
+ * "O Arthur tem Jiu-Jitsu Kids agora."
+ *
+ * Procura, entre as **outras** fichas da conta, alguém com aula aberta. É o
+ * pai que chegou com o filho e está com o próprio perfil na tela.
+ *
+ * Devolve só o texto: trocar de perfil continua sendo um gesto do usuário, e
+ * marcar a presença do filho a partir do perfil do pai esconderia de quem é
+ * a presença justamente na tela que existe para registrar isso.
+ */
+async function avisoDaFamilia(
+  userId: string,
+  perfilAtivoId: string,
+  classes: readonly ScheduledClass[],
+  now: Date,
+): Promise<string | null> {
+  const own = await getStudent(userId);
+  const perfil = await resolveActiveProfile(userId, own);
+  if (!perfil || perfil.profiles.length < 2) return null;
+
+  for (const outro of perfil.profiles) {
+    if (outro.id === perfilAtivoId || outro.status !== 'ativo') continue;
+
+    const { minhas } = aulasMarcaveis(classes, outro, now);
+    const aula = minhas[0];
+    if (!aula) continue;
+
+    // Sempre "de Fulano", nunca "dele": o nome não diz o gênero da pessoa,
+    // e metade das fichas desta academia é de meninas.
+    const primeiro = outro.name.split(' ')[0] ?? outro.name;
+    return `${primeiro} tem ${aula.title} às ${aula.startTime}. Troque para o perfil de ${primeiro} para marcar a presença.`;
+  }
+
+  return null;
 }
 
 /** Texto curto do estado da aula, para a tela de escolha. */
@@ -293,6 +363,16 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
    */
   const minhasPendentes = minhasAbertas.filter((slot) => !jaMarcadas.has(slot.classId));
 
+  /*
+   * O aviso da família, só quando a tela não tem nada a oferecer a ele.
+   *
+   * Fora desse caso seria ruído: quem tem a própria aula aberta veio marcar a
+   * dele, e lembrá-lo do filho no meio disso atrapalha. A leitura das outras
+   * fichas também só acontece aqui, e não em todo escaneamento.
+   */
+  const familyHint =
+    pendentes.length === 0 ? await avisoDaFamilia(user.id, student.id, daUnidade, now) : null;
+
   return {
     ok: true,
     classes: ordenadas.map((slot) => ({
@@ -323,6 +403,7 @@ export async function listCheckinOptions(token: string): Promise<CheckinOptions>
       minhasAbertas.length > 0 && minhasPendentes.length === 0
         ? minhasAbertas.map((slot) => `${slot.title} · ${slot.startTime}`).join(' e ')
         : null,
+    familyHint,
   };
 }
 

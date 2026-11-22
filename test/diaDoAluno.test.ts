@@ -122,7 +122,14 @@ const agora = (date: string, time: string): void => {
 const token = (): string => qr.getCurrentQrToken('tres-cachoeiras').token;
 
 /** Matricula um aluno nas turmas pedidas e devolve a sessão dele. */
-async function criarAluno(id: string, nome: string, classIds: readonly string[]) {
+async function criarAluno(
+  id: string,
+  nome: string,
+  classIds: readonly string[],
+  // A categoria sai daqui: é o nascimento que separa a trilha infantil da
+  // adulta, e é essa mesma divisão que o check-in passou a respeitar.
+  birthDate = '2000-05-10',
+) {
   const quando = em('2026-02-01', '12:00');
   const pendente = await students.createPendingStudent(
     {
@@ -131,7 +138,7 @@ async function criarAluno(id: string, nome: string, classIds: readonly string[])
       email: `${id}@teste.com`,
       phone: '51999990000',
       cpf: '52998224725',
-      birthDate: '2000-05-10',
+      birthDate,
       belt: 'branca',
       gender: 'masculino' as const,
       unit: 'tres-cachoeiras' as const,
@@ -791,5 +798,85 @@ describe('chegar antes da janela da segunda aula', () => {
     const opcoes = await escanear();
     expect(minhas(opcoes)).toEqual([]);
     expect((await painel.checkinAction(token(), ['seg-2030-jj'])).ok).toBe(false);
+  });
+});
+
+describe('o pai não entra na turma do filho', () => {
+  /*
+   * Um defeito real, relatado da academia: o Eloi apareceu em primeiro lugar
+   * no ranking Kids. Ele é o pai do Arthur, e tinha o próprio perfil aberto
+   * quando escaneou o cartaz às 18h30.
+   *
+   * A causa foi a liberdade de turma: tirar a matrícula como trava fez "toda
+   * aula aberta" incluir a infantil, e o pai conseguiu marcar a si mesmo
+   * nela. Essa é a única fronteira que a liberdade não deve atravessar, e não
+   * é arbitrária — é a mesma divisão que o sistema já usa para a trilha de
+   * graduação.
+   *
+   * Vale só para o check-in do próprio aluno: a presença manual do professor
+   * segue sem trava, porque quem estava no tatame é que sabe o que aconteceu.
+   */
+
+  const KIDS = 'seg-1830-kids';
+
+  it('a turma infantil não é oferecida ao adulto', async () => {
+    atual = await criarAluno('user_pai', 'Pai do Arthur', ['seg-2030-jj']);
+    agora(SEGUNDA, '18:40');
+
+    const opcoes = await escanear();
+
+    expect(oferecidas(opcoes)).not.toContain(KIDS);
+  });
+
+  it('e nem forçando o id pelo formulário', async () => {
+    // O cliente manda a lista, e cliente não é fonte de verdade: a trava tem
+    // de estar no servidor, não só na ausência do botão.
+    atual = await criarAluno('user_pai', 'Pai do Arthur', ['seg-2030-jj']);
+    agora(SEGUNDA, '18:40');
+
+    const result = await painel.checkinAction(token(), [KIDS]);
+
+    expect(result.ok).toBe(false);
+    expect(await attendance.countCheckins('user_pai')).toBe(0);
+  });
+
+  it('a criança continua marcando a dela', async () => {
+    atual = await criarAluno('user_arthur', 'Arthur Filho', [KIDS], '2018-04-10');
+    agora(SEGUNDA, '18:40');
+
+    const result = await painel.checkinAction(token(), [KIDS]);
+
+    expect(result.ok).toBe(true);
+    expect(await attendance.countCheckins('user_arthur')).toBe(1);
+  });
+
+  it('a criança não entra na turma dos adultos', async () => {
+    // O outro lado da mesma fronteira.
+    atual = await criarAluno('user_arthur', 'Arthur Filho', [KIDS], '2018-04-10');
+    agora(SEGUNDA, '20:40');
+
+    const opcoes = await escanear();
+    expect(oferecidas(opcoes)).not.toContain('seg-2030-jj');
+
+    const result = await painel.checkinAction(token(), ['seg-2030-jj']);
+    expect(result.ok).toBe(false);
+  });
+
+  it('o professor ainda lança a presença na mão, sem trava', async () => {
+    /*
+     * A exceção legítima: a criança que treinou com os adultos num dia, o
+     * auxiliar que entrou na turma infantil. Quem estava lá resolve — a trava
+     * é do check-in do aluno, não do julgamento do professor.
+     */
+    await criarAluno('user_pai', 'Pai do Arthur', ['seg-2030-jj']);
+    atual = professor;
+    agora(SEGUNDA, '18:40');
+
+    const form = new FormData();
+    form.set('studentId', 'user_pai');
+    form.set('classId', KIDS);
+
+    const result = await adminActions.markPresenceInClassAction(form);
+    expect(result.ok).toBe(true);
   });
 });
