@@ -143,11 +143,23 @@ export async function recordCheckin(
   tx.expire(redisKeys.rankMonth(month), monthlyTtl);
   tx.expire(redisKeys.rankBeltMonth(student.belt, month), monthlyTtl);
 
-  // O ranking da modalidade. Presença sem turma resolvida fica de fora.
+  /*
+   * Os rankings que o aluno vê: por academia, e por academia + modalidade.
+   *
+   * A unidade vem da **ficha**, não da aula. Quem é de Terra de Areia e
+   * treinou uma noite em Três Cachoeiras pontua no ranking de Terra de Areia,
+   * que é a academia dele — a visita não o insere no pódio da outra.
+   */
+  tx.zincrby(redisKeys.rankUnit(student.unit), 1, student.id);
+  tx.zincrby(redisKeys.rankUnitMonth(student.unit, month), 1, student.id);
+  tx.expire(redisKeys.rankUnitMonth(student.unit, month), monthlyTtl);
+
+  // Presença sem turma resolvida não tem modalidade: conta nas duas listas
+  // acima e em nenhuma por modalidade.
   if (modality) {
-    tx.zincrby(redisKeys.rankModality(modality), 1, student.id);
-    tx.zincrby(redisKeys.rankModalityMonth(modality, month), 1, student.id);
-    tx.expire(redisKeys.rankModalityMonth(modality, month), monthlyTtl);
+    tx.zincrby(redisKeys.rankUnitModality(student.unit, modality), 1, student.id);
+    tx.zincrby(redisKeys.rankUnitModalityMonth(student.unit, modality, month), 1, student.id);
+    tx.expire(redisKeys.rankUnitModalityMonth(student.unit, modality, month), monthlyTtl);
   }
 
   await tx.exec();
@@ -211,11 +223,18 @@ export async function undoCheckin(
    * também não somou em ranking nenhum, então não há o que descontar. É o
    * mesmo motivo pelo qual a reconstrução existe.
    */
+  tx.zincrby(redisKeys.rankUnit(student.unit), -1, student.id);
+  tx.zincrby(redisKeys.rankUnitMonth(student.unit, month), -1, student.id);
+
   const modalidade =
     target?.modality ?? (isModality(fallbackModality) ? fallbackModality : null);
   if (modalidade) {
-    tx.zincrby(redisKeys.rankModality(modalidade), -1, student.id);
-    tx.zincrby(redisKeys.rankModalityMonth(modalidade, month), -1, student.id);
+    tx.zincrby(redisKeys.rankUnitModality(student.unit, modalidade), -1, student.id);
+    tx.zincrby(
+      redisKeys.rankUnitModalityMonth(student.unit, modalidade, month),
+      -1,
+      student.id,
+    );
   }
 
   await tx.exec();
@@ -368,12 +387,39 @@ function rankingKey(options: {
   readonly month?: string;
   readonly belt?: string;
   readonly modality?: string;
+  readonly unit?: string;
 }): string {
-  const { month, belt, modality } = options;
+  const { month, belt, modality, unit } = options;
 
-  if (modality) {
-    return month ? redisKeys.rankModalityMonth(modality, month) : redisKeys.rankModality(modality);
+  /*
+   * Modalidade sem academia não existe.
+   *
+   * As chaves por modalidade são todas por unidade — não há "o ranking de
+   * MMA da rede". Antes este caso caía no `return` lá embaixo e devolvia o
+   * ranking **geral**: a tela pedia o pódio do jiu e recebia o de tudo, sem
+   * erro nenhum, com os números errados parecendo certos. Falhar aqui é a
+   * única resposta honesta, e só um erro de programação chega neste ponto.
+   */
+  if (modality && !unit) {
+    throw new Error('getRanking: recorte por modalidade exige a academia');
   }
+
+  /*
+   * A academia manda, quando vem.
+   *
+   * É o recorte de toda tela que o aluno abre: ele disputa com os colegas da
+   * academia dele. Sem `unit` sobram as chaves da rede inteira, que é o que
+   * a graduação e a limpeza de ficha usam.
+   */
+  if (unit) {
+    if (modality) {
+      return month
+        ? redisKeys.rankUnitModalityMonth(unit, modality, month)
+        : redisKeys.rankUnitModality(unit, modality);
+    }
+    return month ? redisKeys.rankUnitMonth(unit, month) : redisKeys.rankUnit(unit);
+  }
+
   if (belt) {
     return month ? redisKeys.rankBeltMonth(belt, month) : redisKeys.rankBelt(belt);
   }
@@ -386,6 +432,8 @@ export async function getRanking(
     readonly month?: string;
     readonly belt?: string;
     readonly modality?: string;
+    /** Academia do aluno. Sem ela o recorte é a rede inteira. */
+    readonly unit?: string;
     readonly limit?: number;
   },
 ): Promise<RankingRow[]> {
@@ -413,99 +461,125 @@ export async function getRanking(
 }
 
 /**
- * Recalcula os rankings por modalidade a partir do histórico.
+ * Recalcula os rankings do aluno a partir do histórico.
  *
- * Existe porque a modalidade passou a ser gravada na presença só agora: tudo
- * o que foi marcado antes disso não somou em ranking de modalidade nenhum, e
- * sem esta varredura as listas novas nasceriam vazias — o que o aluno leria
- * como "o ranking zerou", não como "o recorte é novo".
+ * Reescreve as quatro famílias de chave que a tela do aluno lê: o ranking da
+ * academia e o de cada modalidade dentro dela, no acumulado e mês a mês.
  *
- * A classificação vem de duas fontes, nesta ordem: a modalidade gravada na
+ * Existe porque os dois recortes nasceram depois das presenças. A modalidade
+ * só passou a ser gravada em cada check-in agora, e a separação por academia
+ * veio junto — sem esta varredura as listas nasceriam vazias, o que o aluno
+ * leria como "o ranking zerou", não como "o recorte é novo".
+ *
+ * A modalidade de cada presença vem de duas fontes, nesta ordem: a gravada na
  * presença, quando existe, e o `classId` casado contra a grade atual. A
  * segunda é aproximação — uma turma que mudou de modalidade reclassifica o
  * passado inteiro —, mas é a única informação que sobrou, e o acumulado
  * aproximado vale mais que o zerado.
  *
- * Presenças sem turma resolvida ficam de fora, e é o certo: elas contam no
- * ranking geral e não há como saber de qual modalidade são.
+ * A academia vem da ficha de hoje. Quem mudou de unidade tem o histórico
+ * inteiro movido para a nova, e é o comportamento desejado: ele disputa com
+ * os colegas de onde treina agora.
+ *
+ * Presença sem turma resolvida conta no ranking da academia e em nenhum por
+ * modalidade — não há como saber de qual ela é, e um ponto na lista errada é
+ * pior que um ponto a menos.
  *
  * **Reescreve as chaves do zero.** Rodando durante um check-in, aquele ponto
  * pode se perder — a varredura leu o histórico antes de ele entrar. É uma
- * operação de manutenção, feita uma vez e fora do horário de aula; rodar de
- * novo conserta.
+ * operação de manutenção, feita fora do horário de aula; rodar de novo
+ * conserta.
  */
 export async function rebuildModalityRankings(
-  students: readonly { readonly id: string }[],
+  students: readonly { readonly id: string; readonly unit: string }[],
   modalityOf: (classId: string) => ModalityId | null,
 ): Promise<{ readonly presencas: number; readonly semModalidade: number }> {
   const redis = getRedis();
   if (!redis) return { presencas: 0, semModalidade: 0 };
 
-  /** `modalidade` → `mês ou 'geral'` → aluno → pontos. */
-  const totais = new Map<ModalityId, Map<string, Map<string, number>>>();
+  /**
+   * Contagem por chave do Redis.
+   *
+   * Um mapa plano, com a chave final como índice, em vez de um mapa aninhado
+   * por unidade, modalidade e mês: com dois recortes cruzados o aninhamento
+   * vira três níveis de `Map` e a leitura do código passa a custar mais que a
+   * conta que ele faz.
+   */
+  const porChave = new Map<string, Map<string, number>>();
+  /** As chaves mensais, que precisam de TTL. */
+  const mensais = new Set<string>();
+
+  const somar = (key: string, userId: string): void => {
+    const atual = porChave.get(key) ?? new Map<string, number>();
+    atual.set(userId, (atual.get(userId) ?? 0) + 1);
+    porChave.set(key, atual);
+  };
 
   let presencas = 0;
   let semModalidade = 0;
 
-  const somar = (modality: ModalityId, bucket: string, userId: string): void => {
-    const porBucket = totais.get(modality) ?? new Map<string, Map<string, number>>();
-    const porAluno = porBucket.get(bucket) ?? new Map<string, number>();
-    porAluno.set(userId, (porAluno.get(userId) ?? 0) + 1);
-    porBucket.set(bucket, porAluno);
-    totais.set(modality, porBucket);
-  };
+  /*
+   * Toda chave que possa existir entra na lista a ser apagada, mesmo sem
+   * ninguém a pontuar.
+   *
+   * Sem isso, a modalidade que ficou sem nenhuma presença manteria a lista
+   * antiga: a varredura só apagaria o que fosse reescrever, e o recálculo
+   * deixaria no ar justamente o ranking que deveria ter esvaziado.
+   */
+  const unidades = [...new Set(students.map((student) => student.unit))];
+  const aLimpar = new Set<string>();
+  for (const unit of unidades) {
+    aLimpar.add(redisKeys.rankUnit(unit));
+    for (const modality of MODALITY_IDS) {
+      aLimpar.add(redisKeys.rankUnitModality(unit, modality));
+    }
+  }
 
   for (const student of students) {
     // Teto alto: é a vida inteira do aluno na academia, e esta rotina roda
-    // uma vez.
+    // de vez em quando.
     const entries = await listCheckins(student.id, 2000);
 
     for (const entry of entries) {
       presencas += 1;
 
-      const modality =
-        entry.modality ?? (entry.classId ? modalityOf(entry.classId) : null);
+      const month = entry.date.slice(0, 7);
+      const mesDaUnidade = redisKeys.rankUnitMonth(student.unit, month);
+
+      somar(redisKeys.rankUnit(student.unit), student.id);
+      somar(mesDaUnidade, student.id);
+      mensais.add(mesDaUnidade);
+      aLimpar.add(mesDaUnidade);
+
+      const modality = entry.modality ?? (entry.classId ? modalityOf(entry.classId) : null);
 
       if (!modality) {
         semModalidade += 1;
         continue;
       }
 
-      somar(modality, 'geral', student.id);
-      somar(modality, entry.date.slice(0, 7), student.id);
+      const mesDaModalidade = redisKeys.rankUnitModalityMonth(student.unit, modality, month);
+
+      somar(redisKeys.rankUnitModality(student.unit, modality), student.id);
+      somar(mesDaModalidade, student.id);
+      mensais.add(mesDaModalidade);
+      aLimpar.add(mesDaModalidade);
     }
   }
 
   const monthlyTtl = 60 * 60 * 24 * 400;
 
-  for (const modality of MODALITY_IDS) {
-    const porBucket = totais.get(modality) ?? new Map<string, Map<string, number>>();
+  const tx = redis.multi();
+  for (const key of aLimpar) tx.del(key);
 
-    // Os meses que existiam e sumiram da conta também precisam ser zerados;
-    // como não dá para enumerá-los, a varredura apaga o que vai reescrever e
-    // deixa os demais expirarem pelo TTL.
-    const geral = porBucket.get('geral') ?? new Map<string, number>();
-
-    const tx = redis.multi();
-    tx.del(redisKeys.rankModality(modality));
-
-    for (const [userId, score] of geral) {
-      tx.zadd(redisKeys.rankModality(modality), { score, member: userId });
+  for (const [key, porAluno] of porChave) {
+    for (const [userId, score] of porAluno) {
+      tx.zadd(key, { score, member: userId });
     }
-
-    for (const [bucket, porAluno] of porBucket) {
-      if (bucket === 'geral') continue;
-
-      const key = redisKeys.rankModalityMonth(modality, bucket);
-      tx.del(key);
-      for (const [userId, score] of porAluno) {
-        tx.zadd(key, { score, member: userId });
-      }
-      tx.expire(key, monthlyTtl);
-    }
-
-    await tx.exec();
+    if (mensais.has(key)) tx.expire(key, monthlyTtl);
   }
+
+  await tx.exec();
 
   return { presencas, semModalidade };
 }
@@ -517,6 +591,7 @@ export async function getRankingPosition(
     readonly month?: string;
     readonly belt?: string;
     readonly modality?: string;
+    readonly unit?: string;
   } = {},
 ): Promise<{ position: number; score: number } | null> {
   const redis = getRedis();

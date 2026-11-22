@@ -45,24 +45,54 @@ const PODIO: readonly { posicao: number; altura: string; medalha: string }[] = [
 export function RankingBoard({
   slices,
   tabs,
+  mine,
   defaultTab,
 }: {
   readonly slices: Readonly<Record<string, RankingSlice>>;
   readonly tabs: readonly RankingTab[];
-  /** A modalidade do próprio aluno — ver a escolha em `page.tsx`. */
+  /**
+   * As modalidades das turmas da ficha dele.
+   *
+   * São as abas que aparecem. Vazio — aluno recém-aprovado ainda sem turma —
+   * cai em todas, que é melhor que uma tela sem aba nenhuma.
+   */
+  readonly mine: readonly string[];
+  /** A principal delas: é nela que a tela abre. Ver `page.tsx`. */
   readonly defaultTab: string;
 }) {
   const [recorte, setRecorte] = useState<Recorte>('mes');
   const [aba, setAba] = useState<string>(defaultTab);
+  const [verTodas, setVerTodas] = useState(false);
 
-  const slice = slices[aba] ?? slices['geral'];
+  /*
+   * As abas visíveis: as dele, ou todas quando ele pediu.
+   *
+   * Quem treina uma modalidade só não precisa de quatro abas — três delas são
+   * listas em que ele não pontua, e a dele fica perdida no meio. O botão
+   * devolve as outras a um toque.
+   */
+  const minhas = new Set(mine);
+  const visiveis =
+    verTodas || minhas.size === 0 ? tabs : tabs.filter((item) => minhas.has(item.id));
+
+  /*
+   * Fechar a lista com uma aba de fora selecionada volta para a principal.
+   *
+   * Sem isto, espiar o MMA e fechar deixaria a tela num recorte invisível: as
+   * abas mostrariam só o Jiu-Jitsu e o pódio seria o do MMA, sem nada
+   * explicando a diferença.
+   */
+  const abaValida = visiveis.some((item) => item.id === aba) ? aba : (visiveis[0]?.id ?? aba);
+  if (abaValida !== aba) setAba(abaValida);
+
+  const slice = slices[abaValida] ?? slices['geral'];
   const month = slice?.month ?? [];
   const overall = slice?.overall ?? [];
 
   const lista = recorte === 'mes' ? month : overall;
   const minha = (recorte === 'mes' ? slice?.myMonth : slice?.myOverall) ?? null;
 
-  const abaAtual = tabs.find((item) => item.id === aba) ?? null;
+  const abaAtual = tabs.find((item) => item.id === abaValida) ?? null;
 
   const podio = PODIO.map((degrau) => ({
     ...degrau,
@@ -81,21 +111,21 @@ export function RankingBoard({
         abas curtas, e uma segunda linha empurraria o pódio para baixo da
         dobra justamente na tela em que a pessoa quer ver o pódio.
       */}
-      {tabs.length > 1 ? (
+      {visiveis.length > 1 || minhas.size > 0 ? (
         <div
           role="group"
           aria-label="Modalidade do ranking"
-          className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0"
+          className="-mx-4 mb-3 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0"
         >
-          {tabs.map((item) => (
+          {visiveis.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => setAba(item.id)}
-              aria-pressed={aba === item.id}
+              aria-pressed={abaValida === item.id}
               className={cn(
                 'inline-flex min-h-[40px] shrink-0 items-center justify-center rounded-full border px-4 text-sm font-medium transition-colors',
-                aba === item.id
+                abaValida === item.id
                   ? 'border-accent/60 bg-accent/15 text-foreground'
                   : 'border-hairline bg-white/[.04] text-muted hover:text-foreground',
               )}
@@ -103,6 +133,25 @@ export function RankingBoard({
               {item.label}
             </button>
           ))}
+
+          {/*
+            O botão de espiar o resto.
+
+            Discreto e à direita das abas, porque é a exceção: a tela existe
+            para o aluno ver a disputa dele, e as outras modalidades são
+            curiosidade. Some quando ele não tem turma na ficha — ali já
+            aparecem todas.
+          */}
+          {minhas.size > 0 && minhas.size < tabs.length ? (
+            <button
+              type="button"
+              onClick={() => setVerTodas((aberto) => !aberto)}
+              aria-expanded={verTodas}
+              className="inline-flex min-h-[40px] shrink-0 items-center gap-1 rounded-full px-2.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
+            >
+              {verTodas ? 'Só as minhas' : 'Ver todas'}
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -132,7 +181,7 @@ export function RankingBoard({
         <div className="panel mt-6 px-6 py-14 text-center">
           <p className="font-display text-lg uppercase tracking-tight">Ranking ainda vazio</p>
           <p className="mt-2 text-sm text-muted">
-            {abaAtual && aba !== 'geral'
+            {abaAtual && abaValida !== 'geral'
               ? `Ninguém pontuou em ${abaAtual.label} ${recorte === 'mes' ? 'neste mês' : 'ainda'}.`
               : 'Assim que as presenças começarem a entrar, o pódio aparece aqui.'}
           </p>

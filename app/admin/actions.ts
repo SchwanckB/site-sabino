@@ -2054,7 +2054,7 @@ export async function unlinkGuardianAction(form: FormData): Promise<ActionResult
 /* -------------------------------------------------------------------------- */
 
 /**
- * Recalcula os rankings de Jiu-Jitsu, MMA e Infantil.
+ * Recalcula os rankings do aluno: por academia e por modalidade.
  *
  * Os rankings por modalidade passaram a existir agora, e a modalidade só é
  * gravada na presença a partir daqui. Tudo o que foi marcado antes não somou
@@ -2089,7 +2089,7 @@ export async function rebuildModalityRankingsAction(): Promise<ActionResult> {
   const porTurma = new Map(schedule.classes.map((slot) => [slot.id, slot.modality]));
 
   const resultado = await rebuildModalityRankings(
-    [...ativos, ...inativos],
+    [...ativos, ...inativos].map((student) => ({ id: student.id, unit: student.unit })),
     (classId) => toModality(porTurma.get(classId)),
   );
 

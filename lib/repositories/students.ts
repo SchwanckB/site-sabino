@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { MODALITY_IDS } from '@/data/seed';
 import { getRedis, redisKeys } from '@/lib/redis';
 import {
   asInteger,
@@ -597,6 +598,13 @@ export async function deleteStudent(student: StudentRecord): Promise<void> {
   tx.zrem(redisKeys.graduationDue(), student.id);
   tx.zrem(redisKeys.paymentsDue(), student.id);
   tx.zrem(redisKeys.rankAll(), student.id);
+  // E dos rankings da academia dele: sem isto o nome continuaria no pódio de
+  // uma ficha que não existe mais, e a tela o esconderia só por não achar o
+  // aluno — deixando um buraco na numeração a cada leitura.
+  tx.zrem(redisKeys.rankUnit(student.unit), student.id);
+  for (const modality of MODALITY_IDS) {
+    tx.zrem(redisKeys.rankUnitModality(student.unit, modality), student.id);
+  }
 
   // Faixas são lista fechada e curta; varrer todas cobre as que o aluno já
   // teve, não só a atual.

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { MODALITY_IDS, MODALITY_LABELS, toModality, type ModalityId } from '@/data/seed';
+import { UNIT_LABELS } from '@/types/domain';
 import { resolveActiveProfile } from '@/lib/activeProfile';
 import { getSessionUser } from '@/lib/auth';
 import { getRanking, getRankingPosition } from '@/lib/repositories/attendance';
@@ -41,6 +42,42 @@ export default async function RankingPage() {
   const euId = eu?.id ?? user.id;
 
   /*
+   * O ranking é o da academia dele.
+   *
+   * São duas unidades com grades e tamanhos diferentes, e disputar pódio com
+   * quem treina a meia hora de distância não diz nada a ninguém. A unidade sai
+   * da ficha: é onde o aluno é de casa, mesmo nas noites em que ele visita a
+   * outra.
+   */
+  const unit = eu?.unit ?? null;
+
+  /*
+   * Sem ficha não há academia, e sem academia não há ranking.
+   *
+   * O layout do painel já barra quem não tem perfil ativo, então na prática
+   * isto não acontece. Fica porque a alternativa era pedir o ranking sem
+   * unidade — e aí o recorte por modalidade não existe como chave, o que
+   * agora falha alto em vez de devolver o geral em silêncio.
+   */
+  if (!eu || !unit) {
+    return (
+      <div>
+        <header>
+          <p className="eyebrow">Frequência</p>
+          <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Ranking</h1>
+        </header>
+        <div className="panel mt-8 px-6 py-14 text-center">
+          <p className="font-display text-lg uppercase tracking-tight">Ranking indisponível</p>
+          <p className="mt-2 text-sm text-muted">
+            Assim que a recepção aprovar seu cadastro e definir sua academia, o ranking aparece
+            aqui.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  /*
    * Um ranking por modalidade, e não um só.
    *
    * No geral, quem treina jiu **e** MMA soma duas presenças por noite contra
@@ -61,11 +98,13 @@ export default async function RankingPage() {
     RECORTES.map(async (recorte) => {
       const modality = recorte === 'geral' ? undefined : recorte;
 
+      const recorteBase = { unit, ...(modality ? { modality } : {}) };
+
       const [doMes, geral, posicaoMes, posicaoGeral] = await Promise.all([
-        getRanking({ month, limit: TOP, ...(modality ? { modality } : {}) }),
-        getRanking({ limit: TOP, ...(modality ? { modality } : {}) }),
-        getRankingPosition(euId, { month, ...(modality ? { modality } : {}) }),
-        getRankingPosition(euId, modality ? { modality } : {}),
+        getRanking({ ...recorteBase, month, limit: TOP }),
+        getRanking({ ...recorteBase, limit: TOP }),
+        getRankingPosition(euId, { ...recorteBase, month }),
+        getRankingPosition(euId, recorteBase),
       ]);
 
       return { recorte, doMes, geral, posicaoMes, posicaoGeral };
@@ -116,23 +155,29 @@ export default async function RankingPage() {
   }
 
   /*
-   * A aba que abre: a modalidade do próprio aluno.
+   * As modalidades **dele**, lidas das turmas da ficha.
    *
-   * Abrir no geral mandaria justamente a pessoa que o recorte veio proteger —
-   * a de uma modalidade só — para a lista em que ela não compete de igual
-   * para igual. A escolha vem das turmas da ficha dele; havendo empate, a
-   * primeira da ordem das modalidades resolve.
+   * São elas que a tela mostra. Oferecer as quatro listas a quem treina só
+   * Jiu-Jitsu é devolver o problema que o recorte veio resolver: três abas em
+   * que ele não compete, e a dele perdida no meio. As outras continuam a um
+   * toque, no botão de ver todas — quem quer espiar o MMA, espia.
+   *
+   * A contagem ordena: a modalidade com mais turmas na ficha é a principal, e
+   * é nela que a tela abre.
    */
   const grade = await getSchedule();
   const minhasModalidades = new Map<ModalityId, number>();
 
-  for (const classId of eu?.classIds ?? []) {
+  for (const classId of eu.classIds) {
     const modality = toModality(grade.classes.find((slot) => slot.id === classId)?.modality);
     if (modality) minhasModalidades.set(modality, (minhasModalidades.get(modality) ?? 0) + 1);
   }
 
-  const principal =
-    [...minhasModalidades.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const minhas = [...minhasModalidades.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([modality]) => modality);
+
+  const principal = minhas[0] ?? null;
 
   return (
     <div>
@@ -140,9 +185,9 @@ export default async function RankingPage() {
         <p className="eyebrow">Frequência</p>
         <h1 className="mt-2 text-3xl leading-none sm:text-4xl">Ranking</h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-          Quem mais apareceu no tatame. Cada treino vale um ponto, e cada modalidade tem a sua
-          lista — quem faz Jiu-Jitsu e MMA aparece nas duas, sem levar vantagem em nenhuma. O mês
-          zera no dia 1º e o geral soma desde sempre.
+          Quem mais apareceu no tatame em {UNIT_LABELS[unit]}. Cada treino vale um ponto, e cada
+          modalidade tem a sua lista — quem faz Jiu-Jitsu e MMA aparece nas duas, sem levar
+          vantagem em nenhuma. O mês zera no dia 1º e o geral soma desde sempre.
         </p>
       </header>
 
@@ -152,6 +197,7 @@ export default async function RankingPage() {
           id: recorte,
           label: recorte === 'geral' ? 'Todas' : MODALITY_LABELS[recorte],
         }))}
+        mine={minhas}
         defaultTab={principal ?? 'geral'}
       />
     </div>
