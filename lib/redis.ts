@@ -89,6 +89,26 @@ export const redisKeys = {
   rankUnitModality: (unit: string, modality: string) => `rank:u:${unit}:mod:${modality}`,
   rankUnitModalityMonth: (unit: string, modality: string, yearMonth: string) =>
     `rank:u:${unit}:mod:${modality}:month:${yearMonth}`,
+  /**
+   * Ranking feminino: as **alunas** da academia, em tudo o que treinam.
+   *
+   * Não é o ranking da turma feminina de terça e quinta, e a diferença
+   * importa. "Feminino" na boca da academia são as mulheres que treinam ali —
+   * deixar de fora quem faz a turma mista das 20:30 seria um ranking feminino
+   * sem metade das alunas.
+   *
+   * Também não virou modalidade na grade, embora fosse o caminho mais curto.
+   * A turma feminina é jiu-jitsu: promovê-la a modalidade tiraria aquelas
+   * presenças do ranking de Jiu-Jitsu, e as alunas passariam a disputar jiu
+   * em duas listas separadas por causa do horário em que treinam.
+   *
+   * O recorte sai do sexo da ficha. Quem não informou não entra — nem aqui
+   * nem em lista nenhuma por sexo, que é o único tratamento honesto para um
+   * campo que a pessoa escolheu deixar em branco.
+   */
+  rankUnitFeminino: (unit: string) => `rank:u:${unit}:fem`,
+  rankUnitFemininoMonth: (unit: string, yearMonth: string) =>
+    `rank:u:${unit}:fem:month:${yearMonth}`,
   rankBeltMonth: (belt: string, yearMonth: string) => `rank:belt:${belt}:month:${yearMonth}`,
   graduationHistory: (userId: string) => `graduation:history:${userId}`,
   graduationDue: () => 'graduation:due',

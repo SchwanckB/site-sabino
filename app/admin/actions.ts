@@ -2089,7 +2089,11 @@ export async function rebuildModalityRankingsAction(): Promise<ActionResult> {
   const porTurma = new Map(schedule.classes.map((slot) => [slot.id, slot.modality]));
 
   const resultado = await rebuildModalityRankings(
-    [...ativos, ...inativos].map((student) => ({ id: student.id, unit: student.unit })),
+    [...ativos, ...inativos].map((student) => ({
+      id: student.id,
+      unit: student.unit,
+      gender: student.gender,
+    })),
     (classId) => toModality(porTurma.get(classId)),
   );
 

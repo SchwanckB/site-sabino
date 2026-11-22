@@ -326,7 +326,7 @@ describe('reconstruir o histórico', () => {
 
     expect(await pontos('mma', 'user_a')).toBe(0);
 
-    const resultado = await attendance.rebuildModalityRankings([{ id: 'user_a', unit: 'tres-cachoeiras' }], (classId) =>
+    const resultado = await attendance.rebuildModalityRankings([{ id: 'user_a', unit: TC, gender: 'masculino' }], (classId) =>
       classId === MMA ? 'mma' : classId === JIU ? 'jiu-jitsu' : null,
     );
 
@@ -352,7 +352,7 @@ describe('reconstruir o histórico', () => {
     );
 
     const resultado = await attendance.rebuildModalityRankings(
-      [{ id: 'user_a', unit: 'tres-cachoeiras' }],
+      [{ id: 'user_a', unit: TC, gender: 'masculino' }],
       () => 'jiu-jitsu',
     );
 
@@ -370,7 +370,7 @@ describe('reconstruir o histórico', () => {
     await marcar('user_a', MMA);
 
     const reconstruir = () =>
-      attendance.rebuildModalityRankings([{ id: 'user_a', unit: 'tres-cachoeiras' }], () => 'mma');
+      attendance.rebuildModalityRankings([{ id: 'user_a', unit: TC, gender: 'masculino' }], () => 'mma');
 
     await reconstruir();
     await reconstruir();
@@ -502,5 +502,207 @@ describe('cada academia tem o seu ranking', () => {
 
     expect(await pontos('mma', 'user_tc', TC)).toBe(0);
     expect(await attendance.getRanking({ unit: TC, modality: 'mma', limit: 10 })).toEqual([]);
+  });
+});
+
+describe('o ranking feminino', () => {
+  /*
+   * São as **alunas** da academia, em tudo o que treinam — e não a turma
+   * feminina de terça e quinta.
+   *
+   * A diferença é a decisão de desenho deste recorte, e é o que estes testes
+   * travam. "Ranking feminino" na boca da academia são as mulheres que
+   * treinam ali; deixar de fora quem faz a turma mista das 20:30 seria um
+   * ranking feminino sem metade das alunas.
+   *
+   * E a turma feminina não virou modalidade, embora fosse o caminho curto:
+   * ela é jiu-jitsu. Promovê-la tiraria aquelas presenças do ranking de
+   * Jiu-Jitsu, e as alunas passariam a disputar jiu em duas listas separadas
+   * pelo horário em que treinam.
+   */
+
+  /** A turma feminina da grade, terça às 19:30. */
+  const FEM = 'ter-1930-jj-fem';
+  /** A mista de terça, 20:30. */
+  const MISTA = 'ter-2030-jj';
+  const TERCA = '2026-03-03';
+
+  const fem = async (userId: string, unit = TC) =>
+    (await attendance.getRankingPosition(userId, { unit, feminino: true }))?.score ?? 0;
+
+  async function criarAluna(id: string, classIds: readonly string[], unit = TC) {
+    const quando = em('2026-02-01', '12:00');
+    const pendente = await students.createPendingStudent(
+      {
+        id,
+        name: `Aluna ${id}`,
+        email: `${id}@teste.com`,
+        phone: '51999990000',
+        cpf: '52998224725',
+        birthDate: '2000-05-10',
+        belt: 'branca',
+        gender: 'feminino' as const,
+        unit: unit as 'tres-cachoeiras' | 'terra-de-areia',
+        guardianName: null,
+        guardianPhone: null,
+        guardianCpf: null,
+        docBlobKey: null,
+        consentVersion: 'lgpd-2026-01',
+        consentAt: '2026-02-01T12:00:00.000Z',
+      },
+      quando,
+    );
+
+    return students.approveStudent(
+      pendente,
+      { classIds: [...classIds], belt: 'branca', degree: 0, notes: '' },
+      quando,
+    );
+  }
+
+  it('a aluna pontua no feminino, treinando onde treinar', async () => {
+    await criarAluna('user_ana', [FEM, MISTA]);
+    agora(TERCA, '20:00');
+
+    await marcar('user_ana', FEM);
+    await marcar('user_ana', MISTA);
+
+    // As duas presenças contam no feminino: é o ranking das alunas.
+    expect(await fem('user_ana')).toBe(2);
+  });
+
+  it('a aluna da turma mista entra no feminino', async () => {
+    /*
+     * O caso que decidiu o desenho. Ela nunca pisa na turma feminina — treina
+     * com todo mundo às 20:30 — e é aluna da academia do mesmo jeito. Um
+     * ranking feminino sem ela não é um ranking feminino.
+     */
+    await criarAluna('user_so_mista', [MISTA]);
+    agora(TERCA, '21:00');
+
+    await marcar('user_so_mista', MISTA);
+
+    expect(await fem('user_so_mista')).toBe(1);
+  });
+
+  it('a turma feminina continua contando no Jiu-Jitsu', async () => {
+    /*
+     * O que se perderia tratando "feminino" como modalidade: as presenças da
+     * turma feminina sairiam do ranking de jiu, e a aluna disputaria jiu em
+     * duas listas separadas pelo horário em que treina.
+     */
+    await criarAluna('user_ana', [FEM]);
+    agora(TERCA, '20:00');
+
+    await marcar('user_ana', FEM);
+
+    expect(await pontos('jiu-jitsu', 'user_ana')).toBe(1);
+    expect(await fem('user_ana')).toBe(1);
+  });
+
+  it('o aluno não entra no feminino', async () => {
+    await criarAluno('user_joao', [MISTA]);
+    agora(TERCA, '21:00');
+
+    await marcar('user_joao', MISTA);
+
+    expect(await fem('user_joao')).toBe(0);
+    expect(await pontos('jiu-jitsu', 'user_joao')).toBe(1);
+  });
+
+  it('quem não informou o sexo fica de fora', async () => {
+    /*
+     * O campo é opcional no cadastro, e quem o deixou em branco o deixou de
+     * propósito. Chutar um lado para não deixar a pessoa fora de uma lista
+     * seria decidir por ela algo que ela escolheu não dizer.
+     */
+    const quando = em('2026-02-01', '12:00');
+    const pendente = await students.createPendingStudent(
+      {
+        id: 'user_sem',
+        name: 'Sem Informar',
+        email: 'sem@teste.com',
+        phone: '51999990000',
+        cpf: '52998224725',
+        birthDate: '2000-05-10',
+        belt: 'branca',
+        gender: 'nao_informado' as const,
+        unit: 'tres-cachoeiras' as const,
+        guardianName: null,
+        guardianPhone: null,
+        guardianCpf: null,
+        docBlobKey: null,
+        consentVersion: 'lgpd-2026-01',
+        consentAt: '2026-02-01T12:00:00.000Z',
+      },
+      quando,
+    );
+    await students.approveStudent(
+      pendente,
+      { classIds: [MISTA], belt: 'branca', degree: 0, notes: '' },
+      quando,
+    );
+
+    agora(TERCA, '21:00');
+    await marcar('user_sem', MISTA);
+
+    expect(await fem('user_sem')).toBe(0);
+    // Mas no ranking da academia e no de jiu ela conta como qualquer um.
+    expect(await pontos('jiu-jitsu', 'user_sem')).toBe(1);
+  });
+
+  it('é por academia, como os outros', async () => {
+    await criarAluna('user_ana', [MISTA], TC);
+    await criarAluna('user_bia', ['terra-de-areia-1-1930-jj-fem'], TA);
+
+    agora('2026-03-02', '20:00');
+    await marcar('user_bia', 'terra-de-areia-1-1930-jj-fem');
+
+    agora(TERCA, '21:00');
+    await marcar('user_ana', MISTA);
+
+    expect(await fem('user_ana', TC)).toBe(1);
+    expect(await fem('user_bia', TA)).toBe(1);
+    expect(await fem('user_ana', TA)).toBe(0);
+  });
+
+  it('desfazer tira o ponto do feminino também', async () => {
+    await criarAluna('user_ana', [MISTA]);
+    agora(TERCA, '21:00');
+    await marcar('user_ana', MISTA);
+
+    const form = new FormData();
+    form.set('studentId', 'user_ana');
+    form.set('classId', MISTA);
+    expect((await adminActions.undoPresenceAction(form)).ok).toBe(true);
+
+    expect(await fem('user_ana')).toBe(0);
+  });
+
+  it('o recálculo reconstrói o feminino', async () => {
+    await criarAluna('user_ana', [MISTA]);
+    agora(TERCA, '21:00');
+    await marcar('user_ana', MISTA);
+
+    const result = await adminActions.rebuildModalityRankingsAction();
+    expect(result.ok).toBe(true);
+
+    expect(await fem('user_ana')).toBe(1);
+  });
+
+  it('o pódio feminino só tem alunas', async () => {
+    await criarAluna('user_ana', [MISTA]);
+    await criarAluno('user_joao', [MISTA]);
+
+    agora(TERCA, '21:00');
+    await marcar('user_ana', MISTA);
+    await marcar('user_joao', MISTA);
+
+    const lista = await attendance.getRanking({ unit: TC, feminino: true, limit: 10 });
+    expect(lista.map((row) => row.userId)).toEqual(['user_ana']);
+
+    // E o de jiu tem os dois.
+    const jiu = await attendance.getRanking({ unit: TC, modality: 'jiu-jitsu', limit: 10 });
+    expect(jiu).toHaveLength(2);
   });
 });

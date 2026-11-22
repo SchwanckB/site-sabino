@@ -18,9 +18,15 @@ export const dynamic = 'force-dynamic';
 
 const TOP = 10;
 
-/** Os recortes da tela: o geral e um por modalidade. */
-type Recorte = 'geral' | ModalityId;
-const RECORTES: readonly Recorte[] = ['geral', ...MODALITY_IDS];
+/**
+ * Os recortes da tela.
+ *
+ * `geral` é a academia inteira, as modalidades são as turmas, e `feminino`
+ * é o recorte das alunas — todas elas, em tudo o que treinam, e não a turma
+ * feminina de terça e quinta. Ver `lib/redis.ts`.
+ */
+type Recorte = 'geral' | 'feminino' | ModalityId;
+const RECORTES: readonly Recorte[] = ['geral', ...MODALITY_IDS, 'feminino'];
 
 export default async function RankingPage() {
   const user = await getSessionUser();
@@ -96,9 +102,14 @@ export default async function RankingPage() {
    */
   const carregados = await Promise.all(
     RECORTES.map(async (recorte) => {
-      const modality = recorte === 'geral' ? undefined : recorte;
+      const modality =
+        recorte === 'geral' || recorte === 'feminino' ? undefined : recorte;
 
-      const recorteBase = { unit, ...(modality ? { modality } : {}) };
+      const recorteBase = {
+        unit,
+        ...(modality ? { modality } : {}),
+        ...(recorte === 'feminino' ? { feminino: true } : {}),
+      };
 
       const [doMes, geral, posicaoMes, posicaoGeral] = await Promise.all([
         getRanking({ ...recorteBase, month, limit: TOP }),
@@ -173,11 +184,23 @@ export default async function RankingPage() {
     if (modality) minhasModalidades.set(modality, (minhasModalidades.get(modality) ?? 0) + 1);
   }
 
-  const minhas = [...minhasModalidades.entries()]
+  const minhas: Recorte[] = [...minhasModalidades.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([modality]) => modality);
 
   const principal = minhas[0] ?? null;
+
+  /*
+   * A aba feminina é das alunas.
+   *
+   * Entra junto com as modalidades delas, e não como a principal: o pódio que
+   * diz mais à aluna é o da turma em que ela treina, contra quem treina o
+   * mesmo. O feminino é o recorte a mais, não o lugar dela.
+   *
+   * Quem não informou o sexo não entra — nem na lista, nem com a aba. É o
+   * único tratamento honesto para um campo deixado em branco de propósito.
+   */
+  if (eu.gender === 'feminino') minhas.push('feminino');
 
   return (
     <div>
@@ -195,7 +218,12 @@ export default async function RankingPage() {
         slices={slices}
         tabs={RECORTES.map((recorte) => ({
           id: recorte,
-          label: recorte === 'geral' ? 'Todas' : MODALITY_LABELS[recorte],
+          label:
+            recorte === 'geral'
+              ? 'Todas'
+              : recorte === 'feminino'
+                ? 'Feminino'
+                : MODALITY_LABELS[recorte],
         }))}
         mine={minhas}
         defaultTab={principal ?? 'geral'}

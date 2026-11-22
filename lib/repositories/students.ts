@@ -602,6 +602,7 @@ export async function deleteStudent(student: StudentRecord): Promise<void> {
   // uma ficha que não existe mais, e a tela o esconderia só por não achar o
   // aluno — deixando um buraco na numeração a cada leitura.
   tx.zrem(redisKeys.rankUnit(student.unit), student.id);
+  tx.zrem(redisKeys.rankUnitFeminino(student.unit), student.id);
   for (const modality of MODALITY_IDS) {
     tx.zrem(redisKeys.rankUnitModality(student.unit, modality), student.id);
   }

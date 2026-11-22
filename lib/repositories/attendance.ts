@@ -154,6 +154,14 @@ export async function recordCheckin(
   tx.zincrby(redisKeys.rankUnitMonth(student.unit, month), 1, student.id);
   tx.expire(redisKeys.rankUnitMonth(student.unit, month), monthlyTtl);
 
+  // O ranking feminino acompanha o da academia: toda presença dela conta,
+  // seja na turma feminina ou na mista. Ver `lib/redis.ts`.
+  if (student.gender === 'feminino') {
+    tx.zincrby(redisKeys.rankUnitFeminino(student.unit), 1, student.id);
+    tx.zincrby(redisKeys.rankUnitFemininoMonth(student.unit, month), 1, student.id);
+    tx.expire(redisKeys.rankUnitFemininoMonth(student.unit, month), monthlyTtl);
+  }
+
   // Presença sem turma resolvida não tem modalidade: conta nas duas listas
   // acima e em nenhuma por modalidade.
   if (modality) {
@@ -225,6 +233,11 @@ export async function undoCheckin(
    */
   tx.zincrby(redisKeys.rankUnit(student.unit), -1, student.id);
   tx.zincrby(redisKeys.rankUnitMonth(student.unit, month), -1, student.id);
+
+  if (student.gender === 'feminino') {
+    tx.zincrby(redisKeys.rankUnitFeminino(student.unit), -1, student.id);
+    tx.zincrby(redisKeys.rankUnitFemininoMonth(student.unit, month), -1, student.id);
+  }
 
   const modalidade =
     target?.modality ?? (isModality(fallbackModality) ? fallbackModality : null);
@@ -388,8 +401,9 @@ function rankingKey(options: {
   readonly belt?: string;
   readonly modality?: string;
   readonly unit?: string;
+  readonly feminino?: boolean;
 }): string {
-  const { month, belt, modality, unit } = options;
+  const { month, belt, modality, unit, feminino } = options;
 
   /*
    * Modalidade sem academia não existe.
@@ -402,6 +416,15 @@ function rankingKey(options: {
    */
   if (modality && !unit) {
     throw new Error('getRanking: recorte por modalidade exige a academia');
+  }
+  if (feminino && !unit) {
+    throw new Error('getRanking: o ranking feminino exige a academia');
+  }
+
+  // Feminino é um recorte das alunas, não um corte dentro de uma modalidade:
+  // ele soma tudo o que elas treinam naquela academia.
+  if (feminino && unit) {
+    return month ? redisKeys.rankUnitFemininoMonth(unit, month) : redisKeys.rankUnitFeminino(unit);
   }
 
   /*
@@ -434,6 +457,8 @@ export async function getRanking(
     readonly modality?: string;
     /** Academia do aluno. Sem ela o recorte é a rede inteira. */
     readonly unit?: string;
+    /** Só as alunas daquela academia, em todas as modalidades. */
+    readonly feminino?: boolean;
     readonly limit?: number;
   },
 ): Promise<RankingRow[]> {
@@ -491,7 +516,11 @@ export async function getRanking(
  * conserta.
  */
 export async function rebuildModalityRankings(
-  students: readonly { readonly id: string; readonly unit: string }[],
+  students: readonly {
+    readonly id: string;
+    readonly unit: string;
+    readonly gender: string;
+  }[],
   modalityOf: (classId: string) => ModalityId | null,
 ): Promise<{ readonly presencas: number; readonly semModalidade: number }> {
   const redis = getRedis();
@@ -530,6 +559,7 @@ export async function rebuildModalityRankings(
   const aLimpar = new Set<string>();
   for (const unit of unidades) {
     aLimpar.add(redisKeys.rankUnit(unit));
+    aLimpar.add(redisKeys.rankUnitFeminino(unit));
     for (const modality of MODALITY_IDS) {
       aLimpar.add(redisKeys.rankUnitModality(unit, modality));
     }
@@ -550,6 +580,14 @@ export async function rebuildModalityRankings(
       somar(mesDaUnidade, student.id);
       mensais.add(mesDaUnidade);
       aLimpar.add(mesDaUnidade);
+
+      if (student.gender === 'feminino') {
+        const mesFeminino = redisKeys.rankUnitFemininoMonth(student.unit, month);
+        somar(redisKeys.rankUnitFeminino(student.unit), student.id);
+        somar(mesFeminino, student.id);
+        mensais.add(mesFeminino);
+        aLimpar.add(mesFeminino);
+      }
 
       const modality = entry.modality ?? (entry.classId ? modalityOf(entry.classId) : null);
 
@@ -592,6 +630,7 @@ export async function getRankingPosition(
     readonly belt?: string;
     readonly modality?: string;
     readonly unit?: string;
+    readonly feminino?: boolean;
   } = {},
 ): Promise<{ position: number; score: number } | null> {
   const redis = getRedis();
