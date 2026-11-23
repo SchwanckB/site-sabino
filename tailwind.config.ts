@@ -20,6 +20,14 @@ const config: Config = {
       colors: {
         ink: '#0E0E10',
         surface: '#17171A',
+        /**
+         * Sem uso no código hoje. É a superfície mais clara da paleta, e é aí
+         * que ela engana: um input `bg-white/[.04]` sobre ela deixa o
+         * `placeholder:text-muted/70` em 4.29:1 e reprova AA. Dentro do
+         * `.panel` de hoje (`bg-surface/60` sobre `ink`) a mesma composição
+         * lê 4.71:1 e passa. Adotar este tom exige subir o placeholder para
+         * `text-muted` opaco (7.99:1).
+         */
         'surface-raised': '#1F1F23',
         hairline: 'rgba(255,255,255,.08)',
         foreground: '#F5F5F5',
