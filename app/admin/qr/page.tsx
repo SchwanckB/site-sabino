@@ -16,8 +16,8 @@ export const dynamic = 'force-dynamic';
 export default async function QrPage() {
   await requirePermission('aula');
 
-  const scope = await getUnitScope();
-  const schedule = await getSchedule();
+  // Recorte e grade não dependem um do outro: as duas leituras saem juntas.
+  const [scope, schedule] = await Promise.all([getUnitScope(), getSchedule()]);
 
   // No recorte de uma academia, só o cartaz dela. Em "todas", os dois.
   const visiveis: readonly UnitId[] = scope === 'todas' ? UNITS : [scope];

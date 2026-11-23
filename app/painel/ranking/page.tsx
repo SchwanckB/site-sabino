@@ -84,6 +84,19 @@ export default async function RankingPage() {
   }
 
   /*
+   * A grade começa a carregar agora, e é esperada só lá embaixo.
+   *
+   * Ela não depende do ranking nem das fichas: serve para descobrir as
+   * modalidades do aluno. Lida na ordem em que aparece, entrava na fila atrás
+   * das oito leituras de sorted set e da busca de fichas — uma viagem inteira
+   * de espera por um dado que já poderia ter chegado.
+   *
+   * Fica depois da guarda de propósito: quem não tem ficha sai pelo return
+   * acima, e uma promise iniciada antes dele ninguém aguardaria.
+   */
+  const gradePromise = getSchedule();
+
+  /*
    * Um ranking por modalidade, e não um só.
    *
    * No geral, quem treina jiu **e** MMA soma duas presenças por noite contra
@@ -176,7 +189,7 @@ export default async function RankingPage() {
    * A contagem ordena: a modalidade com mais turmas na ficha é a principal, e
    * é nela que a tela abre.
    */
-  const grade = await getSchedule();
+  const grade = await gradePromise;
   const minhasModalidades = new Map<ModalityId, number>();
 
   for (const classId of eu.classIds) {

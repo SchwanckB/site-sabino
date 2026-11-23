@@ -95,7 +95,18 @@ export default async function AdminPage() {
   const ativosNoRecorte = new Set(ids);
   const grausLiberados = dueIds.filter((id) => ativosNoRecorte.has(id)).length;
 
-  const retornos = await listFollowups('retorno');
+  /*
+   * Os dois acompanhamentos saem na mesma ida.
+   *
+   * Retorno e aniversário são índices separados e nenhum depende do outro.
+   * Lidos em sequência, custavam duas viagens ao Redis na tela que a gestão
+   * mais abre; o de aniversário só é usado bem mais abaixo, mas começar as
+   * duas leituras aqui não atrasa nada e economiza uma volta.
+   */
+  const [retornos, parabens] = await Promise.all([
+    listFollowups('retorno'),
+    listFollowups('aniversario'),
+  ]);
 
   /**
    * Horário das turmas do aluno, em texto curto.
@@ -167,7 +178,6 @@ export default async function AdminPage() {
    * quem já foi parabenizado neste ano sai da fila: a lista do mês inteiro
    * repetiria o aviso todos os dias até o mês virar.
    */
-  const parabens = await listFollowups('aniversario');
   const porId = new Map(active.map((student) => [student.id, student]));
 
   const birthdays: BirthdayRow[] = listBirthdays(comNascimento, year, month, now).map((item) => {
