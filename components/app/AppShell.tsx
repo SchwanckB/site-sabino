@@ -93,7 +93,16 @@ export function AppShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const reduceMotion = useReducedMotion();
 
+  /*
+   * Fechar a folha ao navegar.
+   *
+   * A regra `set-state-in-effect` tem razão: o caminho que o React recomenda é
+   * comparar o pathname anterior durante o render, sem efeito nenhum. A troca
+   * fica pendente de verificação em navegador — errar aqui deixa a folha aberta
+   * por cima da tela nova, que incomoda mais que o render a mais.
+   */
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMenuOpen(false);
   }, [pathname]);
 

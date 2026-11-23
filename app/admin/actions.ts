@@ -1,6 +1,13 @@
 'use server';
 
-import { revalidatePath, revalidateTag } from 'next/cache';
+/*
+ * `updateTag` e não `revalidateTag`: na 16 o segundo passou a exigir um perfil
+ * de `cacheLife`, e a própria doc manda usar `updateTag` quando a expiração
+ * precisa ser imediata dentro de uma Server Action. É o caso de todas as daqui
+ * — quem salva a grade ou um plano tem de ver o resultado na volta, que é o que
+ * as mensagens de retorno prometem.
+ */
+import { revalidatePath, updateTag } from 'next/cache';
 
 import { toModality } from '@/data/seed';
 import { authorize, isGestaoEmail, requireStaff } from '@/lib/auth';
@@ -1271,7 +1278,7 @@ export async function saveClassAction(form: FormData): Promise<ActionResult> {
   if (!result.ok) return { ok: false, message: result.error };
 
   refreshAdmin();
-  revalidateTag(CACHE_TAGS.schedule);
+  updateTag(CACHE_TAGS.schedule);
   revalidatePath('/');
   return { ok: true, message: 'Turma salva. A grade do site já foi atualizada.' };
 }
@@ -1286,7 +1293,7 @@ export async function deleteClassAction(form: FormData): Promise<ActionResult> {
   await removeClass(id, new Date());
 
   refreshAdmin();
-  revalidateTag(CACHE_TAGS.schedule);
+  updateTag(CACHE_TAGS.schedule);
   revalidatePath('/');
   return { ok: true, message: 'Turma removida.' };
 }
@@ -1567,7 +1574,7 @@ export async function resetScheduleAction(): Promise<ActionResult> {
   await resetScheduleToSeed(new Date());
 
   refreshAdmin();
-  revalidateTag(CACHE_TAGS.schedule);
+  updateTag(CACHE_TAGS.schedule);
   revalidatePath('/');
   return { ok: true, message: 'Grade restaurada para os horários padrão.' };
 }
@@ -1654,7 +1661,7 @@ export async function savePlanAction(form: FormData): Promise<ActionResult> {
   if (!result.ok) return { ok: false, message: result.error };
 
   refreshAdmin();
-  revalidateTag(CACHE_TAGS.plans);
+  updateTag(CACHE_TAGS.plans);
   revalidatePath('/');
   return { ok: true, message: 'Plano salvo. O site já foi atualizado.' };
 }
@@ -1676,7 +1683,7 @@ export async function deletePlanAction(form: FormData): Promise<ActionResult> {
   }
 
   refreshAdmin();
-  revalidateTag(CACHE_TAGS.plans);
+  updateTag(CACHE_TAGS.plans);
   revalidatePath('/');
   return { ok: true, message: 'Plano removido do site.' };
 }
@@ -1688,7 +1695,7 @@ export async function resetPlansAction(): Promise<ActionResult> {
   await resetPlansToSeed(new Date());
 
   refreshAdmin();
-  revalidateTag(CACHE_TAGS.plans);
+  updateTag(CACHE_TAGS.plans);
   revalidatePath('/');
   return { ok: true, message: 'Planos de exemplo restaurados.' };
 }

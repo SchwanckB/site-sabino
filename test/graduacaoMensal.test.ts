@@ -50,7 +50,7 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: () => undefined,
-  revalidateTag: () => undefined,
+  updateTag: () => undefined,
   unstable_cache: <T,>(fn: T): T => fn,
 }));
 

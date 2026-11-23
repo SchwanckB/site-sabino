@@ -127,6 +127,9 @@ export function OnboardingForm({
   // A data de nascimento é controlada: realinha com o que o servidor recebeu
   // para que os campos do responsável não desapareçam depois de um erro.
   useEffect(() => {
+    // A troca por comparação no render fica pendente de verificação: errar aqui
+    // esconde os campos do responsável depois de um erro do servidor.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (sent && sent.birthDate !== birthDate) setBirthDate(sent.birthDate);
     // Só quando o servidor responde — digitar não deve disparar isto.
     // eslint-disable-next-line react-hooks/exhaustive-deps

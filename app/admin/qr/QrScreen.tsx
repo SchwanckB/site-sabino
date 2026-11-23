@@ -84,7 +84,17 @@ export function QrScreen({
     }
   }, [unit]);
 
+  /*
+   * Buscar o código ao abrir e a cada troca de academia.
+   *
+   * A regra `set-state-in-effect` pega isto porque `load` mexe no estado antes
+   * do primeiro await — limpa o QR anterior e avisa quando não há academia. O
+   * aviso é derivável no render; o `setQr(null)` é reset de início de busca.
+   * Separar os dois pede verificação em navegador, porque errar deixa a parede
+   * sem cartaz.
+   */
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
 

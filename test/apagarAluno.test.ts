@@ -75,7 +75,7 @@ vi.mock('@/lib/repositories/documents', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: () => undefined,
-  revalidateTag: () => undefined,
+  updateTag: () => undefined,
   unstable_cache: <T,>(fn: T): T => fn,
 }));
 
